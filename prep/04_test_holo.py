@@ -1,4 +1,4 @@
-"""Test de Holo4 (Models API de H) : les 2 capacités dont le projet a besoin.
+"""Test de Holo (Models API de H) : les 2 capacités dont le projet a besoin.
 
 Test 1 — Lire une facture (image) : extraire les champs ET repérer une incohérence (INV-009, TTC faux).
 Test 2 — Écrire une Skill : à partir de la transcription d'une démo + l'image de la facture,
