@@ -1,0 +1,12 @@
+# Secrets : jamais sur GitHub
+.env
+prep/odoo/odoo.conf
+
+# Environnements et caches
+.venv/
+__pycache__/
+.DS_Store
+
+# Vidéos de démo (trop lourdes pour git : à partager par Drive)
+*.mov
+*.mp4

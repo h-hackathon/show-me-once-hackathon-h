@@ -1,0 +1,3 @@
+run_id,condition,invoice_id,task,steps,time_s,result,blockers,proof_screenshot,notes
+1,A_prompt_only,INV-001,Saisir la facture dans Odoo et s'arrêter avant validation,,,reached|blocked|gave_up,,,
+1,B_with_skill,INV-001,Saisir la facture dans Odoo et s'arrêter avant validation,,,reached|blocked|gave_up,,,

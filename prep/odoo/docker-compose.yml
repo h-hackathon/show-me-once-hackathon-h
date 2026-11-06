@@ -1,0 +1,30 @@
+# Odoo de test pour le hackathon : base + Odoo + tunnel public (URL https://xxx.trycloudflare.com)
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: odoo
+      POSTGRES_PASSWORD: odoo
+      POSTGRES_DB: postgres
+    volumes:
+      - db-data:/var/lib/postgresql/data
+
+  odoo:
+    image: odoo:18.0
+    depends_on: [db]
+    ports:
+      - "${ODOO_PORT:-8069}:8069"   # accès local : http://localhost:8069
+    volumes:
+      - ./odoo.conf:/etc/odoo/odoo.conf:ro
+      - odoo-data:/var/lib/odoo
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    depends_on: [odoo]
+    # tunnel temporaire sans compte : l'URL change à chaque redémarrage
+    # http2 : passe sur les réseaux qui bloquent QUIC/UDP (wifi d'école, hackathon)
+    command: tunnel --no-autoupdate --protocol http2 --url http://odoo:8069
+
+volumes:
+  db-data:
+  odoo-data:
