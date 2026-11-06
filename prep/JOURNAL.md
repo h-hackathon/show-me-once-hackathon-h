@@ -152,3 +152,14 @@ qui donne à notre Odoo une adresse publique temporaire (`https://xxx.trycloudfl
   → Bel exemple de règle métier qu'un agent ne devine pas seul, mais qu'un comptable montre en 2 secondes.
 - **ffmpeg** (outil qui extrait le son et les images d'une vidéo) : installé via le paquet Python `imageio-ffmpeg`,
   dans `.venv`. Homebrew ne marchait pas : version Intel sur un Mac M5, incompatible avec macOS 26.
+
+## Vendredi 6 nov — Partage avec l'équipe
+
+- **Dépôt git** créé dans `Bureau/Hackathon H` (préparation uniquement, pas le code produit).
+  Les secrets en sont exclus : `.env` et `odoo/odoo.conf` sont dans `.gitignore`, et j'ai vérifié qu'aucune clé n'est commitée.
+  Les vidéos (`.mov`, `.mp4`) sont exclues aussi, trop lourdes : à partager par Drive.
+- **`odoo/setup_odoo.sh`** : installe en une commande le même Odoo chez chaque membre
+  (compta française, société fictive, compte sécurisé écrit dans `.env`). Testé sur une copie isolée ✅.
+- **README** : section « Démarrage pour l'équipe ».
+- **Kit équipe** (document en ligne partageable) : projet en 1 page, état des tests, découvertes,
+  installation, mission par rôle, plan de tournage, planning.
