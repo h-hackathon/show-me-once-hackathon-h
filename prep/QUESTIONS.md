@@ -15,3 +15,5 @@
 10. L'agent peut-il **téléverser un fichier** (le PDF de la facture) dans la page web, ou faut-il lui donner le contenu en texte ?
 11. Le résumé final de l'agent a inventé un détail (10 factures vues dans une liste vide). Existe-t-il un mode
     ou un réglage pour limiter ça, ou faut-il toujours vérifier côté application ?
+
+12. Holo4 (`holo4-27b`, `holo4-35b-a3b`) renvoie une erreur 402 sur un compte gratuit : sera-t-il accessible avec les crédits du hackathon ?

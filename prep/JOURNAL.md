@@ -163,3 +163,21 @@ qui donne à notre Odoo une adresse publique temporaire (`https://xxx.trycloudfl
 - **README** : section « Démarrage pour l'équipe ».
 - **Kit équipe** (document en ligne partageable) : projet en 1 page, état des tests, découvertes,
   installation, mission par rôle, plan de tournage, planning.
+
+## Vendredi 6 nov — Holo (Models API) : le cœur du projet fonctionne ✅
+
+- `04_test_holo.py` : 2 tests, appel en format compatible OpenAI (`api.hcompany.ai/v1/chat/completions`).
+- **Accès** : `holo4-27b` et `holo4-35b-a3b` → erreur 402, ils demandent des crédits payants.
+  `holo3-1-35b-a3b` est **gratuit** et suffit pour nos tests (modèle par défaut du script).
+- **Test 1 — lire une facture (image d'INV-009)** : 2,8 s. Tous les champs sont justes, et il **repère le piège** :
+  « HT + TVA = 1 266 € ≠ TTC affiché 1 366 € ».
+- **Test 2 — écrire une Skill** (transcription de la démo + image d'INV-001) : 3,6 s.
+  Résultat propre en 3 parties : ÉTAPES (menus Odoo exacts), RÈGLES (contrôle du total, brouillon), ARRÊT (quand prévenir l'humain).
+
+**Ce qu'on en retient**
+- La chaîne « démo commentée → Skill » marche dès maintenant, en quelques secondes.
+- ⚠️ **La Skill recopie aussi les erreurs de l'humain.** La narration disait « TVA à zéro » pour un fournisseur étranger,
+  et la Skill l'a reprise, alors que la bonne saisie est « 20% EU G ».
+  → C'est exactement pour ça que la Skill doit être **relue et éditable** avant de lancer l'agent (critère UX & contrôle).
+  → Phrase pitch : « L'agent apprend votre méthode, et vous gardez la main sur ce qu'il a appris. »
+- Question pour H (Discord) : Holo4 sera-t-il accessible pendant le hackathon avec les crédits fournis ?
