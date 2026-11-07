@@ -83,6 +83,15 @@ class Settings:
             raise MissingConfig(f"À renseigner dans smo/.env : {', '.join(missing)}")
 
 
+def url(value: str | None) -> str | None:
+    """« xxx.up.railway.app » → « https://xxx.up.railway.app » ; localhost sans schéma → http://."""
+    value = (value or "").strip().rstrip("/")
+    if not value or "://" in value:
+        return value or None
+    local = value.startswith(("localhost", "127.0.0.1"))
+    return f"{'http' if local else 'https'}://{value}"
+
+
 def load() -> Settings:
     def env(name: str) -> str | None:
         value = os.environ.get(ENV[name], "").strip()
@@ -101,12 +110,12 @@ def load() -> Settings:
         devin_org_id=env("devin_org_id"),
         devin_repo=env("devin_repo"),
         devin_max_acu=int(env("devin_max_acu")),
-        site_url=(env("site_url") or "").rstrip("/") or None,
+        site_url=url(env("site_url")),
         site_login=env("site_login"),
         site_password=env("site_password"),
         site_admin_token=env("site_admin_token"),
         site_dossier=env("site_dossier"),
-        server_url=(env("server_url") or "").rstrip("/") or None,
+        server_url=url(env("server_url")),
         server_token=env("server_token"),
         h_webhook_secret=env("h_webhook_secret"),
         auto_repair=env("auto_repair") == "1",
