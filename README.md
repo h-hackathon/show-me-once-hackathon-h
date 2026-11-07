@@ -29,6 +29,7 @@ Le nom du dossier est `NAME` : lettres minuscules, chiffres et `_`.
 - **Sélecteurs** : uniquement par rôle et libellé visible, avec `h_tools.ui.locate`, `page.get_by_role` ou `get_by_label`. Jamais de coordonnées ni de CSS : c'est ce qui rend le precheck fiable.
 - **`precheck`** ne modifie rien. En général : `login(page, cfg)` puis `check_contract(page, CONTRACT, cfg)`.
 - **`run`** :
+  - il vérifie d'abord l'interface, comme `precheck` : si elle a changé, il renvoie `{"status": "error", "reason": "interface changée", "missing": [...]}` sans rien saisir ;
   - il est idempotent : une pièce déjà saisie renvoie `{"status": "duplicate"}` ;
   - les règles de la Skill sont codées en dur : un écart renvoie `{"status": "flagged", "reason": ...}` sans rien enregistrer ;
   - il s'arrête toujours avant l'action finale (brouillon, réponse préparée) : jamais « Valider », jamais « Soumettre ».
