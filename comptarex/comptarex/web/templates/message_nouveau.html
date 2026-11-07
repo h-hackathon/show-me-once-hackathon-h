@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Nouveau message{% endblock %}
+{% block contenu %}
+<div class="tb">Nouveau message vers l'espace client</div>
+<form method="post" action="{{ url_for('nouveau_message') }}" class="fenetre" style="width:560px">
+  <input type="hidden" name="_csrf" value="{{ csrf }}">
+  <div class="fenetre-corps">
+    {% if erreur %}<div class="erreurs" role="alert">{{ erreur }}</div>{% endif %}
+    <div class="grille" style="grid-template-columns:110px 1fr">
+      <label for="a">Destinataire *</label>
+      <select id="a" name="a" class="in"><option value="">-- Choisir --</option>
+        {% for d in destinataires %}<option {% if v.a == d %}selected{% endif %}>{{ d }}</option>{% endfor %}</select>
+      <label for="objet">Objet *</label><input id="objet" name="objet" class="in" value="{{ v.objet }}">
+      <label for="corps" style="align-self:start">Message</label>
+      <textarea id="corps" name="corps" class="in" rows="8" style="resize:none">{{ v.corps }}</textarea>
+    </div>
+    <span class="gris">Les pièces jointes ne peuvent être ajoutées que depuis une édition (bouton « Transmettre au client »).</span>
+    <div class="ligne" style="justify-content:flex-end">
+      <button type="submit" class="btn">Envoyer</button>
+      <a href="{{ url_for('messagerie') }}" class="btn">Annuler</a>
+    </div>
+  </div>
+</form>
+{% endblock %}

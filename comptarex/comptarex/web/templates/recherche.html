@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Recherche d'écritures{% endblock %}
+{% block contenu %}
+<div class="tb">Recherche d'écritures multi-critères</div>
+<form method="get" action="{{ url_for('recherche') }}" class="fenetre" style="width:640px">
+  <div class="fenetre-corps">
+    <div class="grille" style="grid-template-columns:150px 1fr">
+      <label for="journal">Code journal *</label>
+      <select id="journal" name="journal" class="in" style="width:220px">
+        <option value="">-- Choisir --</option>
+        {% for code, nom in journaux.items() %}<option value="{{ code }}" {% if a.journal == code %}selected{% endif %}>{{ code }} - {{ nom }}</option>{% endfor %}
+        <option value="TOUS" {% if a.journal == 'TOUS' %}selected{% endif %}>* Tous les journaux (lent) *</option>
+      </select>
+      <label for="montant">Montant exact</label><input id="montant" name="montant" class="in" value="{{ a.montant or '' }}" style="width:100px">
+      <label for="libelle">Libellé contient</label><input id="libelle" name="libelle" class="in" value="{{ a.libelle or '' }}" style="width:220px">
+      <label for="du">Du (JJ/MM/AAAA)</label><input id="du" name="du" class="in" value="{{ a.du or '01/01/2026' }}" style="width:90px">
+      <label for="au">Au (JJ/MM/AAAA)</label><input id="au" name="au" class="in" value="{{ a.au or '31/12/2026' }}" style="width:90px">
+    </div>
+    <div class="ligne" style="justify-content:flex-end"><button type="submit" class="btn">Rechercher</button></div>
+  </div>
+</form>
+{% if erreur %}<div class="erreurs" role="alert">{{ erreur }}</div>{% endif %}
+{% if calcule %}
+<div class="ligne" style="justify-content:space-between"><b>{{ total }} ligne(s) trouvée(s)</b>{% include "_pagination.html" %}</div>
+<div class="creux">
+  <table class="g">
+    <thead><tr><th>Date</th><th>Jnl</th><th>Pièce</th><th>Compte</th><th>Libellé</th><th class="r">Débit</th><th class="r">Crédit</th><th>Statut</th></tr></thead>
+    <tbody>
+      {% for r in rows %}
+      <tr class="{% if loop.index is even %}alt{% endif %}"><td>{{ r.date|date_fr }}</td><td>{{ r.journal }}</td><td>{{ r.piece }}</td><td>{{ r.compte }}</td>
+        <td>{{ r.libelle[:38] }}</td><td class="r">{{ r.debit|fmt if r.debit else '' }}</td><td class="r">{{ r.credit|fmt if r.credit else '' }}</td>
+        <td>{{ 'BROUILLARD' if r.statut == 'brouillard' else '' }}</td></tr>
+      {% else %}
+      <tr><td colspan="8">Aucune écriture ne correspond aux critères.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

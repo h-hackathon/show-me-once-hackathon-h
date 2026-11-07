@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Balance générale{% endblock %}
+{% block contenu %}
+<div class="tb">Edition : Balance générale</div>
+<form method="get" action="{{ url_for('balance') }}" class="ligne">
+  <label for="au">Arrêtée au (JJ/MM/AAAA) :</label><input id="au" name="au" class="in" value="{{ au }}" placeholder="__/__/____" style="width:90px">
+  <label for="niveau">Niveau :</label>
+  <select id="niveau" name="niveau" class="in">{% for k, nom in niveaux.items() %}<option value="{{ k }}" {% if niveau == k %}selected{% endif %}>{{ nom }}</option>{% endfor %}</select>
+  <label class="opt"><input type="checkbox" name="brouillard" value="1" {% if brouillard %}checked{% endif %}> Inclure le brouillard</label>
+  <button type="submit" class="btn">Afficher</button>
+</form>
+{% if erreur %}<div class="erreurs" role="alert">{{ erreur }}</div>{% endif %}
+{% if calcule %}
+<div class="ligne" style="justify-content:flex-end">{% include "_pagination.html" %}</div>
+<div class="creux">
+  <table class="g">
+    <thead><tr><th>Compte</th><th>Libellé</th><th class="r">Total débit</th><th class="r">Total crédit</th><th class="r">Solde débiteur</th><th class="r">Solde créditeur</th></tr></thead>
+    <tbody>
+      {% for r in rows %}
+      <tr class="{% if loop.index is even %}alt{% endif %}"><td>{{ r.compte }}</td><td>{{ r.libelle }}</td>
+        <td class="r">{{ r.debit|fmt }}</td><td class="r">{{ r.credit|fmt }}</td>
+        <td class="r">{{ r.solde_debiteur|fmt if r.solde_debiteur else '' }}</td><td class="r">{{ r.solde_crediteur|fmt if r.solde_crediteur else '' }}</td></tr>
+      {% endfor %}
+      {% if page == pages %}
+      <tr><td colspan="2"><b>TOTAL GENERAL</b></td><td class="r"><b>{{ totaux.debit|fmt }}</b></td><td class="r"><b>{{ totaux.credit|fmt }}</b></td>
+        <td class="r"><b>{{ totaux.solde_debiteur|fmt }}</b></td><td class="r"><b>{{ totaux.solde_crediteur|fmt }}</b></td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

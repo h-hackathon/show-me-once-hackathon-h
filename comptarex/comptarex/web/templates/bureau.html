@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Bureau du dossier{% endblock %}
+{% block contenu %}
+<div class="tb">Tableau de bord — {{ dossier_libelle }}</div>
+<div class="info">
+  <span>Dernière écriture : <b>{{ infos.derniere }}</b></span>
+  <span>Ecritures en brouillard : <b class="rouge">{{ infos.brouillard }}</b></span>
+  <span>Dernière clôture mensuelle : <b>30/09/2026</b></span>
+  <span>Dernière situation éditée : <b>{{ (derniere_situation[:10]|date_fr) if derniere_situation else '30/09/2026' }}</b></span>
+</div>
+<section class="panel" aria-labelledby="t-messages">
+  <div class="ph"><span id="t-messages">Messagerie — {{ nb_non_lus }} message(s) non lu(s)</span>
+    <span><a href="{{ url_for('messagerie') }}">Ouvrir la messagerie</a> | <a href="{{ url_for('nouveau_message') }}">Nouveau message</a></span></div>
+  <table class="g">
+    <thead><tr><th>!</th><th>Date</th><th>De</th><th>Objet</th><th>P.J.</th></tr></thead>
+    <tbody>
+      {% for m in messages %}
+      <tr class="{% if not m.lu %}nonlu{% endif %} {% if loop.index is even %}alt{% endif %}">
+        <td>{% if not m.lu %}!{% endif %}</td><td>{{ m.date|date_fr }}</td><td>{{ m.de }}</td>
+        <td><a href="{{ url_for('lire_message', message_id=m.id) }}">{{ m.objet }}</a></td>
+        <td>{{ 'Oui' if m.piece_jointe else 'Non' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+<section class="panel" aria-labelledby="t-pieces">
+  <div class="ph"><span id="t-pieces">Factures à traiter ({{ nb_pieces }}) — cliquez sur un n° pour ouvrir le PDF</span>
+    <span>Pièces {{ (p - 1) * 5 + 1 if nb_pieces else 0 }} à {{ [p * 5, nb_pieces]|min }} sur {{ nb_pieces }} —
+      {% if p > 1 %}<a href="{{ url_for('bureau', p=p - 1) }}">&lt;&lt; Précédentes</a>{% endif %}
+      {% if p < p_max %}<a href="{{ url_for('bureau', p=p + 1) }}">Suivantes &gt;&gt;</a>{% endif %}</span></div>
+  <table class="g">
+    <thead><tr><th>N° pièce</th><th>Reçue le</th><th>Tiers</th><th>Réf. fournisseur</th><th class="r">Montant TTC</th><th>Statut</th><th></th></tr></thead>
+    <tbody>
+      {% for pc in pieces %}
+      <tr class="{% if loop.index is even %}alt{% endif %}">
+        <td><a href="{{ url_for('inbox_pdf', code=pc.code) }}" target="_blank">{{ pc.code }}</a></td>
+        <td>{{ pc.recue_le|date_fr }}</td><td>{{ pc.expediteur }}</td><td>{{ pc.reference }}</td>
+        <td class="r">{{ pc.montant|fmt }}</td><td>{{ pc.statut }}</td>
+        <td><a href="{{ url_for('nouvelle_facture', piece=pc.code) }}">Saisir</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+<div class="ligne">
+  <a href="{{ url_for('nouvelle_facture') }}" class="btn">Nouvelle facture fournisseur</a>
+  <a href="{{ url_for('nouveau_message', objet='DEMANDE DE PIECE') }}" class="btn">Demander une pièce au client</a>
+  <a href="{{ url_for('inbox') }}" class="btn">Toutes les factures à traiter</a>
+</div>
+{% endblock %}

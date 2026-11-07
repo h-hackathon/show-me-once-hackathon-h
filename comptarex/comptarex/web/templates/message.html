@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}{{ m.objet }}{% endblock %}
+{% block contenu %}
+<div class="tb">Message — {{ m.objet }}</div>
+<div class="panel">
+  <div class="grille" style="grid-template-columns:90px 1fr;padding:6px">
+    <span>De :</span><b>{{ m.de }}</b>
+    <span>A :</span><span>{{ m.a }}</span>
+    <span>Date :</span><span>{{ m.date|date_fr }}</span>
+    <span>Pièce jointe :</span><span>{{ m.piece_jointe or 'aucune' }}</span>
+  </div>
+  <div style="padding:10px;border-top:1px solid #808080;white-space:pre-line;font:12px 'Courier New', Courier, monospace">{{ m.corps }}</div>
+</div>
+<div class="ligne">
+  <a href="{{ url_for('messagerie', boite='envoyes' if m.sens == 'envoye' else None) }}" class="btn">Retour à la liste</a>
+  {% if m.sens == 'recu' %}<a href="{{ url_for('nouveau_message', objet='RE: ' ~ m.objet) }}" class="btn">Répondre</a>{% endif %}
+</div>
+{% endblock %}

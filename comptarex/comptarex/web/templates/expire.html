@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Page expirée{% endblock %}
+{% block contenu %}
+<div class="tb">Page expirée</div>
+<div class="erreurs" role="alert">
+  La page a expiré ou le formulaire a déjà été envoyé (jeton de sécurité invalide, code 0x5E).<br>
+  N'utilisez pas les boutons Précédent / Suivant de votre navigateur. Recommencez votre opération.
+</div>
+<div><a href="{{ url_for('accueil') }}" class="btn">Retour</a></div>
+{% endblock %}

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Messagerie{% endblock %}
+{% block contenu %}
+<div class="tb">Messagerie cabinet / client — {{ dossier_libelle }}</div>
+<div class="ligne" style="justify-content:space-between">
+  <div class="ligne">
+    <a href="{{ url_for('messagerie') }}" class="btn {% if boite == 'recu' %}courant{% endif %}">Boîte de réception</a>
+    <a href="{{ url_for('messagerie', boite='envoyes') }}" class="btn {% if boite == 'envoye' %}courant{% endif %}">Envoyés</a>
+    <a href="{{ url_for('nouveau_message') }}" class="btn">Nouveau message</a>
+  </div>
+  {% include "_pagination.html" %}
+</div>
+<div class="creux">
+  <table class="g">
+    <thead><tr><th>!</th><th>Date</th><th>{{ 'De' if boite == 'recu' else 'A' }}</th><th>Objet</th><th>P.J.</th></tr></thead>
+    <tbody>
+      {% for m in rows %}
+      <tr class="{% if not m.lu %}nonlu{% endif %} {% if loop.index is even %}alt{% endif %}">
+        <td>{% if not m.lu %}!{% endif %}</td><td>{{ m.date|date_fr }}</td><td>{{ m.de if boite == 'recu' else m.a }}</td>
+        <td><a href="{{ url_for('lire_message', message_id=m.id) }}">{{ m.objet }}</a></td><td>{{ m.piece_jointe or '' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5">Aucun message.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

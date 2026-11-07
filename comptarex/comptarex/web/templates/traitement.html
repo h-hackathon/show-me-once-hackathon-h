@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Traitement en cours{% endblock %}
+{% block contenu_class %}bureau-gris{% endblock %}
+{% block contenu %}
+<meta http-equiv="refresh" content="3;url={{ suite }}">
+<div class="fenetre" style="width:420px;align-self:center;margin-top:120px">
+  <div class="tb">Edition en cours</div>
+  <div class="fenetre-corps" role="status">
+    <span>Traitement en cours... Calcul des soldes et mise en page (ne pas fermer la fenêtre).</span>
+    <div class="progression"><div></div></div>
+    <span class="gris">Si la page ne s'affiche pas automatiquement, <a href="{{ suite }}">cliquez ici</a>.</span>
+  </div>
+</div>
+{% endblock %}

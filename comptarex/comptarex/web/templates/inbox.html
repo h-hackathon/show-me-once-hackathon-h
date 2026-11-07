@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Factures à traiter{% endblock %}
+{% block contenu %}
+<div class="tb">Factures à traiter — pièces reçues du client</div>
+<p>Cliquez sur le n° de pièce pour ouvrir le PDF, puis sur « Saisir » pour créer la facture fournisseur correspondante.</p>
+<div class="creux">
+  <table class="g">
+    <thead><tr><th>N° pièce</th><th>Reçue le</th><th>Expéditeur</th><th>Réf. fournisseur</th><th class="r">Montant TTC</th><th>Statut</th><th>Action</th></tr></thead>
+    <tbody>
+      {% for p in pieces %}
+      <tr class="{% if loop.index is even %}alt{% endif %}">
+        <td><a href="{{ url_for('inbox_pdf', code=p.code) }}" target="_blank">{{ p.code }}</a></td>
+        <td>{{ p.recue_le|date_fr }}</td><td>{{ p.expediteur }}</td><td>{{ p.reference }}</td>
+        <td class="r">{{ p.montant|fmt }}</td><td>{{ p.statut }}</td>
+        <td><a href="{{ url_for('nouvelle_facture', piece=p.code) }}">Saisir</a></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7">Aucune pièce en attente.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<span class="gris">Montant TTC : montant lu sur la pièce à la réception (non contrôlé).</span>
+{% endblock %}

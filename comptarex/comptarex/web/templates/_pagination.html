@@ -1,0 +1,8 @@
+{%- set args = request.args.to_dict() -%}
+<div class="pagination">
+  <span>Page {{ page }}/{{ pages }}</span>
+  <a href="{{ url_for(request.endpoint, **dict(request.view_args or {}, **dict(args, page=1))) }}" class="btn sm" aria-label="Première page">|&lt;</a>
+  <a href="{{ url_for(request.endpoint, **dict(request.view_args or {}, **dict(args, page=[page - 1, 1]|max))) }}" class="btn sm" aria-label="Page précédente">&lt;</a>
+  <a href="{{ url_for(request.endpoint, **dict(request.view_args or {}, **dict(args, page=[page + 1, pages]|min))) }}" class="btn sm" aria-label="Page suivante">&gt;</a>
+  <a href="{{ url_for(request.endpoint, **dict(request.view_args or {}, **dict(args, page=pages))) }}" class="btn sm" aria-label="Dernière page">&gt;|</a>
+</div>

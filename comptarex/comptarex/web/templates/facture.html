@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Facture ' ~ facture.numero if facture else 'Nouvelle facture fournisseur' }}{% endblock %}
+{% block contenu_class %}bureau-gris{% endblock %}
+
+{% macro champ_fournisseur() %}
+  <label for="fournisseur">Fournisseur</label>
+  <div>
+    <div class="auto">
+      <input id="fournisseur" name="fournisseur" class="in" style="width:280px" value="{{ d.fournisseur }}" autocomplete="off"
+             role="combobox" aria-autocomplete="list" aria-controls="fournisseur-liste" aria-expanded="false" {% if fige %}readonly{% endif %}>
+      <input type="hidden" id="fournisseur_id" name="fournisseur_id" value="{{ d.fournisseur_id }}">
+      <ul class="auto-liste" id="fournisseur-liste" role="listbox" aria-label="Fournisseurs proposés" hidden></ul>
+    </div>
+    <span class="gris" id="fournisseur-note">Saisissez au moins 2 lettres puis choisissez dans la liste.</span>
+  </div>
+{% endmacro %}
+{% macro champ_reference() %}
+  <label for="reference">Référence fournisseur</label>
+  <input id="reference" name="reference" class="in" style="width:170px" value="{{ d.reference }}" {% if fige %}readonly{% endif %}>
+{% endmacro %}
+{% macro champ_date() %}
+  <label for="date">Date de facture</label>
+  <div class="ligne"><input id="date" name="date" class="in" style="width:90px" value="{{ d.date }}" {% if fige %}readonly{% endif %}>
+    <span class="gris">(JJ/MM/AAAA)</span></div>
+{% endmacro %}
+{% macro champ_categorie() %}
+  <label for="categorie">Catégorie de dépense</label>
+  <div class="ligne">
+    <select id="categorie" name="categorie" class="in" style="width:210px" {% if fige %}disabled{% endif %}>
+      <option value="">-- Choisir --</option>
+      {% for c in categories %}<option {% if d.categorie == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
+    </select><span class="rouge">* obligatoire</span>
+  </div>
+{% endmacro %}
+{% macro tableau_lignes() %}
+  <div class="creux">
+    <table class="g">
+      <thead><tr><th id="col-libelle">Libellé</th><th id="col-quantite">Quantité</th><th id="col-prix">Prix unitaire HT</th>
+        <th id="col-taxe">Taxe</th><th class="r">Montant HT</th><th><span class="gris">Suppr.</span></th></tr></thead>
+      <tbody>
+        {% for l in lignes %}
+        <tr data-ligne>
+          <td><input class="in" name="libelle" value="{{ l.libelle }}" aria-labelledby="col-libelle" style="width:270px" {% if fige %}readonly{% endif %}></td>
+          <td><input class="in" name="quantite" value="{{ l.quantite }}" aria-labelledby="col-quantite" style="width:55px" {% if fige %}readonly{% endif %}></td>
+          <td><input class="in" name="prix_unitaire" value="{{ l.prix_unitaire }}" aria-labelledby="col-prix" style="width:85px" {% if fige %}readonly{% endif %}></td>
+          <td><select class="in" name="taxe" aria-labelledby="col-taxe" style="width:165px" {% if fige %}disabled{% endif %}>
+            {% for t in taxes %}<option {% if t == l.taxe %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></td>
+          <td class="r" data-montant>{{ l.montant }}</td>
+          <td><button type="submit" class="btn sm" name="action" value="supprimer_{{ loop.index0 }}" aria-label="Supprimer la ligne {{ loop.index }}" {% if fige %}disabled{% endif %}>x</button></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="ligne" style="justify-content:space-between;align-items:flex-start">
+    <button type="submit" class="btn" name="action" value="ajouter_ligne" {% if fige %}disabled{% endif %}>Ajouter une ligne</button>
+    <div class="totaux" aria-label="Totaux de la facture">
+      <span>Total HT</span><span class="r" id="total-ht">{{ totaux.total_ht|fmt }}</span>
+      <span>Total TVA</span><span class="r" id="total-tva">{{ totaux.total_tva|fmt }}</span>
+      <b>Total TTC</b><b class="r" id="total-ttc">{{ totaux.total_ttc|fmt }}</b>
+    </div>
+  </div>
+  {% if totaux.tva_autoliquidee %}<span class="gris">TVA autoliquidée (due et déductible, nette à 0) : {{ totaux.tva_autoliquidee|fmt }}</span>{% endif %}
+{% endmacro %}
+
+{% block contenu %}
+<form method="post" id="form-facture" class="fenetre" action="{{ request.path }}" data-creer="{{ url_for('creer_fournisseur') }}">
+  <input type="hidden" name="_csrf" value="{{ csrf }}">
+  <input type="hidden" name="piece" value="{{ d.piece }}">
+  <button type="submit" name="action" value="recalculer" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px">Recalculer</button>
+  <div class="tb">Factures fournisseurs —
+    {% if facture %}Facture n° {{ facture.numero }} ({{ 'validée' if facture.statut == 'validated' else 'brouillon' }})
+    {% else %}Nouvelle facture (non enregistrée){% endif %}</div>
+  <div class="fenetre-corps">
+    <div class="info">
+      <span>Journal : <b>AC — ACHATS</b></span>
+      <span>Pièce justificative :
+        {% if piece %}<a href="{{ url_for('inbox_pdf', code=piece.code) }}" target="_blank">{{ piece.code }}.pdf (ouvrir)</a>
+        {% else %}aucune (<a href="{{ url_for('inbox') }}">Factures à traiter</a>){% endif %}</span>
+    </div>
+    {% if message %}<div class="succes" role="status">{{ message }}</div>{% endif %}
+    {% if erreurs %}<div class="erreurs" role="alert"><b>Erreur(s) de saisie :</b>
+      <ul>{% for e in erreurs %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
+
+    {% if v2 %}
+    <div data-tabs style="display:flex;flex-direction:column">
+      <input type="hidden" name="onglet" value="general">
+      <div class="onglets" role="tablist">
+        <button type="button" class="tab on" data-tab="general" role="tab" aria-selected="true">Général</button>
+        <button type="button" class="tab" data-tab="details" role="tab" aria-selected="false">Détails</button>
+      </div>
+      <div class="relief" style="display:flex;flex-direction:column;gap:10px">
+        <div data-panel="general" role="tabpanel" style="display:flex;flex-direction:column;gap:10px">
+          <div class="grille" style="grid-template-columns:150px 1fr">
+            {{ champ_fournisseur() }}{{ champ_date() }}{{ champ_categorie() }}
+          </div>
+          {{ tableau_lignes() }}
+        </div>
+        <div data-panel="details" role="tabpanel" hidden>
+          <div class="grille" style="grid-template-columns:150px 1fr">
+            {{ champ_reference() }}
+            <span>Journal</span><span>AC — ACHATS</span>
+            <span>Mode de règlement</span><span>Virement à 30 jours (conditions du fournisseur)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="grille" style="grid-template-columns:150px 1fr">
+      {{ champ_fournisseur() }}{{ champ_reference() }}{{ champ_date() }}
+    </div>
+    {{ tableau_lignes() }}
+    {% endif %}
+
+    <div class="ligne" style="justify-content:space-between;padding-top:8px;border-top:1px solid #808080">
+      <span class="rouge">Une facture validée ne peut plus être modifiée (contre-passation obligatoire).</span>
+      <div class="ligne">
+        {% if v2 %}
+        <button type="submit" class="btn" name="action" value="brouillon" {% if ui.confirm %}data-confirm="Confirmer l'enregistrement de la facture ?"{% endif %} {% if fige %}disabled{% endif %}>Sauvegarder</button>
+        {% else %}
+        <button type="submit" class="btn" name="action" value="brouillon" {% if fige %}disabled{% endif %}>Enregistrer le brouillon</button>
+        {% endif %}
+        <button type="submit" class="btn" name="action" value="valider" data-confirm="Une facture validée est comptabilisée et ne peut plus être modifiée. Valider la facture ?" {% if fige %}disabled{% endif %}>Valider</button>
+        <a href="{{ url_for('bureau') }}" class="btn">Annuler</a>
+      </div>
+    </div>
+  </div>
+</form>
+<script type="application/json" id="fournisseurs-data">{{ fournisseurs|tojson }}</script>
+{% endblock %}
+
+{% block modales %}
+<div class="msgbox-fond" id="modale-fournisseur" hidden>
+  <div class="msgbox" role="dialog" aria-modal="true" aria-labelledby="nf-titre" style="width:470px">
+    <div class="tb" id="nf-titre">Création d'un fournisseur</div>
+    <div class="fenetre-corps">
+      <div class="grille" style="grid-template-columns:170px 1fr">
+        <label for="nf-nom">Raison sociale</label><input id="nf-nom" class="in" style="width:240px">
+        <label for="nf-pays">Pays</label>
+        <select id="nf-pays" class="in">
+          <option value="FR">FR - France</option><option value="DE">DE - Allemagne</option>
+          <option value="BE">BE - Belgique</option><option value="ES">ES - Espagne</option>
+          <option value="IT">IT - Italie</option><option value="CH">CH - Suisse</option>
+          <option value="GB">GB - Royaume-Uni</option>
+        </select>
+        <label for="nf-tva">N° TVA intracommunautaire</label><input id="nf-tva" class="in" style="width:160px">
+      </div>
+      <span class="rouge" id="nf-erreur" role="alert"></span>
+      <span class="gris">Le compte fournisseur est créé dans le dossier {{ dossier_libelle }} (compte de charge par défaut 606800).</span>
+    </div>
+    <div class="msgbox-boutons">
+      <button type="button" class="btn" id="nf-creer">Créer</button>
+      <button type="button" class="btn" data-close="modale-fournisseur">Annuler</button>
+    </div>
+  </div>
+</div>
+<div class="msgbox-fond" id="modale-confirmation" hidden>
+  <div class="msgbox" role="alertdialog" aria-modal="true" aria-labelledby="confirmation-titre" aria-describedby="confirmation-texte">
+    <div class="tb" id="confirmation-titre">Confirmation</div>
+    <div class="msgbox-corps"><span id="confirmation-texte"></span></div>
+    <div class="msgbox-boutons">
+      <button type="button" class="btn" id="confirmation-oui">Oui</button>
+      <button type="button" class="btn" data-close="modale-confirmation">Non</button>
+    </div>
+  </div>
+</div>
+{% endblock %}

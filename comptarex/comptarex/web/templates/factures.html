@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Liste des factures fournisseurs{% endblock %}
+{% block contenu %}
+<div class="tb">Factures fournisseurs — liste</div>
+<div class="ligne" style="justify-content:space-between">
+  <a href="{{ url_for('nouvelle_facture') }}" class="btn">Nouvelle facture</a>
+  {% include "_pagination.html" %}
+</div>
+<div class="creux">
+  <table class="g">
+    <thead><tr><th>N°</th><th>Fournisseur</th><th>Référence</th><th>Date</th><th class="r">HT</th><th class="r">TVA</th><th class="r">TTC</th><th>Statut</th><th>Pièce</th></tr></thead>
+    <tbody>
+      {% for f in rows %}
+      <tr class="{% if loop.index is even %}alt{% endif %}">
+        <td><a href="{{ url_for('voir_facture', facture_id=f.id) }}">{{ f.numero }}</a></td>
+        <td>{{ f.fournisseur }}</td><td>{{ f.reference }}</td><td>{{ f.date|date_fr }}</td>
+        <td class="r">{{ f.total_ht|fmt }}</td><td class="r">{{ f.total_tva|fmt }}</td><td class="r">{{ f.total_ttc|fmt }}</td>
+        <td>{{ 'VALIDEE' if f.statut == 'validated' else 'BROUILLON' }}</td><td>{{ f.piece or '' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9">Aucune facture saisie sur ce dossier.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

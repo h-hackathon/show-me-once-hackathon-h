@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Choix du dossier{% endblock %}
+{% block contenu %}
+<div class="tb">Sélection du dossier de travail</div>
+<form method="get" action="{{ url_for('dossiers') }}" class="ligne" style="justify-content:space-between">
+  <div class="ligne">
+    <label for="q">Rechercher :</label><input id="q" name="q" class="in" style="width:150px" value="{{ q }}">
+    <button type="submit" class="btn sm">OK</button>
+    <span>|</span>
+    <label for="collab">Collaborateur :</label>
+    <select id="collab" name="collab" class="in">
+      <option value="">Tous</option>
+      {% for c in ['CMOREAU', 'JPETIT', 'APERRIN'] %}<option {% if collab == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
+    </select>
+    <label for="etat">Etat :</label>
+    <select id="etat" name="etat" class="in">
+      <option value="">Tous</option>
+      {% for e in ['Ouverts', 'Clôturés'] %}<option {% if etat == e %}selected{% endif %}>{{ e }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="pagination">
+    <span>{{ total }} dossier(s) — Page {{ page }}/{{ pages }}</span>
+    <a href="{{ url_for('dossiers', q=q, collab=collab, etat=etat, page=1) }}" class="btn sm" aria-label="Première page">&lt;&lt;</a>
+    <a href="{{ url_for('dossiers', q=q, collab=collab, etat=etat, page=[page - 1, 1]|max) }}" class="btn sm" aria-label="Page précédente">&lt;</a>
+    <a href="{{ url_for('dossiers', q=q, collab=collab, etat=etat, page=[page + 1, pages]|min) }}" class="btn sm" aria-label="Page suivante">&gt;</a>
+    <a href="{{ url_for('dossiers', q=q, collab=collab, etat=etat, page=pages) }}" class="btn sm" aria-label="Dernière page">&gt;&gt;</a>
+  </div>
+</form>
+{% if message %}<div class="erreurs" role="alert">{{ message }}</div>{% endif %}
+<form method="post" action="{{ url_for('dossiers') }}" style="display:flex;flex-direction:column;gap:8px">
+  <input type="hidden" name="_csrf" value="{{ csrf }}">
+  <div class="creux">
+    <table class="g">
+      <thead><tr><th></th><th>Dossier</th><th>Régime TVA</th><th>Clôture</th><th>Collab.</th><th>Dern. saisie</th><th>Etat</th></tr></thead>
+      <tbody>
+        {% for r in rows %}
+        <tr class="{% if r.verrou %}lock{% elif loop.index is even %}alt{% endif %}">
+          <td><input type="radio" name="dossier" value="{{ r.code }}" aria-label="Sélectionner {{ libelle(r) }}"></td>
+          <td><a class="bloc" href="{{ url_for('ouvrir_dossier', code=r.code) }}">{{ libelle(r) }}</a></td>
+          <td>{{ r.regime_tva }}</td><td>{{ r.cloture }}</td><td>{{ r.collab }}</td>
+          <td>{{ r.derniere_saisie|date_fr }}</td>
+          <td>{% if r.verrou %}Verrouillé par {{ r.verrou }}{% else %}{{ r.etat }}{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:3px">
+    <span>Cliquez sur le nom d'un dossier pour l'ouvrir, ou sélectionnez-le puis cliquez sur « Ouvrir le dossier ».</span>
+    <span>Un dossier verrouillé par un autre collaborateur ne peut être ouvert qu'en consultation.</span>
+  </div>
+  <div class="ligne">
+    <button type="submit" class="btn">Ouvrir le dossier</button>
+    <button type="submit" class="btn" name="mode" value="consultation">Ouvrir en consultation</button>
+    <a href="{{ url_for('module', nom='creation-de-dossier') }}" class="btn">Créer un dossier...</a>
+    <a href="{{ url_for('dossiers') }}" class="btn">Actualiser</a>
+  </div>
+</form>
+<div class="note" style="margin-top:auto;display:flex;flex-direction:column">
+  <div class="ph">Messages du cabinet</div>
+  <div style="padding:6px;display:flex;flex-direction:column;gap:3px">
+    <span>06/11/2026 — Sauvegarde du serveur ce soir à 20h00 : merci de fermer vos dossiers avant 19h45.</span>
+    <span>02/11/2026 — Rappel : échéance TVA mensuelle (CA3 d'octobre) le 19/11/2026.</span>
+  </div>
+</div>
+{% endblock %}

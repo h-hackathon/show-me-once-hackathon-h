@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Situation intermédiaire{% endblock %}
+{% block contenu_class %}bureau-gris{% endblock %}
+{% block contenu %}
+<form method="post" action="{{ url_for('situation') }}" class="fenetre" style="width:660px" data-tabs>
+  <input type="hidden" name="_csrf" value="{{ csrf }}">
+  <input type="hidden" name="onglet" value="{{ onglet }}">
+  <button type="submit" name="action" value="lancer" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px">Lancer</button>
+  <div class="tb">Edition : Situation intermédiaire — Paramétrage</div>
+  <div class="fenetre-corps" style="gap:0">
+    <div class="onglets" role="tablist">
+      {% for id, nom in [('criteres', 'Critères'), ('presentation', 'Présentation'), ('destination', 'Destination')] %}
+      <button type="button" class="tab {% if onglet == id %}on{% endif %}" data-tab="{{ id }}" role="tab" aria-selected="{{ 'true' if onglet == id else 'false' }}">{{ nom }}</button>
+      {% endfor %}
+    </div>
+    <div class="relief" style="min-height:300px">
+      <div data-panel="criteres" role="tabpanel" {% if onglet != 'criteres' %}hidden{% endif %} style="display:flex;flex-direction:column;gap:10px">
+        <div class="grille">
+          <span>Dossier :</span><b>{{ dossier_libelle }}</b>
+          <label for="du">Période du :</label><input id="du" class="in" value="01/01/2026" style="width:90px" readonly>
+          <label for="au">au (JJ/MM/AAAA) *</label><input id="au" name="au" class="in" placeholder="__/__/____" value="{{ v.au }}" style="width:90px">
+          <span>Type de situation :</span>
+          <div class="ligne" style="gap:14px">
+            <label class="opt"><input type="radio" name="type" value="gestion" {% if v.type != 'fiscale' %}checked{% endif %}> Situation de gestion</label>
+            <label class="opt"><input type="radio" name="type" value="fiscale" {% if v.type == 'fiscale' %}checked{% endif %}> Situation fiscale</label>
+          </div>
+          <span>Comparatif :</span>
+          <div class="ligne" style="gap:14px">
+            <label class="opt"><input type="radio" name="comparatif" value="aucun" {% if v.comparatif not in ('n1', 'budget') %}checked{% endif %}> Aucun</label>
+            <label class="opt"><input type="radio" name="comparatif" value="n1" {% if v.comparatif == 'n1' %}checked{% endif %}> N-1 même période</label>
+            <label class="opt"><input type="radio" name="comparatif" value="budget" {% if v.comparatif == 'budget' %}checked{% endif %}> Budget</label>
+          </div>
+          <label for="niveau">Niveau de détail :</label>
+          <select id="niveau" name="niveau" class="in" style="width:200px">
+            {% for k, nom in [('3', 'Comptes à 3 chiffres'), ('1', 'Classes (1 chiffre)'), ('2', 'Comptes à 2 chiffres'), ('6', 'Comptes détaillés')] %}
+            <option value="{{ k }}" {% if v.niveau == k %}selected{% endif %}>{{ nom }}</option>{% endfor %}
+          </select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:5px;padding-top:8px;border-top:1px solid #808080">
+          <label class="opt"><input type="checkbox" name="brouillard" value="1" {% if v.brouillard %}checked{% endif %}> Inclure les écritures en brouillard</label>
+          <label class="opt"><input type="checkbox" name="abonnement" value="1" {% if v.abonnement %}checked{% endif %}> Inclure les écritures d'abonnement</label>
+          <label class="opt"><input type="checkbox" name="francs" value="1" {% if v.francs %}checked{% endif %}> Afficher la contre-valeur en francs (FRF)</label>
+        </div>
+        <span class="gris">* Champ obligatoire. Format de date JJ/MM/AAAA uniquement (ex. : 31/10/2026).</span>
+      </div>
+      <div data-panel="presentation" role="tabpanel" {% if onglet != 'presentation' %}hidden{% endif %}>
+        <div class="grille">
+          <label for="titre">Titre de l'édition :</label><input id="titre" name="titre" class="in" value="{{ v.titre }}" style="width:300px">
+          <span>Orientation :</span>
+          <div class="ligne" style="gap:14px">
+            <label class="opt"><input type="radio" name="orientation" value="portrait" {% if v.orientation != 'paysage' %}checked{% endif %}> Portrait</label>
+            <label class="opt"><input type="radio" name="orientation" value="paysage" {% if v.orientation == 'paysage' %}checked{% endif %}> Paysage</label>
+          </div>
+          <label for="police">Police :</label>
+          <select id="police" name="police" class="in" style="width:160px"><option>Courier New 9</option><option>Arial 8</option></select>
+          <span>Options :</span>
+          <div style="display:flex;flex-direction:column;gap:5px">
+            <label class="opt"><input type="checkbox" name="entete" value="1" {% if v.entete %}checked{% endif %}> Imprimer l'en-tête du cabinet</label>
+            <label class="opt"><input type="checkbox" name="numeroter" value="1" {% if v.numeroter %}checked{% endif %}> Numéroter les pages</label>
+            <label class="opt"><input type="checkbox" name="soldes" value="1" {% if v.soldes %}checked{% endif %}> Imprimer les comptes soldés</label>
+          </div>
+        </div>
+      </div>
+      <div data-panel="destination" role="tabpanel" {% if onglet != 'destination' %}hidden{% endif %} style="display:flex;flex-direction:column;gap:10px">
+        <span style="font-weight:bold">Envoyer l'édition vers :</span>
+        <div class="ligne" style="gap:8px">
+          <label class="opt" style="width:110px"><input type="radio" name="destination" value="imprimante" {% if v.destination == 'imprimante' %}checked{% endif %}> Imprimante</label>
+          <select name="imprimante" class="in" aria-label="Imprimante" style="width:260px">
+            <option>\\SRV-CAB01\HP LaserJet 4050 PCL6</option><option>\\SRV-CAB01\Canon iR2018</option>
+          </select>
+          <button type="submit" class="btn" name="action" value="proprietes">Propriétés...</button>
+        </div>
+        <label class="opt"><input type="radio" name="destination" value="ecran" {% if v.destination == 'ecran' %}checked{% endif %}> Ecran (visualisation)</label>
+        <div class="ligne" style="gap:8px">
+          <label class="opt" style="width:110px"><input type="radio" name="destination" value="pdf" {% if v.destination == 'pdf' %}checked{% endif %}> Fichier PDF</label>
+          <input name="chemin" class="in" aria-label="Dossier du fichier" value="{{ v.chemin }}" style="width:260px">
+        </div>
+        <div class="ligne" style="gap:12px;padding-top:8px;border-top:1px solid #808080">
+          <label for="exemplaires">Nombre d'exemplaires :</label><input id="exemplaires" name="exemplaires" class="in" value="{{ v.exemplaires }}" style="width:40px">
+          <label class="opt"><input type="checkbox" name="memoriser" value="1"> Mémoriser comme destination par défaut</label>
+        </div>
+        <span class="gris">La destination par défaut se règle aussi dans Paramètres › Postes de travail › Imprimantes.</span>
+      </div>
+    </div>
+    <div class="ligne" style="justify-content:flex-end;margin-top:10px">
+      <button type="submit" class="btn" name="action" value="apercu">Aperçu</button>
+      <button type="submit" class="btn" name="action" value="lancer">Lancer l'édition</button>
+      <a href="{{ url_for('bureau') }}" class="btn">Fermer</a>
+    </div>
+  </div>
+</form>
+{% endblock %}

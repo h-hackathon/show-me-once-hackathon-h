@@ -1,0 +1,13 @@
+<div class="msgbox-fond" id="msgbox">
+  <div class="msgbox" role="alertdialog" aria-modal="true" aria-labelledby="msgbox-titre" aria-describedby="msgbox-texte">
+    <div class="tb" id="msgbox-titre">{{ boite.titre }}</div>
+    <div class="msgbox-corps">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#000000" stroke-width="1.5" aria-hidden="true"><path d="M12 3 L22 20 L2 20 Z" fill="#FFD800"></path><line x1="12" y1="9" x2="12" y2="14"></line><line x1="12" y1="16.5" x2="12" y2="17.5"></line></svg>
+      <span id="msgbox-texte">{{ boite.texte }}</span>
+    </div>
+    <div class="msgbox-boutons">
+      {% if boite.lien %}<a href="{{ boite.lien }}" class="btn">OK</a>
+      {% else %}<button type="button" class="btn" data-close="msgbox">OK</button>{% endif %}
+    </div>
+  </div>
+</div>

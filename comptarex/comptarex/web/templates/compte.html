@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Consultation de compte{% endblock %}
+{% block contenu %}
+<div class="tb">Consultation de compte</div>
+<form method="get" action="{{ url_for('consultation_compte') }}" class="ligne">
+  <label for="compte">Compte :</label>
+  <select id="compte" name="compte" class="in" style="width:320px">
+    <option value="">-- Choisir un compte --</option>
+    {% for c in comptes %}<option value="{{ c.numero }}" {% if c.numero == compte %}selected{% endif %}>{{ c.numero }} {{ c.libelle }}</option>{% endfor %}
+  </select>
+  <label for="du">Du :</label><input id="du" name="du" class="in" value="{{ du }}" style="width:90px">
+  <label for="au">Au :</label><input id="au" name="au" class="in" value="{{ au }}" style="width:90px">
+  <button type="submit" class="btn">Afficher</button>
+</form>
+{% if erreur %}<div class="erreurs" role="alert">{{ erreur }}</div>{% endif %}
+{% if r %}
+<div class="ligne" style="justify-content:space-between">
+  <b>{{ r.compte }} {{ r.libelle }}</b>
+  {% include "_pagination.html" %}
+</div>
+<div class="creux">
+  <table class="g">
+    <thead><tr><th>Date</th><th>Jnl</th><th>Pièce</th><th>Libellé</th><th>Let.</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th></tr></thead>
+    <tbody>
+      {% if page == 1 %}<tr class="alt"><td colspan="7"><i>Report à nouveau au {{ du }}</i></td><td class="r">{{ r.report|fmt }}</td></tr>{% endif %}
+      {% for l in lignes %}
+      <tr class="{% if loop.index is even %}alt{% endif %}"><td>{{ l.date|date_fr }}</td><td>{{ l.journal }}</td><td>{{ l.piece }}</td>
+        <td>{{ l.libelle[:38] }}</td><td>{{ l.lettrage or '' }}</td>
+        <td class="r">{{ l.debit|fmt if l.debit else '' }}</td><td class="r">{{ l.credit|fmt if l.credit else '' }}</td><td class="r">{{ l.solde|fmt }}</td></tr>
+      {% else %}
+      <tr><td colspan="8">Aucun mouvement sur la période.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<div class="ligne"><span>Solde au {{ au }} : <b>{{ r.solde|fmt }}</b> ({{ 'débiteur' if r.solde >= 0 else 'créditeur' }})</span>
+  <span class="gris">Les écritures en brouillard ne sont pas affichées.</span></div>
+{% endif %}
+{% endblock %}

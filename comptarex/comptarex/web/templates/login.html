@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<title>Connexion - COMPTAREX Cabinet {{ version_courte }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='comptarex.css') }}">
+</head>
+<body>
+<div class="page">
+  <div class="bandeau bandeau-login">
+    <div class="logo">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="1.6" aria-hidden="true"><rect x="4" y="3" width="15" height="18"></rect><line x1="8" y1="3" x2="8" y2="21"></line><line x1="11" y1="8" x2="16" y2="8"></line><line x1="11" y1="12" x2="16" y2="12"></line><line x1="11" y1="16" x2="14" y2="16"></line></svg>
+      <div style="display:flex;flex-direction:column;gap:2px">
+        <b>COMPTAREX</b>
+        <span style="font-size:10px">Cabinet {{ version_courte }} — Comptabilité générale, analytique et tiers</span>
+      </div>
+    </div>
+    <div style="text-align:right;line-height:15px">{{ cabinet }}<br>Licence n° CFM-042-2004 — 12 postes</div>
+  </div>
+  <div class="liens">
+    <a href="#">Accueil</a><span>|</span><a href="#">Aide en ligne</a><span>|</span>
+    <a href="#">Nouveautés de la version {{ version_courte }}</a><span>|</span>
+    <span>Support : 0 825 00 00 00 (0,15 € TTC/min)</span>
+  </div>
+  <main style="flex-grow:1;display:flex;align-items:center;justify-content:center">
+    <form method="post" action="{{ url_for('login') }}" class="fenetre" style="width:450px">
+      <input type="hidden" name="_csrf" value="{{ csrf }}">
+      <div class="tb">Identification de l'utilisateur</div>
+      <div class="fenetre-corps" style="padding:14px 18px;gap:8px">
+        <p>Veuillez saisir vos identifiants.</p>
+        {% if erreur %}<div class="erreurs" role="alert">{{ erreur }}</div>{% endif %}
+        <div class="grille" style="grid-template-columns:120px 1fr">
+          <label for="email">E-mail</label>
+          <input id="email" name="email" type="email" class="in" style="width:240px" value="{{ email }}" autocomplete="username">
+          <label for="password">Mot de passe</label>
+          <input id="password" name="password" type="password" class="in" style="width:160px" autocomplete="current-password">
+          <label for="exercice">Exercice</label>
+          <select id="exercice" name="exercice" class="in" style="width:80px"><option>2026</option><option>2025</option><option>2024</option></select>
+          <label for="langue">Langue</label>
+          <select id="langue" name="langue" class="in" style="width:110px"><option>Français</option></select>
+        </div>
+        <label class="opt"><input type="checkbox" name="memoriser"> Mémoriser mes identifiants sur ce poste (déconseillé)</label>
+        <div class="ligne" style="justify-content:flex-end;margin-top:4px">
+          <button type="submit" class="btn">Se connecter</button>
+          <button type="reset" class="btn">Effacer</button>
+        </div>
+        <div class="rouge" style="display:flex;flex-direction:column;gap:4px;padding-top:8px;border-top:1px solid #808080">
+          <span>Attention : après 3 essais infructueux, votre compte sera bloqué. Contactez votre administrateur.</span>
+        </div>
+      </div>
+    </form>
+  </main>
+  <div class="pied">
+    <span>Résolution conseillée : 1024 x 768 — Internet Explorer 6.0 SP1 ou supérieur — Java 1.4.2 requis pour l'impression</span>
+    <span>Poste : CAB-PC07 — © 2004 Comptarex S.A. — v{{ version_logiciel }}</span>
+  </div>
+</div>
+</body>
+</html>

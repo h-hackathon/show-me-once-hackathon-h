@@ -1,0 +1,69 @@
+{%- set ep = request.endpoint -%}
+{%- macro lien(endpoint, texte) -%}
+  {%- if ep == endpoint -%}<a href="{{ url_for(endpoint) }}" class="courant" aria-current="page">{{ texte }}</a>
+  {%- else -%}<a href="{{ url_for(endpoint) }}">{{ texte }}</a>{%- endif -%}
+{%- endmacro -%}
+{%- macro module(nom, texte) -%}<a href="{{ url_for('module', nom=nom) }}">{{ texte }}</a>{%- endmacro -%}
+{%- macro noeud(id, texte, ouvert, niveau) -%}
+<button type="button" class="node" data-branch="{{ id }}" data-level="{{ niveau }}" aria-expanded="{{ 'true' if ouvert else 'false' }}"><span class="box" aria-hidden="true">{{ '−' if ouvert else '+' }}</span>{{ texte }}</button>
+{%- endmacro -%}
+<nav class="menu" aria-label="Menu général">
+  <div class="menu-titre">Menu général</div>
+  {{ noeud('b-saisie', 'Saisie', section == 'saisie', 1) }}
+  <div class="branche" id="b-saisie" {% if section != 'saisie' %}hidden{% endif %}>
+    {{ module('saisie-par-journal', 'Saisie par journal') }}
+    {{ lien('inbox', 'Factures à traiter') }}
+    {% set f_ouvert = ep in ('nouvelle_facture', 'liste_factures', 'voir_facture') %}
+    {{ noeud('b-fournisseurs', 'Factures fournisseurs', f_ouvert, 2) }}
+    <div class="branche" id="b-fournisseurs" {% if not f_ouvert %}hidden{% endif %}>
+      {{ lien('nouvelle_facture', 'Nouvelle facture') }}
+      {{ lien('liste_factures', 'Liste des factures') }}
+    </div>
+    {{ module('factures-clients', 'Factures clients') }}
+  </div>
+  {{ noeud('b-consultation', 'Consultation', section == 'consultation', 1) }}
+  <div class="branche" id="b-consultation" {% if section != 'consultation' %}hidden{% endif %}>
+    {{ lien('consultation_compte', 'Consultation de compte') }}
+    {{ lien('recherche', "Recherche d'écritures") }}
+  </div>
+  {{ noeud('b-editions', 'Editions', section == 'editions', 1) }}
+  <div class="branche" id="b-editions" {% if section != 'editions' %}hidden{% endif %}>
+    {{ module('journaux', 'Journaux') }}
+    {{ module('grand-livre', 'Grand livre') }}
+    {{ lien('balance', 'Balance générale') }}
+    {{ module('balance-agee-tiers', 'Balance âgée tiers') }}
+    {% set s_ouvert = ep in ('situation', 'traitement', 'resultat_situation', 'transmettre') %}
+    {{ noeud('b-synthese', 'Etats de synthèse', s_ouvert, 2) }}
+    <div class="branche" id="b-synthese" {% if not s_ouvert %}hidden{% endif %}>
+      {{ module('bilan', 'Bilan') }}
+      {{ module('compte-de-resultat', 'Compte de résultat') }}
+      {{ lien('situation', 'Situation intermédiaire') }}
+    </div>
+  </div>
+  {{ noeud('b-revision', 'Révision', section == 'revision', 1) }}
+  <div class="branche" id="b-revision" hidden>
+    {{ module('feuilles-de-travail', 'Feuilles de travail') }}
+    {{ module('pointage-bancaire', 'Pointage bancaire') }}
+  </div>
+  {{ noeud('b-declarations', 'Déclarations fiscales', False, 1) }}
+  <div class="branche" id="b-declarations" hidden>
+    {{ module('tva-ca3', 'TVA (CA3)') }}
+    {{ module('liasse-fiscale', 'Liasse fiscale') }}
+  </div>
+  {{ noeud('b-communication', 'Communication', section == 'communication', 1) }}
+  <div class="branche" id="b-communication" {% if section != 'communication' %}hidden{% endif %}>
+    {{ lien('messagerie', 'Messagerie (' ~ nb_non_lus ~ ')') }}
+    {{ lien('nouveau_message', 'Nouveau message') }}
+  </div>
+  {{ noeud('b-parametres', 'Paramètres', False, 1) }}
+  <div class="branche" id="b-parametres" hidden>
+    {{ module('postes-de-travail', 'Postes de travail') }}
+    {{ module('imprimantes', 'Imprimantes') }}
+  </div>
+  {{ noeud('b-utilitaires', 'Utilitaires', False, 1) }}
+  <div class="branche" id="b-utilitaires" hidden>
+    {{ module('sauvegarde', 'Sauvegarde') }}
+    {{ module('reindexation', 'Réindexation des fichiers') }}
+  </div>
+  <div class="menu-note">Une seule branche ouverte à la fois.</div>
+</nav>

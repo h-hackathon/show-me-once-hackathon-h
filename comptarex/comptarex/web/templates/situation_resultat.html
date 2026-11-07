@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Situation au {{ s.au|date_fr }}{% endblock %}
+{% block contenu_class %}bureau-gris{% endblock %}
+{% block contenu %}
+{%- set url = url_for('resultat_situation', edition_id=e.id) -%}
+<div class="fenetre" style="flex-grow:1">
+  <div class="tb">Visualisation d'édition — {{ p.titre or 'SITUATION INTERMEDIAIRE DE GESTION' }}</div>
+  <div class="ligne" style="padding:4px 8px;border-bottom:1px solid #404040">
+    <a href="{{ url }}?page=1" class="btn sm" aria-label="Première page">|&lt;</a>
+    <a href="{{ url }}?page={{ [page - 1, 1]|max }}" class="btn sm" aria-label="Page précédente">&lt;</a>
+    <span style="padding:0 6px">Page {{ page }} / {{ pages }}</span>
+    <a href="{{ url }}?page={{ [page + 1, pages]|min }}" class="btn sm" aria-label="Page suivante">&gt;</a>
+    <a href="{{ url }}?page={{ pages }}" class="btn sm" aria-label="Dernière page">&gt;|</a>
+    <span style="padding:0 6px">|</span>
+    <label for="zoom">Zoom :</label>
+    <select id="zoom" class="in"><option value="100">100 %</option><option value="75">75 %</option><option value="150">150 %</option></select>
+    <span style="padding:0 6px">|</span>
+    <a href="{{ url }}?page={{ page }}&action=imprimer" class="btn">Imprimer</a>
+    <a href="{{ url }}?page={{ page }}&action=exporter" class="btn">Exporter...</a>
+    <a href="{{ url_for('transmettre', edition_id=e.id) }}" class="btn">Transmettre au client...</a>
+    <a href="{{ url_for('bureau') }}" class="btn droite">Fermer</a>
+  </div>
+  <div class="visionneuse">
+    <div class="papier">
+      {% if p.entete %}
+      <div class="entete"><span>{{ cabinet|upper|replace('É', 'E') }}</span><span>Page : {{ page }}/{{ pages }}</span></div>
+      {% endif %}
+      <div class="entete"><span>Dossier : {{ dossier_libelle }}</span><span>Edité le {{ e.created_at[:10]|date_fr }} {{ e.created_at[11:16] }} par {{ utilisateur }}</span></div>
+      {% if page == 1 %}
+      <div class="titre">{{ p.titre or 'SITUATION INTERMEDIAIRE DE GESTION' }} — PROVISOIRE</div>
+      <div class="centre">Période du 01/01/2026 au {{ s.au|date_fr }}</div>
+      <div class="centre">{{ 'Ecritures validées et en brouillard' if s.brouillard else 'Ecritures validées uniquement' }} — Montants en euros</div>
+      <div class="sec">1. SOLDES INTERMEDIAIRES DE GESTION</div>
+      <table class="rp">
+        <thead><tr><th>Libellé</th><th class="r">Période</th><th class="r">% CA</th></tr></thead>
+        <tbody>
+          {% for l in s.sig %}
+          <tr class="{% if l.total %}tot{% endif %}"><td>{{ l.libelle }}</td><td class="r">{{ l.montant|fmt }}</td><td class="r">{{ l.pct }}</td></tr>
+          {% endfor %}
+          {% if s.resultat_frf is not none %}<tr><td>&nbsp;&nbsp;&nbsp;soit en francs (FRF)</td><td class="r">{{ s.resultat_frf|fmt }}</td><td></td></tr>{% endif %}
+        </tbody>
+      </table>
+      <div class="sec">2. TRESORERIE AU {{ s.au|date_fr }}</div>
+      <table class="rp">
+        <tbody>
+          {% for t in s.tresorerie %}<tr><td>{{ t.compte }} {{ t.libelle|upper }}</td><td class="r">{{ t.solde|fmt }}</td></tr>{% endfor %}
+          <tr class="tot"><td>TOTAL TRESORERIE</td><td class="r">{{ s.tresorerie_total|fmt }}</td></tr>
+        </tbody>
+      </table>
+      <div class="sec">3. TIERS ET TVA</div>
+      <table class="rp">
+        <tbody>
+          <tr><td>411 CLIENTS (solde débiteur)</td><td class="r">{{ s.clients|fmt }}</td></tr>
+          <tr><td>&nbsp;&nbsp;&nbsp;dont échu à plus de 60 jours ({{ s.clients_echus_nb }} facture(s))</td><td class="r">{{ s.clients_echus|fmt }}</td></tr>
+          <tr><td>401 FOURNISSEURS (solde créditeur)</td><td class="r">{{ s.fournisseurs|fmt }}</td></tr>
+          <tr><td>44551 TVA A DECAISSER</td><td class="r">{{ s.tva_a_decaisser|fmt }}</td></tr>
+        </tbody>
+      </table>
+      {% if s.alertes %}
+      <div class="cadre">{% for a in s.alertes %}<div>ATTENTION : {{ a }}</div>{% endfor %}</div>
+      {% endif %}
+      {% else %}
+      <div class="titre">DETAIL DES COMPTES — {{ niveau|upper }}</div>
+      <div class="centre">Soldes au {{ s.au|date_fr }}</div>
+      <table class="rp" style="margin-top:12px">
+        <thead><tr><th>Compte</th><th>Libellé</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th></tr></thead>
+        <tbody>
+          {% for r in detail %}
+          <tr><td>{{ r.compte }}</td><td>{{ r.libelle[:30] }}</td><td class="r">{{ r.debit|fmt }}</td><td class="r">{{ r.credit|fmt }}</td>
+            <td class="r">{{ (r.solde_debiteur - r.solde_crediteur)|fmt }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+      <div class="entete" style="margin-top:18px"><span>COMPTAREX {{ version_logiciel }}</span><span>Edition n° {{ e.numero }}</span></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
