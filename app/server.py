@@ -1,28 +1,30 @@
 """Outils internes de la marketplace fictive Sportiva — une seule app, zéro dépendance (Python 3.10+).
 
   /admin      Sportiva Admin   back-office : commandes, clients, remboursements
-  /parcelia   Parcelia Pro     portail transporteur : suivi, preuve de livraison (POD)
+  /parcelia   Parcelia Pro     portail transporteur : suivi, étiquette, preuve de livraison (POD)
   /care       Sportiva Care    support client : tickets
 
 Données : data.json (généré par `python -m som outils`). Marques et données 100 % fictives.
 Lancer en local : python app/server.py   →   http://localhost:8080
-Railway : Procfile « web: python server.py » (le port vient de $PORT).
+Railway : `python main.py` (le port vient de $PORT).
 """
 import hashlib
 import hmac
 import html
 import json
-import math
 import os
 import random
+from datetime import date, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, quote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
 HERE = Path(__file__).resolve().parent
 DATA = json.loads((HERE / "data.json").read_text(encoding="utf-8"))
 SECRET = (os.environ.get("SECRET_KEY") or "sportiva-demo-" + DATA.get("genere_le", "")).encode()
 MOIS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."]
+JOURS = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
+TODAY = date(2026, 11, 7)
 GEO = {"Lyon": (45.76, 4.84), "Lille": (50.63, 3.06), "Nantes": (47.22, -1.55), "Bordeaux": (44.84, -0.58),
        "Toulouse": (43.60, 1.44), "Marseille": (43.30, 5.37), "Rennes": (48.11, -1.68), "Strasbourg": (48.57, 7.75),
        "Montpellier": (43.61, 3.88), "Paris": (48.86, 2.35), "Lyon-Saint-Exupéry": (45.72, 5.08)}
@@ -37,8 +39,7 @@ def e(x) -> str:
 
 
 def eur(x: float) -> str:
-    s = f"{x:,.2f}".replace(",", " ").replace(".", ",")
-    return f"{s} €"
+    return f"{x:,.2f}".replace(",", " ").replace(".", ",") + " €"
 
 
 def fdate(d: str, heure: bool = True) -> str:
@@ -49,6 +50,55 @@ def fdate(d: str, heure: bool = True) -> str:
     if heure and len(d) > 10:
         out += f" à {d[11:16]}"
     return out
+
+
+def initials(name: str) -> str:
+    parts = [p for p in name.replace("-", " ").split() if p]
+    return (parts[0][0] + (parts[-1][0] if len(parts) > 1 else "")).upper()
+
+
+def hue(seed: str) -> int:
+    return int(hashlib.md5(seed.encode()).hexdigest()[:4], 16) % 360
+
+
+# ============================================================================ icônes (traits fins, 24×24)
+_IC = {
+    "home": '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+    "orders": '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
+    "users": '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18.5 14.8c1.7.8 2.7 2.6 3 5.2"/>',
+    "tag": '<path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><circle cx="7.5" cy="7.5" r="1.5"/>',
+    "chart": '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+    "settings": '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>',
+    "search": '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+    "bell": '<path d="M6 16V11a6 6 0 1 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/>',
+    "truck": '<path d="M2 6h12v10H2zM14 9h4l4 4v3h-8z"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/>',
+    "box": '<path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z"/><path d="M3 7.5 12 12l9-4.5M12 12v9"/>',
+    "clock": '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    "card": '<rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M2.5 10h19M6 15h4"/>',
+    "alert": '<path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/>',
+    "note": '<path d="M5 3h10l4 4v14H5z"/><path d="M15 3v4h4M8 12h8M8 16h5"/>',
+    "out": '<path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/>',
+    "pin": '<path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
+    "check": '<path d="m4 12.5 5 5L20 6.5"/>',
+    "msg": '<path d="M4 5h16v11H9l-5 4z"/>',
+    "inbox": '<path d="M3 13h5l1.5 3h5L16 13h5"/><path d="M5 5h14l2 8v6H3v-6z"/>',
+    "file": '<path d="M6 3h8l5 5v13H6z"/><path d="M14 3v5h5"/>',
+    "refund": '<path d="M4 8h12a4 4 0 0 1 0 8H8"/><path d="m8 4-4 4 4 4"/>',
+    "scale": '<path d="M12 3v18M5 21h14M4 7h16M7 7l-3 7a3 3 0 0 0 6 0zM17 7l-3 7a3 3 0 0 0 6 0z"/>',
+    "store": '<path d="M3 9 5 4h14l2 5M3 9h18v11H3zM3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0"/>',
+    "phone": '<rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M11 18h2"/>',
+    "plus": '<path d="M12 5v14M5 12h14"/>',
+    "ext": '<path d="M14 4h6v6M20 4 11 13M18 14v6H4V6h6"/>',
+    "dot": '<circle cx="12" cy="12" r="4"/>',
+    "route": '<circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8.5 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.5"/>',
+    "pen": '<path d="m4 20 4-1L20 7l-3-3L5 16z"/>',
+    "attach": '<path d="M20 11.5 12 19.5a5 5 0 0 1-7-7l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7L10 17a1.7 1.7 0 0 1-2.4-2.4L15 7.3"/>',
+}
+
+
+def ic(name: str, size: int = 18, cls: str = "ic") -> str:
+    return (f'<svg class="{cls}" width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+            f'stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{_IC[name]}</svg>')
 
 
 # ============================================================================ authentification (cookie signé)
@@ -67,158 +117,242 @@ def logged(handler, app: str) -> bool:
     return False
 
 
-# ============================================================================ composants communs
+# ============================================================================ page
+FONTS = {
+    "admin": "family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700",
+    "parcelia": "family=Archivo:wdth,wght@75..100,400;75..100,600;75..100,800;75..100,900&family=JetBrains+Mono:wght@400;500;700",
+    "care": "family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Figtree:wght@400;500;600;700",
+}
 BASE_CSS = """
-*{box-sizing:border-box}html,body{margin:0}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}a{color:inherit}button,input,select{font:inherit}
-.badge{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
-.badge::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.8}
-.b-green{background:#e7f6ec;color:#17733a}.b-grey{background:#eef0f3;color:#4b5563}.b-amber{background:#fff4dc;color:#946200}
-.b-red{background:#fde8e8;color:#b42318}.b-blue{background:#e6effd;color:#1d4ed8}.b-violet{background:#efecfe;color:#5b21b6}
-code.ref{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:#f3f4f6;border:1px solid #e5e7eb;padding:2px 8px;border-radius:6px;font-size:13px}
+*{box-sizing:border-box}html,body{margin:0}body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+a{color:inherit}button,input,select,textarea{font:inherit;color:inherit}.ic{flex:none;display:inline-block;vertical-align:-3px}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px 3px 8px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap;line-height:18px}
+.pill i{width:7px;height:7px;border-radius:50%;background:currentColor}
+@keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.rise{animation:rise .45s cubic-bezier(.2,.7,.2,1) both}.d1{animation-delay:.04s}.d2{animation-delay:.08s}.d3{animation-delay:.12s}.d4{animation-delay:.16s}.d5{animation-delay:.2s}
 """
 
 
-def page(title: str, body: str, css: str = "", favicon_color: str = "#4f46e5") -> str:
-    fav = (f"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' "
-           f"rx='8' fill='{quote(favicon_color)}'/%3E%3C/svg%3E")
+def page(title: str, body: str, css: str, app: str, fav: str) -> str:
+    favicon = (f"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' "
+               f"rx='9' fill='{quote(fav)}'/%3E%3C/svg%3E")
+    fonts = (f'<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+             f'<link href="https://fonts.googleapis.com/css2?{FONTS[app]}&display=swap" rel="stylesheet">') if app in FONTS else ""
     return (f'<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
-            f'<title>{e(title)}</title><link rel="icon" href="{fav}"><style>{BASE_CSS}{css}</style></head><body>{body}</body></html>')
+            f'<title>{e(title)}</title><link rel="icon" href="{favicon}">{fonts}<style>{BASE_CSS}{css}</style></head><body>{body}</body></html>')
+
+
+# ============================================================================ connexion
+LOGIN = {
+    "admin": dict(font="'IBM Plex Sans',sans-serif", head="'Bricolage Grotesque',sans-serif", panel="#141519", accent="#ff5a1f",
+                  ink="#f6f5f2", brand="Sportiva <b>Admin</b>", tag="Le back-office de la boutique.",
+                  sub="Commandes, clients, remboursements : tout au même endroit.", ulabel="Adresse e-mail", fav="#ff5a1f"),
+    "parcelia": dict(font="'Archivo',sans-serif", head="'Archivo',sans-serif", panel="#0b1526", accent="#2dd4bf",
+                     ink="#e6f4f1", brand="PARCELIA <b>PRO</b>", tag="Vos envois, suivis au scan près.",
+                     sub="Espace expéditeurs professionnels : suivi, étiquettes, preuves de livraison.", ulabel="Numéro de compte", fav="#2dd4bf"),
+    "care": dict(font="'Figtree',sans-serif", head="'Fraunces',serif", panel="#123b38", accent="#f2765a",
+                 ink="#fbf7f1", brand="Sportiva <b>Care</b>", tag="Chaque client mérite une vraie réponse.",
+                 sub="Le support client de Sportiva.", ulabel="E-mail agent", fav="#f2765a"),
+}
 
 
 def login_page(app: str, err: str = "") -> str:
-    styles = {
-        "admin": ("#f6f7fb", "#4f46e5", "Sportiva Admin", "Back-office de la boutique", "Adresse e-mail"),
-        "parcelia": ("#0c1b33", "#14b8a6", "Parcelia Pro", "Espace expéditeurs professionnels", "Numéro de compte"),
-        "care": ("#ecf7f4", "#0f766e", "Sportiva Care", "Support client", "E-mail agent"),
-    }
-    bg, accent, brand, sub, ulabel = styles[app]
-    dark = app == "parcelia"
-    css = f"""body{{background:{bg};min-height:100vh;display:grid;place-items:center;color:#111827}}
-.box{{width:400px;max-width:92vw;background:#fff;border-radius:16px;padding:36px;box-shadow:0 10px 40px rgba(15,23,42,.12)}}
-.logo{{display:flex;align-items:center;gap:10px;font-weight:800;font-size:20px}}.logo i{{width:34px;height:34px;border-radius:9px;
-background:{accent};display:inline-grid;place-items:center;color:#fff;font-style:normal}}.sub{{color:#6b7280;margin:6px 0 24px}}
-label{{display:block;font-weight:600;font-size:13px;margin:14px 0 6px}}input{{width:100%;padding:11px 12px;border:1px solid #d1d5db;border-radius:9px}}
-input:focus{{outline:2px solid {accent};border-color:{accent}}}button{{width:100%;margin-top:22px;padding:12px;border:0;border-radius:9px;
-background:{accent};color:#fff;font-weight:700;cursor:pointer}}.err{{color:#b42318;margin-top:12px;min-height:20px}}
-.foot{{margin-top:18px;color:{'#94a3b8' if dark else '#9ca3af'};font-size:12px;text-align:center}}"""
-    body = f"""<div><form class="box" method="post" action="/{app}/login">
-<div class="logo"><i>{brand[0]}</i>{brand}</div><div class="sub">{sub}</div>
-<label for="u">{ulabel}</label><input id="u" name="username" autocomplete="username" autofocus>
+    s = LOGIN[app]
+    css = """
+body{font-family:FONT;background:#fff;color:#16171a;min-height:100vh;display:grid;grid-template-columns:1.05fr 1fr}
+.panel{background:PANEL;color:INK;padding:48px 56px;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden}
+.panel::before{content:"";position:absolute;inset:0;background:radial-gradient(600px 400px at 85% 15%,ACCENT33,transparent 60%),
+radial-gradient(500px 500px at 0% 100%,ACCENT1f,transparent 60%);pointer-events:none}
+.panel::after{content:"";position:absolute;inset:0;background-image:linear-gradient(#ffffff0d 1px,transparent 1px),linear-gradient(90deg,#ffffff0d 1px,transparent 1px);
+background-size:44px 44px;mask-image:linear-gradient(180deg,transparent,#000 40%,#000 70%,transparent)}
+.brand{font-family:HEAD;font-size:20px;letter-spacing:.01em;display:flex;align-items:center;gap:12px;position:relative;z-index:1}
+.brand span.m{width:34px;height:34px;border-radius:10px;background:ACCENT;display:inline-block;box-shadow:0 0 0 6px ACCENT26}
+.brand b{color:ACCENT}.tag{font-family:HEAD;font-size:44px;line-height:1.05;font-weight:700;max-width:520px;position:relative;z-index:1;letter-spacing:-.01em}
+.sub{opacity:.72;max-width:440px;margin-top:16px;font-size:16px;position:relative;z-index:1}.foot{opacity:.5;font-size:12px;position:relative;z-index:1}
+.form{display:grid;place-items:center;padding:40px}form{width:380px;max-width:100%}h1{font-family:HEAD;font-size:30px;margin:0 0 6px}
+.muted{color:#6b6f78}label{display:block;font-weight:600;font-size:13px;margin:22px 0 8px}
+input{width:100%;padding:13px 14px;border:1px solid #d9dbe0;border-radius:10px;font-size:15px;background:#fbfbfc;transition:.15s}
+input:focus{outline:none;border-color:ACCENT;box-shadow:0 0 0 4px ACCENT26;background:#fff}
+button{width:100%;margin-top:28px;padding:14px;border:0;border-radius:10px;background:#16171a;color:#fff;font-weight:700;font-size:15px;cursor:pointer;transition:.15s}
+button:hover{background:ACCENT;color:#111}.err{color:#c02a1b;margin-top:14px;min-height:20px;font-weight:600}
+@media(max-width:860px){body{grid-template-columns:1fr}.panel{display:none}}"""
+    for k, v in (("FONT", s["font"]), ("HEAD", s["head"]), ("PANEL", s["panel"]), ("ACCENT", s["accent"]), ("INK", s["ink"])):
+        css = css.replace(k, v)
+    body = f"""<section class="panel"><div class="brand"><span class="m"></span><span>{s['brand']}</span></div>
+<div><div class="tag rise">{s['tag']}</div><div class="sub rise d1">{s['sub']}</div></div>
+<div class="foot">Environnement de démonstration · données fictives</div></section>
+<section class="form"><form class="rise d2" method="post" action="/{app}/login"><h1>Connexion</h1><div class="muted">Accède à ton espace {APPS[app]}.</div>
+<label for="u">{s['ulabel']}</label><input id="u" name="username" autocomplete="username" autofocus>
 <label for="p">Mot de passe</label><input id="p" name="password" type="password" autocomplete="current-password">
-<button type="submit">Se connecter</button><div class="err">{e(err)}</div></form>
-<div class="foot">Environnement de démonstration — données fictives</div></div>"""
-    return page(f"Connexion · {brand}", body, css, accent)
+<button type="submit">Se connecter</button><div class="err">{e(err)}</div></form></section>"""
+    return page(f"Connexion · {APPS[app]}", body, css, app, s["fav"])
 
 
 # ============================================================================ Sportiva Admin
 ADMIN_CSS = """
-body{background:#f6f7fb;color:#111827}
-.top{position:fixed;top:0;left:0;right:0;height:56px;background:#fff;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;
-padding:0 18px;gap:18px;z-index:5}.brand{display:flex;align-items:center;gap:10px;font-weight:800;width:214px}
-.brand i{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#6366f1,#4338ca);display:inline-grid;place-items:center;color:#fff;font-style:normal}
-.top form{flex:1;max-width:560px}.top input{width:100%;padding:8px 12px 8px 34px;border:1px solid #e5e7eb;border-radius:9px;background:#f9fafb
-url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%239ca3af' stroke-width='2'%3E%3Ccircle cx='7' cy='7' r='5'/%3E%3Cpath d='m11 11 4 4'/%3E%3C/svg%3E") 11px center no-repeat}
-.me{margin-left:auto;display:flex;align-items:center;gap:10px;color:#4b5563}.me b{width:30px;height:30px;border-radius:50%;background:#eef2ff;color:#4338ca;display:grid;place-items:center;font-size:12px}
-.side{position:fixed;top:56px;bottom:0;left:0;width:232px;background:#fff;border-right:1px solid #e5e7eb;padding:14px 10px}
-.side a{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;text-decoration:none;color:#374151;font-weight:500}
-.side a:hover{background:#f3f4f6}.side a.on{background:#eef2ff;color:#3730a3;font-weight:700}.side .sep{height:1px;background:#f0f0f0;margin:12px 6px}
-.side small{display:block;color:#9ca3af;font-size:11px;text-transform:uppercase;letter-spacing:.05em;padding:6px 10px}
-.side .cnt{margin-left:auto;background:#fde8e8;color:#b42318;border-radius:999px;font-size:11px;padding:1px 8px;font-weight:700}
-main{margin:56px 0 0 232px;padding:26px 32px 60px;max-width:1240px}
-h1{font-size:22px;margin:0}.head{display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap}
-.muted{color:#6b7280}.card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
-.card h2{font-size:14px;margin:0;padding:14px 18px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;gap:8px}
-.card .in{padding:16px 18px}.tabs{display:flex;gap:4px;padding:10px 12px;border-bottom:1px solid #f0f0f0;flex-wrap:wrap}
-.tabs a{padding:6px 12px;border-radius:8px;text-decoration:none;color:#4b5563;font-weight:600}.tabs a.on{background:#111827;color:#fff}
-.tools{display:flex;gap:8px;padding:12px;border-bottom:1px solid #f0f0f0}.tools input{flex:1;padding:8px 12px;border:1px solid #e5e7eb;border-radius:8px}
-.tools button{padding:8px 14px;border:1px solid #d1d5db;background:#fff;border-radius:8px;font-weight:600;cursor:pointer}
-table{width:100%;border-collapse:collapse}th{text-align:left;font-size:12px;color:#6b7280;font-weight:600;padding:10px 14px;background:#fafafa;border-bottom:1px solid #f0f0f0}
-td{padding:11px 14px;border-bottom:1px solid #f3f4f6;vertical-align:middle}tr.r:hover td{background:#fafaff}tr.r td a.o{font-weight:700;text-decoration:none}
-.grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px;align-items:start}.stack{display:grid;gap:18px}
-.item{display:flex;gap:14px;align-items:center;padding:12px 18px;border-bottom:1px solid #f3f4f6}.thumb{width:46px;height:46px;border-radius:9px;
-background:linear-gradient(135deg,#eef2ff,#e0e7ff);display:grid;place-items:center;font-weight:800;color:#4338ca;flex:none}
-.sum{display:grid;grid-template-columns:1fr auto;gap:8px 16px;padding:16px 18px}.sum .tot{font-weight:800;border-top:1px solid #f0f0f0;padding-top:10px}
-.tl{padding:6px 18px 16px}.ev{display:grid;grid-template-columns:14px 1fr;gap:12px;padding:10px 0;position:relative}
-.ev::before{content:"";position:absolute;left:6px;top:24px;bottom:-8px;width:2px;background:#eef0f3}.ev:last-child::before{display:none}
-.dot{width:14px;height:14px;border-radius:50%;background:#c7d2fe;border:3px solid #fff;box-shadow:0 0 0 1px #c7d2fe;margin-top:3px}
-.ev.alert .dot{background:#fca5a5;box-shadow:0 0 0 1px #fca5a5}.kv{display:grid;gap:4px}.kv b{font-size:12px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-top:8px}
-.refund{background:#fff7f7;border:1px solid #fde2e2;border-radius:10px;padding:14px;margin:0 18px 16px}
-.dispute{background:#fff8eb;border:1px solid #fde7b0;border-radius:10px;padding:14px}
-.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}.kpi{padding:16px 18px}.kpi .v{font-size:24px;font-weight:800;margin-top:4px}
-.tag{display:inline-block;background:#f3f4f6;border-radius:6px;padding:2px 8px;font-size:12px;margin:2px 4px 2px 0}
-.note{width:100%;min-height:70px;border:1px solid #e5e7eb;border-radius:8px;padding:10px}
+:root{--paper:#f6f5f2;--card:#fff;--ink:#16171a;--mute:#6b6f78;--line:#e7e5df;--side:#141519;--acc:#ff5a1f;--acc-s:#fff1ea}
+body{font-family:'IBM Plex Sans',sans-serif;font-size:14px;background:var(--paper);color:var(--ink)}
+.mono{font-family:'IBM Plex Mono',monospace}.h{font-family:'Bricolage Grotesque',sans-serif}
+.side{position:fixed;inset:0 auto 0 0;width:236px;background:var(--side);color:#a9abb3;display:flex;flex-direction:column;padding:16px 12px}
+.logo{display:flex;align-items:center;gap:10px;color:#fff;font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:17px;padding:6px 8px 18px}
+.logo i{width:30px;height:30px;border-radius:8px;background:var(--acc);display:grid;place-items:center;font-style:normal;color:#141519;font-size:16px;
+transform:skewX(-8deg)}.logo small{font-weight:500;color:#71737c;font-family:'IBM Plex Sans';font-size:12px;display:block;margin-top:-2px}
+.side a{display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:9px;text-decoration:none;font-weight:500;margin:1px 0;transition:.12s}
+.side a:hover{background:#1f2026;color:#e6e7ea}.side a.on{background:#24252c;color:#fff;box-shadow:inset 3px 0 0 var(--acc)}
+.side .cnt{margin-left:auto;background:var(--acc);color:#141519;font-size:11px;font-weight:700;border-radius:6px;padding:1px 7px}
+.side small.sec{display:block;text-transform:uppercase;letter-spacing:.08em;font-size:10.5px;color:#5d6069;padding:18px 10px 6px}
+.store{margin-top:auto;display:flex;align-items:center;gap:10px;padding:10px;border:1px solid #26272e;border-radius:10px;color:#d9dae0}
+.store b{width:28px;height:28px;border-radius:7px;background:#26272e;display:grid;place-items:center;color:var(--acc)}
+.main{margin-left:236px;min-height:100vh}.top{height:60px;display:flex;align-items:center;gap:16px;padding:0 32px;border-bottom:1px solid var(--line);
+background:#fbfaf8cc;backdrop-filter:blur(8px);position:sticky;top:0;z-index:4}
+.top form{flex:1;max-width:520px;position:relative}.top form .ic{position:absolute;left:12px;top:10px;color:var(--mute)}
+.top input{width:100%;padding:9px 12px 9px 38px;border:1px solid var(--line);border-radius:10px;background:#fff}
+.top kbd{position:absolute;right:10px;top:8px;font-family:'IBM Plex Mono';font-size:11px;color:var(--mute);border:1px solid var(--line);border-radius:5px;padding:1px 5px;background:#fafafa}
+.me{margin-left:auto;display:flex;align-items:center;gap:14px;color:var(--mute)}.av{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;
+font-weight:700;font-size:12px;color:#fff;flex:none}.me a{color:var(--mute);display:flex}
+.wrap{padding:28px 32px 64px;max-width:1280px}.crumb{color:var(--mute);text-decoration:none;display:inline-flex;align-items:center;gap:6px;font-weight:500}
+.crumb:hover{color:var(--ink)}.title{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:10px 0 22px}
+.title h1{font-family:'Bricolage Grotesque';font-size:28px;font-weight:800;margin:0;letter-spacing:-.02em}.title .meta{color:var(--mute)}
+.title .act{margin-left:auto;display:flex;gap:8px}.btn{border:1px solid var(--line);background:#fff;padding:8px 14px;border-radius:9px;font-weight:600;cursor:pointer;
+display:inline-flex;align-items:center;gap:7px;text-decoration:none}.btn.dark{background:var(--ink);color:#fff;border-color:var(--ink)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 1px 0 #0000000a,0 8px 24px -18px #0000002e;overflow:hidden}
+.card>h2{font-family:'Bricolage Grotesque';font-size:15px;font-weight:700;margin:0;padding:15px 20px;display:flex;align-items:center;gap:9px;border-bottom:1px solid #f0eee9}
+.card>h2 .r{margin-left:auto;font-family:'IBM Plex Sans';font-weight:500;font-size:13px;color:var(--mute)}.in{padding:16px 20px}
+.p-green{background:#e9f6ee;color:#1d7a44}.p-grey{background:#efefec;color:#55585f}.p-amber{background:#fff3db;color:#965b00}
+.p-red{background:#fdeceb;color:#b3261e}.p-blue{background:#e8effd;color:#2453c4}.p-acc{background:var(--acc-s);color:#c2410c}
+.tabs{display:flex;gap:2px;padding:10px 12px 0;border-bottom:1px solid #f0eee9}.tabs a{padding:9px 14px 11px;text-decoration:none;color:var(--mute);font-weight:600;
+border-bottom:2px solid transparent;display:flex;gap:8px;align-items:center}.tabs a span{font-family:'IBM Plex Mono';font-size:11px;background:#f1f0ec;border-radius:5px;padding:0 6px}
+.tabs a.on{color:var(--ink);border-color:var(--acc)}.tools{display:flex;gap:10px;padding:12px}.tools .f{flex:1;position:relative}
+.tools .f .ic{position:absolute;left:11px;top:10px;color:var(--mute)}.tools input{width:100%;padding:9px 12px 9px 36px;border:1px solid var(--line);border-radius:9px}
+table{width:100%;border-collapse:collapse}th{text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute);font-weight:600;
+padding:10px 16px;background:#fbfaf8;border-bottom:1px solid #f0eee9;white-space:nowrap}td{padding:12px 16px;border-bottom:1px solid #f4f3ef;vertical-align:middle}
+tr.r{transition:.1s}tr.r:hover td{background:#fffaf6}.oid{font-family:'IBM Plex Mono';font-weight:600;text-decoration:none}.oid:hover{color:var(--acc)}
+.num{font-family:'IBM Plex Mono';text-align:right;white-space:nowrap}.who{display:flex;align-items:center;gap:10px}.who .av{width:28px;height:28px;font-size:11px}
+.flag{color:var(--acc);display:inline-flex;margin-left:6px;vertical-align:-2px}.tfoot{padding:12px 16px;color:var(--mute);font-size:13px}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 352px;gap:20px;align-items:start}.stack{display:grid;gap:20px}
+.item{display:grid;grid-template-columns:52px 1fr auto auto;gap:16px;align-items:center;padding:14px 20px;border-bottom:1px solid #f4f3ef}
+.thumb{width:52px;height:52px;border-radius:12px;display:grid;place-items:center;color:#fff;font-family:'Bricolage Grotesque';font-weight:800;font-size:20px}
+.sum{display:grid;grid-template-columns:1fr auto;gap:10px 20px;padding:16px 20px}.sum .num{text-align:right}.sum .tot{font-weight:700;border-top:1px dashed var(--line);padding-top:12px}
+.receipt{margin:0 20px 18px;border:1.5px dashed #f2b9a3;background:#fff8f4;border-radius:12px;padding:14px 16px;display:grid;gap:6px}
+.receipt b{display:flex;gap:8px;align-items:center;color:#9a3412}code.ref{font-family:'IBM Plex Mono';background:#16171a;color:#fff;padding:2px 9px;border-radius:6px;font-size:12.5px}
+.ship{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:16px 20px}.kv small{display:block;text-transform:uppercase;letter-spacing:.06em;font-size:11px;color:var(--mute);font-weight:600;margin-bottom:3px}
+.track{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:0 20px 18px}.track span{font-size:11.5px;color:var(--mute);font-weight:600}
+.track span::before{content:"";display:block;height:5px;border-radius:9px;background:#ecebe6;margin-bottom:7px}.track span.ok{color:var(--ink)}
+.track span.ok::before{background:var(--ink)}.track span.ko{color:#b3261e}.track span.ko::before{background:#ef6a5b}
+.tl{padding:8px 20px 18px}.ev{display:grid;grid-template-columns:30px 1fr;gap:12px;padding:9px 0;position:relative}
+.ev::before{content:"";position:absolute;left:14px;top:38px;bottom:-6px;width:1.5px;background:#ecebe6}.ev:last-child::before{display:none}
+.ev .b{width:30px;height:30px;border-radius:50%;background:#f4f3ef;display:grid;place-items:center;color:var(--mute)}
+.ev.alert .b{background:#fdeceb;color:#b3261e}.ev .t{color:var(--mute);font-size:12.5px;margin-top:2px}
+.comment{display:flex;gap:10px;align-items:center;margin:4px 20px 18px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;color:var(--mute)}
+.banner{display:flex;gap:12px;align-items:center;background:linear-gradient(90deg,#16171a,#2a2b31);color:#fff;border-radius:14px;padding:14px 18px;margin-bottom:20px}
+.banner .ic{color:var(--acc)}.banner span{color:#b9bbc2}
+.cust{display:flex;gap:14px;align-items:center;padding:18px 20px 6px}.cust .av{width:46px;height:46px;font-size:15px}.cust a{font-weight:700;font-size:15px;text-decoration:none}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#f0eee9;margin:12px 20px;border-radius:10px;overflow:hidden}
+.stats div{background:#fbfaf8;padding:10px 12px}.stats b{display:block;font-family:'IBM Plex Mono';font-size:15px}.stats small{color:var(--mute);font-size:11.5px}
+.tag{display:inline-flex;align-items:center;gap:6px;background:#f4f3ef;border-radius:7px;padding:3px 9px;font-size:12.5px;margin:3px 6px 3px 0;font-weight:500}
+textarea.note{width:100%;min-height:76px;border:1px solid var(--line);border-radius:10px;padding:10px;resize:vertical;background:#fbfaf8}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px}.kpi{padding:18px 20px;position:relative}
+.kpi small{color:var(--mute);font-weight:600;font-size:12.5px}.kpi .v{font-family:'Bricolage Grotesque';font-size:30px;font-weight:800;letter-spacing:-.02em;margin-top:4px}
+.kpi svg.sp{position:absolute;right:16px;bottom:16px}.kpi.hot{background:var(--side);color:#fff;border-color:var(--side)}.kpi.hot small{color:#a9abb3}.kpi.hot .v{color:var(--acc)}
+.cols{display:grid;grid-template-columns:1.4fr 1fr;gap:20px;align-items:start}
 """
 
-
-def pay_badge(p: str) -> str:
-    return f'<span class="badge {"b-green" if p == "Payé" else "b-red" if p == "Remboursé" else "b-amber"}">{e(p)}</span>'
+PALETTE = ["#ff5a1f", "#16171a", "#2f7d6d", "#3b5bdb", "#c2410c", "#7c3aed", "#0e7490", "#b45309"]
 
 
-def ful_badge(t: str) -> str:
-    cls = {"Livrée": "b-grey", "Expédiée": "b-blue", "À expédier": "b-amber", "Anomalie transport": "b-red"}.get(t, "b-grey")
-    return f'<span class="badge {cls}">{e(t)}</span>'
+def avatar(name: str, size: int = 32) -> str:
+    return f'<span class="av" style="width:{size}px;height:{size}px;background:hsl({hue(name)} 42% 42%)">{e(initials(name))}</span>'
+
+
+def pay_pill(p: str) -> str:
+    return f'<span class="pill {"p-green" if p == "Payé" else "p-red" if p == "Remboursé" else "p-amber"}"><i></i>{e(p)}</span>'
+
+
+def ful_pill(t: str) -> str:
+    cls = {"Livrée": "p-grey", "Expédiée": "p-blue", "À expédier": "p-amber", "Anomalie transport": "p-red"}.get(t, "p-grey")
+    return f'<span class="pill {cls}"><i></i>{e(t)}</span>'
 
 
 def admin_shell(active: str, inner: str, q: str = "") -> str:
     n_lit = sum(1 for o in DATA["orders"].values() if o["litige"])
-    nav = [("home", "/admin", "🏠", "Accueil"), ("orders", "/admin/orders", "🧾", "Commandes"),
-           ("customers", "/admin/customers", "👤", "Clients"), ("products", "/admin/products", "🏷️", "Produits"),
-           ("analytics", "/admin/analytics", "📊", "Analyses")]
-    links = "".join(f'<a class="{"on" if k == active else ""}" href="{h}">{ic} {lbl}'
-                    f'{f"<span class=cnt>{n_lit}</span>" if k == "orders" else ""}</a>' for k, h, ic, lbl in nav)
-    body = f"""<div class="top"><div class="brand"><i>S</i>Sportiva Admin</div>
-<form action="/admin/orders"><input name="q" value="{e(q)}" placeholder="Rechercher une commande, un client, un e-mail…"></form>
-<div class="me">ops@sportiva.test <b>OP</b> <a href="/admin/logout" class="muted">Déconnexion</a></div></div>
-<nav class="side">{links}<div class="sep"></div><small>Canaux de vente</small><a href="#">🛒 Boutique en ligne</a>
-<a href="#">📱 Application mobile</a><div class="sep"></div><a href="#">⚙️ Paramètres</a></nav><main>{inner}</main>"""
-    return page("Sportiva Admin", body, ADMIN_CSS, "#4f46e5")
+    nav = [("home", "/admin", "home", "Accueil"), ("orders", "/admin/orders", "orders", "Commandes"),
+           ("customers", "/admin/customers", "users", "Clients"), ("products", "/admin/products", "tag", "Produits"),
+           ("analytics", "/admin/analytics", "chart", "Analyses")]
+    links = "".join(f'<a class="{"on" if k == active else ""}" href="{h}">{ic(i)} {lbl}'
+                    f'{f"<span class=cnt>{n_lit}</span>" if k == "orders" else ""}</a>' for k, h, i, lbl in nav)
+    body = f"""<aside class="side"><div class="logo"><i>S</i><div>Sportiva<small>Admin</small></div></div>{links}
+<small class="sec">Canaux de vente</small><a href="#">{ic('store')} Boutique en ligne</a><a href="#">{ic('phone')} Application mobile</a>
+<small class="sec">Boutique</small><a href="#">{ic('settings')} Paramètres</a>
+<div class="store"><b>{ic('store', 16)}</b><div style="line-height:1.2"><div style="font-weight:600">Sportiva France</div><small style="color:#71737c">sportiva.fr</small></div></div></aside>
+<div class="main"><header class="top"><form action="/admin/orders">{ic('search')}<input name="q" value="{e(q)}" placeholder="Rechercher une commande, un client, un e-mail, un n° de suivi…"><kbd>⌘K</kbd></form>
+<div class="me">{ic('bell')}<span>ops@sportiva.test</span>{avatar('Opérations Sportiva')}<a href="/admin/logout" title="Déconnexion">{ic('out')}</a></div></header>
+<div class="wrap">{inner}</div></div>"""
+    return page("Sportiva Admin", body, ADMIN_CSS, "admin", "#ff5a1f")
+
+
+def spark(seed: str, w: int = 92, h: int = 30, color: str = "#ff5a1f") -> str:
+    r = random.Random(seed)
+    pts, v = [], 0.5
+    for i in range(14):
+        v = min(.95, max(.08, v + (r.random() - .45) * .3))
+        pts.append(f"{i * w / 13:.1f},{h - v * h:.1f}")
+    return (f'<svg class="sp" width="{w}" height="{h}" viewBox="0 0 {w} {h}"><polyline points="{" ".join(pts)}" fill="none" '
+            f'stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>')
 
 
 def admin_home() -> str:
     orders = list(DATA["orders"].values())
     ca = sum(o["total"] for o in orders)
     lit = [o for o in orders if o["litige"]]
-    kpis = [("Ventes (30 j)", eur(ca)), ("Commandes", len(orders)), ("Panier moyen", eur(ca / len(orders))),
-            ("Litiges ouverts", len(lit))]
-    k = "".join(f'<div class="card kpi"><div class="muted">{a}</div><div class="v">{b}</div></div>' for a, b in kpis)
-    rows = "".join(f'<tr class="r"><td><a class="o" href="/admin/orders/{o["id"]}">{o["id"]}</a></td><td>{fdate(o["date"], False)}</td>'
-                   f'<td>{e(DATA["clients"][o["client_email"]]["nom"])}</td><td>{eur(o["total"])}</td><td>{pay_badge(o["paiement"])}</td></tr>'
-                   for o in lit[:8])
-    inner = f"""<div class="head"><h1>Bonjour 👋</h1><span class="muted">Voici l'activité de la boutique.</span></div>
-<div class="kpis">{k}</div><div class="card"><h2>⚠️ Commandes avec une contestation de paiement</h2>
-<table><tr><th>Commande</th><th>Date</th><th>Client</th><th>Total</th><th>Paiement</th></tr>{rows}</table>
-<div class="in"><a href="/admin/orders?vue=litiges">Voir tous les litiges →</a></div></div>"""
+    kpis = [("Ventes · 30 jours", eur(ca), "a"), ("Commandes", str(len(orders)), "b"), ("Panier moyen", eur(ca / len(orders)), "c")]
+    k = "".join(f'<div class="card kpi rise d{i + 1}"><small>{a}</small><div class="v">{b}</div>{spark(s)}</div>' for i, (a, b, s) in enumerate(kpis))
+    k += (f'<div class="card kpi hot rise d4"><small>Litiges ouverts</small><div class="v">{len(lit)}</div>'
+          f'<div style="color:#a9abb3;font-size:12.5px;margin-top:2px">{eur(sum(o["total"] for o in lit))} contestés</div></div>')
+    per_day = {}
+    for o in orders:
+        per_day[o["date"]] = per_day.get(o["date"], 0) + 1
+    days = [(TODAY - timedelta(days=i)).isoformat() for i in range(20, -1, -1)]
+    mx = max(per_day.get(d, 0) for d in days) or 1
+    bars = "".join(f'<rect x="{i * 26 + 4}" y="{150 - per_day.get(d, 0) / mx * 120:.0f}" width="16" height="{per_day.get(d, 0) / mx * 120 + 2:.0f}" rx="4" '
+                   f'fill="{"#ff5a1f" if i == len(days) - 1 else "#16171a"}" opacity="{1 if i == len(days) - 1 else .82}"><title>{fdate(d, False)} : {per_day.get(d, 0)}</title></rect>'
+                   for i, d in enumerate(days))
+    chart = f'<svg viewBox="0 0 {len(days) * 26} 160" width="100%" height="190" preserveAspectRatio="none">{bars}</svg>'
+    rows = "".join(f'<tr class="r"><td><a class="oid" href="/admin/orders/{o["id"]}">{o["id"]}</a></td>'
+                   f'<td><div class="who">{avatar(DATA["clients"][o["client_email"]]["nom"], 26)}{e(DATA["clients"][o["client_email"]]["nom"])}</div></td>'
+                   f'<td class="num">{eur(o["total"])}</td><td>{pay_pill(o["paiement"])}</td></tr>' for o in lit[:7])
+    wd = JOURS[TODAY.weekday()]
+    inner = f"""<div class="title"><h1 class="rise">Bonjour, l'équipe ops</h1><span class="meta rise d1">{wd} {fdate(TODAY.isoformat(), False)} · Sportiva France</span></div>
+<div class="kpis">{k}</div><div class="cols"><div class="card rise d3"><h2>{ic('chart')} Commandes par jour<span class="r">21 derniers jours</span></h2><div class="in">{chart}</div></div>
+<div class="card rise d4"><h2>{ic('scale')} Contestations de paiement<span class="r"><a href="/admin/orders?vue=litiges">Tout voir</a></span></h2>
+<table><tr><th>Commande</th><th>Client</th><th style="text-align:right">Total</th><th>Paiement</th></tr>{rows}</table></div></div>"""
     return admin_shell("home", inner)
 
 
 def admin_orders(q: str, vue: str) -> str:
     ql = q.lower().strip()
-    out = []
-    for oid in DATA["order_list"]:
-        o = DATA["orders"][oid]
-        c = DATA["clients"][o["client_email"]]
-        if vue == "litiges" and not o["litige"]:
-            continue
-        if vue == "a_traiter" and o["traitement"] != "À expédier":
-            continue
-        if vue == "remboursees" and o["paiement"] == "Payé":
-            continue
-        if ql and ql not in f'{o["id"]} {o["client_email"]} {c["nom"]} {o.get("suivi") or ""}'.lower():
-            continue
-        out.append(o)
-    tabs = "".join(f'<a class="{"on" if vue == k else ""}" href="/admin/orders?vue={k}{"&q=" + quote(q) if q else ""}">{lbl}</a>'
+    def keep(o, v):
+        if v == "litiges":
+            return o["litige"]
+        if v == "a_traiter":
+            return o["traitement"] == "À expédier"
+        if v == "remboursees":
+            return o["paiement"] != "Payé"
+        return True
+    allo = [DATA["orders"][i] for i in DATA["order_list"]]
+    out = [o for o in allo if keep(o, vue) and (not ql or ql in f'{o["id"]} {o["client_email"]} {DATA["clients"][o["client_email"]]["nom"]} {o.get("suivi") or ""}'.lower())]
+    tabs = "".join(f'<a class="{"on" if vue == k else ""}" href="/admin/orders?vue={k}{"&q=" + quote(q) if q else ""}">{lbl}<span>{sum(1 for o in allo if keep(o, k))}</span></a>'
                    for k, lbl in [("toutes", "Toutes"), ("a_traiter", "À expédier"), ("litiges", "Litiges"), ("remboursees", "Remboursées")])
-    rows = "".join(f"""<tr class="r"><td><a class="o" href="/admin/orders/{o['id']}">{o['id']}</a>{' <span class="badge b-violet">Litige</span>' if o['litige'] else ''}</td>
-<td>{fdate(o['date'], False)}</td><td>{e(DATA['clients'][o['client_email']]['nom'])}</td><td>{eur(o['total'])}</td>
-<td>{pay_badge(o['paiement'])}</td><td>{ful_badge(o['traitement'])}</td><td class="muted">{sum(a['qte'] for a in o['articles'])} article(s)</td></tr>"""
-                   for o in out[:60])
-    empty = '<tr><td colspan="7" class="muted" style="padding:28px;text-align:center">Aucune commande ne correspond à cette recherche.</td></tr>'
-    inner = f"""<div class="head"><h1>Commandes</h1><span class="muted">{len(out)} commande(s)</span></div>
-<div class="card"><div class="tabs">{tabs}</div><form class="tools" action="/admin/orders"><input type="hidden" name="vue" value="{e(vue)}">
-<input name="q" value="{e(q)}" placeholder="Filtrer par n° de commande, client, e-mail ou n° de suivi"><button>Rechercher</button></form>
-<table><tr><th>Commande</th><th>Date</th><th>Client</th><th>Total</th><th>Paiement</th><th>Traitement</th><th>Articles</th></tr>
-{rows or empty}</table></div>"""
+    rows = "".join(f"""<tr class="r"><td><a class="oid" href="/admin/orders/{o['id']}">{o['id']}</a>{f'<span class="flag" title="Litige ouvert">{ic("alert", 15)}</span>' if o['litige'] else ''}</td>
+<td style="color:var(--mute)">{fdate(o['date'], False)}</td><td><div class="who">{avatar(DATA['clients'][o['client_email']]['nom'], 28)}{e(DATA['clients'][o['client_email']]['nom'])}</div></td>
+<td style="color:var(--mute)">Boutique en ligne</td><td class="num">{eur(o['total'])}</td><td>{pay_pill(o['paiement'])}</td><td>{ful_pill(o['traitement'])}</td>
+<td style="color:var(--mute)">{sum(a['qte'] for a in o['articles'])} article{'s' if sum(a['qte'] for a in o['articles']) > 1 else ''}</td></tr>""" for o in out[:60])
+    empty = '<tr><td colspan="8" style="padding:40px;text-align:center;color:var(--mute)">Aucune commande ne correspond à cette recherche.</td></tr>'
+    inner = f"""<div class="title"><h1>Commandes</h1><span class="meta">{len(out)} commande{'s' if len(out) > 1 else ''}</span>
+<div class="act"><span class="btn">{ic('file', 16)} Exporter</span><span class="btn dark">{ic('plus', 16)} Créer une commande</span></div></div>
+<div class="card rise"><div class="tabs">{tabs}</div><form class="tools" action="/admin/orders"><input type="hidden" name="vue" value="{e(vue)}">
+<div class="f">{ic('search', 17)}<input name="q" value="{e(q)}" placeholder="Filtrer par n° de commande, client, e-mail ou n° de suivi"></div><button class="btn">Rechercher</button></form>
+<table><tr><th>Commande</th><th>Date</th><th>Client</th><th>Canal</th><th style="text-align:right">Total</th><th>Paiement</th><th>Traitement</th><th>Articles</th></tr>
+{rows or empty}</table><div class="tfoot">Affichage de {min(len(out), 60)} sur {len(out)}</div></div>"""
     return admin_shell("orders", inner, q)
 
 
@@ -227,41 +361,52 @@ def admin_order(oid: str) -> str | None:
     if not o:
         return None
     c = DATA["clients"][o["client_email"]]
-    items = "".join(f"""<div class="item"><div class="thumb">{e(a['nom'][0])}</div><div style="flex:1"><div style="font-weight:600">{e(a['nom'])}</div>
-<div class="muted">SKU : {e(a['sku'])}</div></div><div class="muted">{eur(a['prix'])} × {a['qte']}</div><div style="width:90px;text-align:right;font-weight:600">{eur(a['prix'] * a['qte'])}</div></div>"""
+    items = "".join(f"""<div class="item"><div class="thumb" style="background:{PALETTE[hue(a['nom']) % len(PALETTE)]}">{e(a['nom'][0])}</div>
+<div><div style="font-weight:600">{e(a['nom'])}</div><div class="mono" style="color:var(--mute);font-size:12.5px">SKU {e(a['sku'])}</div></div>
+<div class="mono" style="color:var(--mute)">{eur(a['prix'])} × {a['qte']}</div><div class="num" style="font-weight:600;min-width:90px">{eur(a['prix'] * a['qte'])}</div></div>"""
                     for a in o["articles"])
     rb = o.get("remboursement")
-    paid_line = f"<span>Payé par le client</span><span>{eur(o['total'])}</span>"
+    paid = f"<span>Payé par le client</span><span class='num'>{eur(o['total'])}</span>"
     if rb:
-        paid_line += f"<span style='color:#b42318'>Remboursé</span><span style='color:#b42318'>− {eur(rb['montant'])}</span><span class='tot'>Montant net</span><span class='tot'>{eur(o['total'] - rb['montant'])}</span>"
-    refund = (f"""<div class="refund"><b>💸 Remboursement effectué le {fdate(rb['date'], False)}</b> — {eur(rb['montant'])} (réf. {e(rb['ref'])})<br>
-<span class="muted">Justificatif de remboursement — référence de preuve à transmettre :</span> <code class="ref">{e(rb['preuve'])}</code></div>""" if rb else "")
+        paid += (f"<span style='color:#b3261e'>Remboursé</span><span class='num' style='color:#b3261e'>− {eur(rb['montant'])}</span>"
+                 f"<span class='tot'>Montant net</span><span class='num tot'>{eur(o['total'] - rb['montant'])}</span>")
+    receipt = (f"""<div class="receipt"><b>{ic('refund', 17)} Remboursement intégral · {fdate(rb['date'], False)}</b>
+<div>{eur(rb['montant'])} remboursés sur la carte d'origine · réf. <span class="mono">{e(rb['ref'])}</span></div>
+<div style="color:var(--mute)">Justificatif de remboursement — référence de preuve à transmettre : <code class="ref">{e(rb['preuve'])}</code></div></div>""" if rb else "")
     ship = ""
     if o.get("suivi"):
         sh = DATA["shipments"].get(o["suivi"], {})
-        ship = f"""<div class="card"><h2>🚚 Expédition {ful_badge(o['traitement'])}</h2><div class="in kv">
-<div>Transporteur : <b style="text-transform:none;font-size:14px;color:#111827">Parcelia — {e(sh.get('service', ''))}</b></div>
-<div>Numéro de suivi : <code class="ref">{e(o['suivi'])}</code></div>
-<div class="muted">Le suivi détaillé et la preuve de livraison sont disponibles sur le portail Parcelia Pro.</div></div></div>"""
-    tl = "".join(f'<div class="ev {"alert" if ("contestation" in ev["texte"] or "anomalie" in ev["texte"]) else ""}"><div class="dot"></div>'
-                 f'<div><div>{e(ev["texte"])}</div><div class="muted">{fdate(ev["date"])}</div></div></div>'
-                 for ev in reversed(o["chronologie"]))
-    dispute = ("""<div class="card"><h2>⚖️ Litige</h2><div class="in"><div class="dispute"><b>Contestation de paiement ouverte</b><br>
-<span class="muted">La banque du client conteste ce paiement. Le litige se traite dans le Dashboard Stripe.</span></div></div></div>""" if o["litige"] else "")
-    tags = "".join(f'<span class="tag">{e(t)}</span>' for t in o["tags"]) or '<span class="muted">Aucune étiquette</span>'
-    inner = f"""<div class="head"><a href="/admin/orders" class="muted" style="text-decoration:none">← Commandes</a></div>
-<div class="head"><h1>{o['id']}</h1>{pay_badge(o['paiement'])}{ful_badge(o['traitement'])}<span class="muted">{fdate(o['chronologie'][0]['date'])} · Boutique en ligne</span></div>
-<div class="grid"><div class="stack">
-<div class="card"><h2>📦 Articles</h2>{items}</div>
-<div class="card"><h2>💳 Paiement {pay_badge(o['paiement'])}</h2><div class="sum"><span>Sous-total</span><span>{eur(o['total'])}</span>
-<span>Livraison</span><span>Offerte</span><span class="muted">dont TVA (20 %)</span><span class="muted">{eur(o['tva'])}</span>
-<span class="tot">Total</span><span class="tot">{eur(o['total'])}</span>{paid_line}</div>{refund}</div>
-{ship}<div class="card"><h2>🕒 Chronologie</h2><div class="tl">{tl}</div></div></div>
-<div class="stack"><div class="card"><h2>👤 Client</h2><div class="in kv"><a href="/admin/customers/{quote(o['client_email'])}" style="font-weight:700">{e(c['nom'])}</a>
-<div class="muted">{c['commandes']} commande(s) · client depuis {e(c['depuis'])}</div><b>Coordonnées</b><div>{e(o['client_email'])}</div>
-<b>Adresse de livraison</b><div>{e(c['nom'])}<br>{e(o['adresse'])}<br>France</div></div></div>
-{dispute}<div class="card"><h2>🏷️ Étiquettes</h2><div class="in">{tags}</div></div>
-<div class="card"><h2>📝 Notes</h2><div class="in"><textarea class="note" placeholder="Ajouter une note interne…"></textarea></div></div></div></div>"""
+        code = sh.get("code")
+        reached = {"en_transit": 2, "perdu": 2, "livre_signe": 4, "boite_aux_lettres": 4}.get(code, 1)
+        steps = "".join(f'<span class="{"ko" if code == "perdu" and i == 2 else "ok" if i < reached else ""}">{s}</span>'
+                        for i, s in enumerate(["Préparée", "Prise en charge", "En livraison", "Livrée"]))
+        ship = f"""<div class="card rise d3"><h2>{ic('truck')} Expédition {ful_pill(o['traitement'])}<span class="r">Parcelia</span></h2>
+<div class="ship"><div class="kv"><small>Service</small>{e(sh.get('service', ''))}</div><div class="kv"><small>Numéro de suivi</small><span class="mono" style="font-weight:600">{e(o['suivi'])}</span></div></div>
+<div class="track">{steps}</div><div style="padding:0 20px 18px;color:var(--mute);font-size:13px">Suivi scan par scan et preuve de livraison sur le portail Parcelia Pro.</div></div>"""
+    def ev_icon(t):
+        t = t.lower()
+        return ("alert" if ("contestation" in t or "anomalie" in t) else "refund" if "rembours" in t else "truck" if ("expédiée" in t or "parcelia" in t)
+                else "card" if "paiement" in t else "orders")
+    tl = "".join(f'<div class="ev {"alert" if ev_icon(ev["texte"]) == "alert" else ""}"><div class="b">{ic(ev_icon(ev["texte"]), 15)}</div>'
+                 f'<div><div>{e(ev["texte"])}</div><div class="t">{fdate(ev["date"])}</div></div></div>' for ev in reversed(o["chronologie"]))
+    banner = (f'<div class="banner rise">{ic("scale", 20)}<div><b>Contestation de paiement ouverte</b><br>'
+              f'<span>La banque du client conteste ce paiement. Le litige se traite dans le Dashboard Stripe.</span></div></div>' if o["litige"] else "")
+    spent = sum(x["total"] for x in DATA["orders"].values() if x["client_email"] == o["client_email"])
+    tags = "".join(f'<span class="tag">{ic("tag", 13)}{e(t)}</span>' for t in o["tags"]) or '<span style="color:var(--mute)">Aucune étiquette</span>'
+    inner = f"""<a class="crumb" href="/admin/orders">← Commandes</a>
+<div class="title"><h1 class="mono" style="font-family:'IBM Plex Mono';font-weight:600;font-size:26px">{o['id']}</h1>{pay_pill(o['paiement'])}{ful_pill(o['traitement'])}
+<span class="meta">{fdate(o['chronologie'][0]['date'])} · Boutique en ligne</span><div class="act"><span class="btn">{ic('refund', 16)} Rembourser</span><span class="btn">Plus ▾</span></div></div>
+{banner}<div class="grid"><div class="stack"><div class="card rise d1"><h2>{ic('box')} Articles<span class="r">{len(o['articles'])} ligne(s)</span></h2>{items}</div>
+<div class="card rise d2"><h2>{ic('card')} Paiement {pay_pill(o['paiement'])}<span class="r">Carte · Stripe</span></h2><div class="sum"><span>Sous-total</span><span class="num">{eur(o['total'])}</span>
+<span>Livraison</span><span class="num">Offerte</span><span style="color:var(--mute)">dont TVA 20 %</span><span class="num" style="color:var(--mute)">{eur(o['tva'])}</span>
+<span class="tot">Total</span><span class="num tot">{eur(o['total'])}</span>{paid}</div>{receipt}</div>
+{ship}<div class="card rise d4"><h2>{ic('clock')} Chronologie</h2><div class="comment">{avatar('Opérations Sportiva', 26)} Laisser un commentaire…</div><div class="tl">{tl}</div></div></div>
+<div class="stack"><div class="card rise d1"><h2>{ic('users')} Client</h2><div class="cust">{avatar(c['nom'], 46)}<div><a href="/admin/customers/{quote(o['client_email'])}">{e(c['nom'])}</a>
+<div style="color:var(--mute);font-size:13px">{e(o['client_email'])}</div></div></div>
+<div class="stats"><div><b>{c['commandes']}</b><small>commandes</small></div><div><b>{e(c['depuis'])}</b><small>client depuis</small></div><div><b>{eur(spent).replace(',00', '')}</b><small>sur cette période</small></div></div>
+<div class="in kv" style="padding-top:6px"><small>Adresse de livraison</small>{e(c['nom'])}<br>{e(o['adresse'])}<br>France</div></div>
+<div class="card rise d2"><h2>{ic('tag')} Étiquettes</h2><div class="in">{tags}</div></div>
+<div class="card rise d3"><h2>{ic('note')} Notes internes</h2><div class="in"><textarea class="note" placeholder="Ajouter une note pour l'équipe…"></textarea></div></div></div></div>"""
     return admin_shell("orders", inner)
 
 
@@ -272,11 +417,11 @@ def admin_customers(q: str) -> str:
         if ql and ql not in f"{email} {c['nom']}".lower():
             continue
         n = [o for o in DATA["orders"].values() if o["client_email"] == email]
-        rows.append(f'<tr class="r"><td><a class="o" href="/admin/customers/{quote(email)}">{e(c["nom"])}</a></td><td class="muted">{e(email)}</td>'
-                    f'<td>{e(c["cp"])} {e(c["ville"])}</td><td>{c["commandes"]}</td><td>{eur(sum(o["total"] for o in n))}</td></tr>')
-    inner = f"""<div class="head"><h1>Clients</h1><span class="muted">{len(rows)} client(s)</span></div><div class="card">
-<form class="tools" action="/admin/customers"><input name="q" value="{e(q)}" placeholder="Rechercher un client"><button>Rechercher</button></form>
-<table><tr><th>Client</th><th>E-mail</th><th>Ville</th><th>Commandes</th><th>Dépensé (boutique)</th></tr>{''.join(rows)}</table></div>"""
+        rows.append(f'<tr class="r"><td><div class="who">{avatar(c["nom"], 28)}<a class="oid" style="font-family:inherit" href="/admin/customers/{quote(email)}">{e(c["nom"])}</a></div></td>'
+                    f'<td style="color:var(--mute)">{e(email)}</td><td>{e(c["ville"])}</td><td class="num">{c["commandes"]}</td><td class="num">{eur(sum(o["total"] for o in n))}</td></tr>')
+    inner = f"""<div class="title"><h1>Clients</h1><span class="meta">{len(rows)} client(s)</span></div><div class="card rise">
+<form class="tools" action="/admin/customers"><div class="f">{ic('search', 17)}<input name="q" value="{e(q)}" placeholder="Rechercher un client par nom ou e-mail"></div><button class="btn">Rechercher</button></form>
+<table><tr><th>Client</th><th>E-mail</th><th>Ville</th><th style="text-align:right">Commandes</th><th style="text-align:right">Dépensé</th></tr>{''.join(rows)}</table></div>"""
     return admin_shell("customers", inner)
 
 
@@ -285,76 +430,115 @@ def admin_customer(email: str) -> str | None:
     if not c:
         return None
     orders = [o for o in DATA["orders"].values() if o["client_email"] == email]
-    rows = "".join(f'<tr class="r"><td><a class="o" href="/admin/orders/{o["id"]}">{o["id"]}</a></td><td>{fdate(o["date"], False)}</td>'
-                   f'<td>{eur(o["total"])}</td><td>{pay_badge(o["paiement"])}</td><td>{ful_badge(o["traitement"])}</td></tr>' for o in orders)
-    inner = f"""<div class="head"><a href="/admin/customers" class="muted" style="text-decoration:none">← Clients</a></div>
-<div class="head"><h1>{e(c['nom'])}</h1><span class="muted">{e(c['ville'])} · client depuis {e(c['depuis'])}</span></div>
-<div class="grid"><div class="card"><h2>Commandes</h2><table><tr><th>Commande</th><th>Date</th><th>Total</th><th>Paiement</th><th>Traitement</th></tr>{rows}</table></div>
-<div class="card"><h2>Coordonnées</h2><div class="in kv"><div>{e(email)}</div><b>Adresse</b><div>{e(c['cp'])} {e(c['ville'])}, France</div>
-<b>Historique</b><div>{c['commandes']} commande(s) au total</div></div></div></div>"""
+    rows = "".join(f'<tr class="r"><td><a class="oid" href="/admin/orders/{o["id"]}">{o["id"]}</a></td><td>{fdate(o["date"], False)}</td>'
+                   f'<td class="num">{eur(o["total"])}</td><td>{pay_pill(o["paiement"])}</td><td>{ful_pill(o["traitement"])}</td></tr>' for o in orders)
+    inner = f"""<a class="crumb" href="/admin/customers">← Clients</a><div class="title">{avatar(c['nom'], 44)}<h1>{e(c['nom'])}</h1>
+<span class="meta">{e(c['ville'])} · client depuis {e(c['depuis'])}</span></div><div class="grid"><div class="card rise"><h2>{ic('orders')} Commandes</h2>
+<table><tr><th>Commande</th><th>Date</th><th style="text-align:right">Total</th><th>Paiement</th><th>Traitement</th></tr>{rows}</table></div>
+<div class="card rise d1"><h2>{ic('users')} Coordonnées</h2><div class="in kv"><small>E-mail</small>{e(email)}<br><br><small>Adresse</small>{e(c['cp'])} {e(c['ville'])}, France
+<br><br><small>Historique</small>{c['commandes']} commande(s) au total</div></div></div>"""
     return admin_shell("customers", inner)
 
 
 def admin_stub(active: str, title: str) -> str:
-    return admin_shell(active, f'<div class="head"><h1>{title}</h1></div><div class="card"><div class="in muted">Cette section n\'est pas utilisée dans la démo.</div></div>')
+    return admin_shell(active, f'<div class="title"><h1>{title}</h1></div><div class="card"><div class="in" style="color:var(--mute)">Cette section n\'est pas utilisée dans la démo.</div></div>')
 
 
 # ============================================================================ Parcelia Pro
 PARCELIA_CSS = """
-body{background:#f4f6f9;color:#0f172a}.bar{background:#0c1b33;color:#fff;height:62px;display:flex;align-items:center;padding:0 28px;gap:28px}
-.bar .lg{display:flex;align-items:center;gap:10px;font-weight:800;font-size:19px;letter-spacing:-.01em}
-.bar .lg i{width:32px;height:32px;border-radius:50%;background:conic-gradient(#14b8a6 0 70%,#5eead4 0);display:inline-block}
-.bar nav a{color:#cbd5e1;text-decoration:none;margin-right:20px;font-weight:600}.bar nav a.on{color:#fff;border-bottom:2px solid #14b8a6;padding-bottom:19px}
-.bar .acc{margin-left:auto;color:#94a3b8;font-size:13px}.bar .acc a{color:#5eead4;margin-left:12px}
-.wrap{max-width:1120px;margin:0 auto;padding:28px}.hero{background:linear-gradient(120deg,#0f2a4f,#0c1b33);color:#fff;border-radius:16px;padding:26px 28px;margin-bottom:22px}
-.hero h1{margin:0 0 14px;font-size:22px}.hero form{display:flex;gap:10px}.hero input{flex:1;padding:13px 14px;border-radius:10px;border:0;font-size:15px}
-.hero button,.btn{background:#14b8a6;color:#04201d;border:0;border-radius:10px;padding:12px 20px;font-weight:800;cursor:pointer;text-decoration:none;display:inline-block}
-.box{background:#fff;border-radius:14px;border:1px solid #e2e8f0;margin-bottom:20px;overflow:hidden}.box h2{font-size:15px;margin:0;padding:16px 20px;border-bottom:1px solid #eef2f7}
-table{width:100%;border-collapse:collapse}th{text-align:left;font-size:12px;color:#64748b;padding:10px 20px;background:#f8fafc;text-transform:uppercase;letter-spacing:.04em}
-td{padding:12px 20px;border-top:1px solid #f1f5f9}td a{font-weight:700;color:#0f766e;text-decoration:none}
-.status{padding:22px 24px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}.status .big{font-size:24px;font-weight:800}
-.ok{color:#047857}.ko{color:#b42318}.mid{color:#b45309}.blue{color:#1d4ed8}
-.steps{display:grid;grid-template-columns:repeat(4,1fr);padding:0 24px 24px;gap:8px}.step{text-align:center;font-size:12px;color:#94a3b8;font-weight:600}
-.step i{display:block;height:6px;border-radius:9px;background:#e2e8f0;margin-bottom:8px}.step.done{color:#0f766e}.step.done i{background:#14b8a6}
-.step.bad{color:#b42318}.step.bad i{background:#f87171}
-.two{display:grid;grid-template-columns:1.25fr 1fr;gap:20px}.meta{display:grid;grid-template-columns:1fr 1fr;gap:12px 20px;padding:18px 20px}
-.meta div small{display:block;color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:.05em;font-weight:700}
-.pod{padding:18px 20px}.pod .sig{background:#fbfdff;border:1px dashed #cbd5e1;border-radius:10px;padding:8px;margin:10px 0}
-.alert{background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:10px;padding:14px 16px;margin:0 20px 18px}
-.warn{background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:10px;padding:14px 16px;margin:0 20px 18px}
+:root{--navy:#0b1526;--navy2:#13213a;--teal:#2dd4bf;--teal-d:#0f766e;--ink:#0d1626;--mute:#5d6b82;--line:#dfe5ee;--bg:#eef2f6}
+body{font-family:'Archivo',sans-serif;font-size:14px;background:var(--bg);color:var(--ink)}.mono{font-family:'JetBrains Mono',monospace}
+.bar{background:var(--navy);color:#fff;height:64px;display:flex;align-items:center;padding:0 32px;gap:36px;position:sticky;top:0;z-index:5}
+.lg{display:flex;align-items:center;gap:10px;font-weight:900;font-size:18px;letter-spacing:.06em;font-stretch:85%}
+.lg svg{color:var(--teal)}.lg b{color:var(--teal);font-weight:900}
+.bar nav{display:flex;gap:4px;height:100%}.bar nav a{color:#9fb0c8;text-decoration:none;font-weight:600;padding:0 14px;display:flex;align-items:center;border-bottom:3px solid transparent}
+.bar nav a.on{color:#fff;border-color:var(--teal)}.bar nav a:hover{color:#fff}
+.acc{margin-left:auto;display:flex;align-items:center;gap:12px;color:#9fb0c8;font-size:13px}.acc b{color:#fff;font-weight:600}
+.acc .chip{border:1px solid #23334f;border-radius:999px;padding:5px 12px}.acc a{color:var(--teal);text-decoration:none;font-weight:700}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 28px 64px}
+.hero{background:var(--navy);color:#fff;border-radius:18px;padding:30px 32px;position:relative;overflow:hidden;margin-bottom:22px}
+.hero::after{content:"";position:absolute;inset:0;background-image:repeating-linear-gradient(135deg,#ffffff08 0 2px,transparent 2px 16px);pointer-events:none}
+.hero h1{margin:0 0 4px;font-size:30px;font-weight:900;font-stretch:80%;letter-spacing:.01em;text-transform:uppercase}.hero p{margin:0 0 18px;color:#9fb0c8}
+.hero form{display:flex;gap:10px;position:relative;z-index:1}.hero input{flex:1;padding:15px 16px;border-radius:12px;border:2px solid transparent;font-size:16px;font-family:'JetBrains Mono'}
+.hero input:focus{outline:none;border-color:var(--teal)}.btn{background:var(--teal);color:#06231f;border:0;border-radius:12px;padding:14px 22px;font-weight:800;cursor:pointer;
+text-decoration:none;display:inline-flex;align-items:center;gap:8px;text-transform:uppercase;letter-spacing:.04em;font-size:13px}
+.chips{display:flex;gap:10px;margin-top:16px;position:relative;z-index:1}.chips span{background:#ffffff12;border:1px solid #ffffff1f;border-radius:999px;padding:6px 12px;font-size:13px}
+.chips b{color:var(--teal)}
+.box{background:#fff;border-radius:16px;border:1px solid var(--line);margin-bottom:20px;overflow:hidden}
+.box>h2{font-size:13px;margin:0;padding:15px 20px;border-bottom:1px solid #edf1f6;text-transform:uppercase;letter-spacing:.08em;font-weight:800;
+display:flex;align-items:center;gap:9px;color:var(--navy)}.box>h2 .r{margin-left:auto;text-transform:none;letter-spacing:0;font-weight:500;color:var(--mute)}
+table{width:100%;border-collapse:collapse}th{text-align:left;font-size:11px;color:var(--mute);padding:11px 20px;background:#f7f9fc;text-transform:uppercase;letter-spacing:.07em}
+td{padding:13px 20px;border-top:1px solid #f0f3f8}td a.trk{font-family:'JetBrains Mono';font-weight:700;color:var(--teal-d);text-decoration:none}
+tr:hover td{background:#f8fbfb}
+.p-ok{background:#dcfaf3;color:#0b6b5f}.p-mid{background:#fff3d6;color:#8a5a00}.p-ko{background:#fde4e1;color:#b42318}.p-blue{background:#e2ecff;color:#1e4fc2}
+.head{display:grid;grid-template-columns:1fr auto;gap:20px;padding:24px 26px 8px}.head small{color:var(--mute);font-weight:700;letter-spacing:.08em;font-size:11px}
+.trkbig{font-family:'JetBrains Mono';font-size:30px;font-weight:700;letter-spacing:.02em;margin:4px 0}.st{display:flex;align-items:center;gap:10px;font-size:22px;font-weight:900;font-stretch:85%;text-transform:uppercase}
+.ok{color:#0b6b5f}.ko{color:#b42318}.mid{color:#a16207}.blue{color:#1e4fc2}
+.eta{text-align:right}.eta b{display:block;font-size:22px;font-weight:900;font-stretch:85%}
+.steps{display:grid;grid-template-columns:repeat(4,1fr);padding:18px 26px 26px;gap:10px}.step{position:relative;font-size:12.5px;font-weight:700;color:#9aa7ba}
+.step .n{display:flex;align-items:center;gap:8px}.step .n i{width:26px;height:26px;border-radius:50%;border:2px solid #cfd8e4;display:grid;place-items:center;background:#fff;font-style:normal}
+.step::after{content:"";position:absolute;left:30px;right:0;top:13px;height:2px;background:#e3e8ef;z-index:0}.step:last-child::after{display:none}
+.step .n i{position:relative;z-index:1}.step .n span{background:#fff;position:relative;z-index:1;padding-right:10px}.step.done{color:var(--ink)}.step.done .n i{background:var(--teal);border-color:var(--teal);color:#06231f}
+.step.done::after{background:var(--teal)}.step.bad{color:#b42318}.step.bad .n i{background:#fde4e1;border-color:#f87171;color:#b42318}
+.step em{display:block;font-style:normal;font-weight:500;color:var(--mute);margin:6px 0 0 34px;font-size:12px}
+.two{display:grid;grid-template-columns:1.2fr 1fr;gap:20px;align-items:start}
+.evs{padding:8px 20px 16px}.ev{display:grid;grid-template-columns:96px 22px 1fr;gap:12px;padding:10px 0}
+.ev .d{font-family:'JetBrains Mono';font-size:12px;color:var(--mute);text-align:right;line-height:1.35}.ev .d b{color:var(--ink);display:block}
+.ev .m{width:12px;height:12px;border-radius:50%;background:#cfd8e4;margin:3px auto 0;box-shadow:0 0 0 4px #fff;position:relative}
+.ev:first-child .m{background:var(--teal);box-shadow:0 0 0 4px #ccfbf1}.ev .l{font-weight:700}.ev .l small{display:block;color:var(--mute);font-weight:500;font-size:12.5px}
+.label{margin:18px 20px;border:2px solid var(--ink);border-radius:10px;font-size:12.5px}.label .row{display:grid;grid-template-columns:1fr 1fr;border-bottom:2px solid var(--ink)}
+.label .row>div{padding:10px 12px}.label .row>div+div{border-left:2px solid var(--ink)}.label small{display:block;font-weight:800;letter-spacing:.08em;font-size:10px;color:var(--mute)}
+.label .svc{background:var(--ink);color:#fff;font-weight:900;font-size:20px;font-stretch:80%;text-transform:uppercase;padding:10px 12px;display:flex;justify-content:space-between}
+.label .bc{padding:12px 12px 8px;text-align:center;font-family:'JetBrains Mono';font-weight:700;letter-spacing:.2em}
+.pod{padding:18px 20px;position:relative}.paper{background:#fffdf7;border:1px solid #ece4cf;border-radius:10px;padding:10px;margin:10px 0;position:relative}
+.stamp{position:absolute;right:14px;top:10px;transform:rotate(-12deg);border:3px solid #0f766e;color:#0f766e;font-weight:900;font-stretch:80%;letter-spacing:.12em;
+padding:3px 10px;border-radius:6px;font-size:18px;opacity:.85;text-transform:uppercase}.stamp.warn{border-color:#a16207;color:#a16207}
+code.ref{font-family:'JetBrains Mono';background:var(--navy);color:var(--teal);padding:3px 10px;border-radius:6px;font-size:13px}
+.alert{background:#fff1ef;border:1px solid #fecaca;color:#991b1b;border-radius:12px;padding:14px 16px;margin:16px 20px;display:flex;gap:10px}
+.warnb{background:#fffbeb;border:1px solid #fde68a;color:#854d0e;border-radius:12px;padding:12px 14px;margin:16px 20px 0;display:flex;gap:10px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px 20px;padding:16px 20px}.grid2 small{display:block;color:var(--mute);font-size:10.5px;letter-spacing:.08em;font-weight:800;text-transform:uppercase}
+.map{background:#f7f9fc;background-image:linear-gradient(#e6ecf4 1px,transparent 1px),linear-gradient(90deg,#e6ecf4 1px,transparent 1px);background-size:22px 22px}
 """
 
-
-def parcelia_shell(active: str, inner: str) -> str:
-    body = f"""<div class="bar"><div class="lg"><i></i>Parcelia <span style="font-weight:400;color:#5eead4">Pro</span></div>
-<nav><a class="{'on' if active == 'envois' else ''}" href="/parcelia">Envois</a><a href="#">Enlèvements</a><a href="#">Facturation</a><a href="#">Réclamations</a></nav>
-<div class="acc">Compte SPORTIVA-PRO · Sportiva SAS<a href="/parcelia/logout">Déconnexion</a></div></div><div class="wrap">{inner}</div>"""
-    return page("Parcelia Pro", body, PARCELIA_CSS, "#14b8a6")
+PARCELIA_LOGO = ('<svg width="30" height="30" viewBox="0 0 32 32" fill="none"><path d="M16 3 28 9.5v13L16 29 4 22.5v-13z" stroke="currentColor" stroke-width="2.4"/>'
+                 '<path d="M4 9.5 16 16l12-6.5M16 16v13" stroke="currentColor" stroke-width="2.4"/><path d="M10 6.3 22 12.8" stroke="currentColor" stroke-width="2.4"/></svg>')
 
 
-def ship_badge(s: dict) -> str:
-    cls = {"livre_signe": "b-green", "boite_aux_lettres": "b-amber", "perdu": "b-red", "en_transit": "b-blue"}.get(s["code"], "b-grey")
-    return f'<span class="badge {cls}">{e(s["statut"])}</span>'
+def parcelia_shell(inner: str) -> str:
+    body = f"""<div class="bar"><div class="lg">{PARCELIA_LOGO}PARCELIA <b>PRO</b></div>
+<nav><a class="on" href="/parcelia">Envois</a><a href="#">Enlèvements</a><a href="#">Étiquettes</a><a href="#">Facturation</a><a href="#">Réclamations</a></nav>
+<div class="acc"><span class="chip">Compte <b class="mono">SPORTIVA-PRO</b></span><span>Sportiva SAS</span><a href="/parcelia/logout">Déconnexion</a></div></div>
+<div class="wrap">{inner}</div>"""
+    return page("Parcelia Pro", body, PARCELIA_CSS, "parcelia", "#2dd4bf")
 
 
-def parcelia_home(q: str) -> str:
+def ship_pill(s: dict) -> str:
+    cls = {"livre_signe": "p-ok", "boite_aux_lettres": "p-mid", "perdu": "p-ko", "en_transit": "p-blue"}.get(s["code"], "p-blue")
+    return f'<span class="pill {cls}"><i></i>{e(s["statut"])}</span>'
+
+
+def parcelia_home(q: str):
     ql = q.strip().upper()
-    items = list(DATA["shipments"].values())
+    allv = list(DATA["shipments"].values())
+    items = allv
     if ql:
-        items = [s for s in items if ql in s["tracking"] or ql in s["order_id"]]
+        items = [s for s in allv if ql in s["tracking"] or ql in s["order_id"]]
         if len(items) == 1:
-            return None  # redirection vers le détail
-    items.sort(key=lambda s: s["evenements"][0]["date"], reverse=True)
-    rows = "".join(f'<tr><td><a href="/parcelia/shipments/{s["tracking"]}">{s["tracking"]}</a></td><td>{e(s["order_id"])}</td>'
-                   f'<td>{e(s["destination"])}</td><td>{ship_badge(s)}</td><td>{fdate(s["evenements"][-1]["date"])}</td></tr>' for s in items[:40])
-    empty = f'<tr><td colspan="5" style="padding:26px;text-align:center;color:#64748b">Aucun envoi trouvé pour « {e(q)} ».</td></tr>'
-    inner = f"""<div class="hero"><h1>Suivre un envoi</h1><form action="/parcelia"><input name="q" value="{e(q)}" placeholder="Numéro de suivi (PRC…) ou référence client (CMD-…)">
-<button>Suivre</button></form></div><div class="box"><h2>{'Résultats' if q else 'Envois récents'} · {len(items)}</h2>
-<table><tr><th>N° de suivi</th><th>Référence client</th><th>Destination</th><th>Statut</th><th>Dernier événement</th></tr>{rows or empty}</table></div>"""
-    return parcelia_shell("envois", inner)
+            return None
+    items.sort(key=lambda s: s["evenements"][-1]["date"], reverse=True)
+    rows = "".join(f'<tr><td><a class="trk" href="/parcelia/shipments/{s["tracking"]}">{s["tracking"]}</a></td><td class="mono">{e(s["order_id"])}</td>'
+                   f'<td>{e(s["destination"])}</td><td>{ship_pill(s)}</td><td class="mono" style="color:var(--mute)">{fdate(s["evenements"][-1]["date"])}</td></tr>' for s in items[:40])
+    empty = f'<tr><td colspan="5" style="padding:30px;text-align:center;color:var(--mute)">Aucun envoi trouvé pour « {e(q)} ».</td></tr>'
+    n = lambda c: sum(1 for s in allv if s["code"] == c)
+    inner = f"""<div class="hero rise"><h1>Suivre un envoi</h1><p>Numéro de suivi Parcelia ou référence client de l'expéditeur.</p>
+<form action="/parcelia"><input name="q" value="{e(q)}" placeholder="PRC0000000000  ·  CMD-00000"><button class="btn">{ic('search', 16)} Suivre</button></form>
+<div class="chips"><span><b>{n('en_transit')}</b> en transit</span><span><b>{n('livre_signe') + n('boite_aux_lettres')}</b> livrés</span><span><b>{n('perdu')}</b> anomalies</span></div></div>
+<div class="box rise d1"><h2>{ic('box', 16)} {'Résultats de recherche' if q else 'Envois récents'}<span class="r">{len(items)} envoi(s)</span></h2>
+<table><tr><th>N° de suivi</th><th>Réf. client</th><th>Destination</th><th>Statut</th><th>Dernier scan</th></tr>{rows or empty}</table></div>"""
+    return parcelia_shell(inner)
 
 
-def _xy(lat, lon, w=300, h=290):
+def _xy(lat, lon, w=320, h=300):
     return (lon + 5.3) / 13.9 * w, (51.4 - lat) / 9.2 * h
 
 
@@ -362,156 +546,229 @@ def france_map(dest_city: str, perdu: bool) -> str:
     pts = " ".join(f"{x:.1f},{y:.1f}" for x, y in (_xy(lat, lon) for lon, lat in FRANCE))
     hx, hy = _xy(*GEO["Lyon-Saint-Exupéry"])
     dx, dy = _xy(*GEO.get(dest_city, GEO["Paris"]))
-    mx, my = (hx + dx) / 2 + (dy - hy) * 0.15, (hy + dy) / 2 - (dx - hx) * 0.15
-    color = "#ef4444" if perdu else "#14b8a6"
-    end = (f'<circle cx="{dx:.1f}" cy="{dy:.1f}" r="7" fill="#fff" stroke="{color}" stroke-width="3"/>' if not perdu else
-           f'<text x="{(hx + dx) / 2:.0f}" y="{(hy + dy) / 2:.0f}" font-size="18" text-anchor="middle">❓</text>')
-    return f"""<svg viewBox="0 0 300 290" width="100%" style="display:block;background:#f8fafc">
-<polygon points="{pts}" fill="#e2e8f0" stroke="#cbd5e1" stroke-width="1.5"/>
-<path d="M{hx:.1f},{hy:.1f} Q{mx:.1f},{my:.1f} {dx:.1f},{dy:.1f}" fill="none" stroke="{color}" stroke-width="3" stroke-dasharray="{'6 6' if perdu else '0'}"/>
-<circle cx="{hx:.1f}" cy="{hy:.1f}" r="6" fill="#0c1b33"/><text x="{hx + 9:.0f}" y="{hy + 4:.0f}" font-size="10" fill="#0c1b33" font-weight="700">Hub Lyon</text>
-{end}<text x="{dx + 10:.0f}" y="{dy - 8:.0f}" font-size="11" fill="#0f172a" font-weight="700">{e(dest_city)}</text></svg>"""
+    mx, my = (hx + dx) / 2 + (dy - hy) * 0.18, (hy + dy) / 2 - (dx - hx) * 0.18
+    color = "#ef4444" if perdu else "#0f766e"
+    end = (f'<circle cx="{dx:.1f}" cy="{dy:.1f}" r="9" fill="#2dd4bf" opacity=".25"/><circle cx="{dx:.1f}" cy="{dy:.1f}" r="5.5" fill="#0f766e"/>' if not perdu
+           else f'<circle cx="{(hx + dx) / 2:.0f}" cy="{(hy + dy) / 2:.0f}" r="12" fill="#fde4e1"/><text x="{(hx + dx) / 2:.0f}" y="{(hy + dy) / 2 + 5:.0f}" font-size="14" font-weight="900" text-anchor="middle" fill="#b42318">?</text>')
+    return f"""<svg viewBox="0 0 320 300" width="100%" style="display:block"><polygon points="{pts}" fill="#fff" stroke="#9fb0c8" stroke-width="1.4"/>
+<path d="M{hx:.1f},{hy:.1f} Q{mx:.1f},{my:.1f} {dx:.1f},{dy:.1f}" fill="none" stroke="{color}" stroke-width="3" stroke-linecap="round" stroke-dasharray="{'5 7' if perdu else '0'}"/>
+<rect x="{hx - 6:.1f}" y="{hy - 6:.1f}" width="12" height="12" rx="2" fill="#0b1526"/><text x="{hx + 10:.0f}" y="{hy + 4:.0f}" font-size="10.5" font-weight="800" fill="#0b1526" font-family="Archivo">HUB LYON</text>
+{end}<text x="{dx + 11:.0f}" y="{dy - 9:.0f}" font-size="11.5" font-weight="800" fill="#0d1626" font-family="Archivo">{e(dest_city).upper()}</text></svg>"""
+
+
+def barcode(code: str, w: int = 300, h: int = 54) -> str:
+    r = random.Random(code)
+    x, bars = 0.0, []
+    while x < w - 4:
+        bw = r.choice([1.2, 1.2, 2.4, 3.6])
+        if r.random() < 0.55:
+            bars.append(f'<rect x="{x:.1f}" y="0" width="{bw}" height="{h}"/>')
+        x += bw + r.choice([1.2, 2.4])
+    return f'<svg viewBox="0 0 {w} {h}" width="100%" height="{h}" fill="#0d1626" preserveAspectRatio="none">{"".join(bars)}</svg>'
 
 
 def signature(name: str) -> str:
     r = random.Random(name)
-    x, y, d = 18.0, 50.0, ""
+    x, y = 18.0, 52.0
     d = f"M{x:.0f},{y:.0f}"
     for _ in range(9):
         x += 22 + r.random() * 14
         d += f" C{x - 18:.0f},{y - 34 * r.random():.0f} {x - 6:.0f},{y + 30 * r.random():.0f} {x:.0f},{y + (r.random() - .5) * 18:.0f}"
-    d += f" M{24 + r.random() * 30:.0f},{70 + r.random() * 6:.0f} L{x - 10:.0f},{62 + r.random() * 8:.0f}"
-    return (f'<svg viewBox="0 0 320 90" width="100%" height="90"><path d="{d}" fill="none" stroke="#1e293b" stroke-width="2.4" '
+    d += f" M{24 + r.random() * 30:.0f},{72 + r.random() * 6:.0f} L{x - 10:.0f},{64 + r.random() * 8:.0f}"
+    return (f'<svg viewBox="0 0 320 92" width="100%" height="92"><path d="{d}" fill="none" stroke="#1e3a8a" stroke-width="2.3" '
             f'stroke-linecap="round" stroke-linejoin="round"/></svg>')
 
 
 def gps(s: dict) -> str:
-    city = s["destination"].split(" ", 1)[1]
-    lat, lon = GEO.get(city, GEO["Paris"])
+    lat, lon = GEO.get(s["destination"].split(" ", 1)[1], GEO["Paris"])
     r = random.Random(s["tracking"])
     return f"{lat + (r.random() - .5) * .04:.5f}, {lon + (r.random() - .5) * .04:.5f}"
 
 
-def parcelia_shipment(trk: str) -> str | None:
+def parcelia_shipment(trk: str):
     s = DATA["shipments"].get(trk)
     if not s:
         return None
     city = s["destination"].split(" ", 1)[1]
     code = s["code"]
-    order = ["Pris en charge", "En transit", "En cours de livraison", "Livré"]
+    evs = s["evenements"]
+    first = {0: evs[0]["date"], 1: evs[1]["date"] if len(evs) > 1 else None}
     reached = {"en_transit": 2, "perdu": 2, "livre_signe": 4, "boite_aux_lettres": 4}.get(code, 1)
-    steps = "".join(f'<div class="step {"bad" if code == "perdu" and i == 2 else "done" if i < reached else ""}"><i></i>{lbl}</div>'
-                    for i, lbl in enumerate(order))
+    labels = ["Pris en charge", "En transit", "En livraison", "Livré"]
+    stamps = [evs[0]["date"], evs[1]["date"] if len(evs) > 1 else "", evs[-2]["date"] if reached == 4 and len(evs) > 2 else "",
+              evs[-1]["date"] if reached == 4 else ""]
+    steps = "".join(f'<div class="step {"bad" if code == "perdu" and i == 2 else "done" if i < reached else ""}"><div class="n"><i>'
+                    f'{"!" if code == "perdu" and i == 2 else "✓" if i < reached else i + 1}</i><span>{lbl}</span></div>'
+                    f'<em>{fdate(stamps[i]) if i < reached and stamps[i] else ("Anomalie" if code == "perdu" and i == 2 else "—")}</em></div>'
+                    for i, lbl in enumerate(labels))
     cls = {"livre_signe": "ok", "boite_aux_lettres": "mid", "perdu": "ko", "en_transit": "blue"}[code]
-    ev = "".join(f'<tr><td>{fdate(x["date"], False)}</td><td>{x["date"][11:16]}</td><td>{e(x["lieu"])}</td><td>{e(x["detail"])}</td></tr>'
-                 for x in reversed(s["evenements"]))
+    icon = {"livre_signe": "check", "boite_aux_lettres": "inbox", "perdu": "alert", "en_transit": "truck"}[code]
+    eta = (f'<small>LIVRÉ LE</small><b>{fdate(s["date_livraison"], False)}</b>' if s.get("date_livraison") else
+           ('<small>ÉTAT</small><b class="ko">ENQUÊTE OUVERTE</b>' if code == "perdu" else '<small>LIVRAISON PRÉVUE</small><b>sous 48 h</b>'))
+    ev = "".join(f'<div class="ev"><div class="d"><b>{fdate(x["date"], False)}</b>{x["date"][11:16]}</div><div class="m"></div>'
+                 f'<div class="l">{e(x["libelle"])}<small>{e(x["detail"])} · {e(x["lieu"])}</small></div></div>' for x in reversed(evs))
     if code == "livre_signe":
-        pod = f"""<div class="pod"><b>✍️ Remis contre signature</b><div class="sig">{signature(s['signe_par'])}</div>
-<div>Signé par : <b>{e(s['signe_par'])}</b> · {fdate(s['evenements'][-1]['date'])}</div><div style="color:#64748b">Position GPS du livreur : {gps(s)}</div>
-<div style="margin-top:12px">Référence de preuve à transmettre : <code class="ref">{e(s['preuve'])}</code></div>
-<div style="margin-top:14px"><a class="btn" href="/parcelia/shipments/{trk}/pod">Ouvrir la preuve de livraison (POD)</a></div></div>"""
+        pod = f"""<div class="pod"><div style="font-weight:800">{ic('pen', 16)} Remis en main propre contre signature</div>
+<div class="paper"><span class="stamp">Livré</span>{signature(s['signe_par'])}</div>
+<div class="grid2" style="padding:6px 0 10px"><div><small>Signé par</small><b>{e(s['signe_par'])}</b></div><div><small>Date et heure</small>{fdate(evs[-1]['date'])}</div>
+<div><small>Position GPS livreur</small><span class="mono">{gps(s)}</span></div><div><small>Livreur</small>Tournée {e(city[:3].upper())}-{int(hashlib.md5(trk.encode()).hexdigest()[:2], 16) % 40 + 10}</div></div>
+<div>Référence de preuve à transmettre : <code class="ref">{e(s['preuve'])}</code></div>
+<div style="margin-top:16px"><a class="btn" href="/parcelia/shipments/{trk}/pod">{ic('file', 16)} Ouvrir la preuve de livraison (POD)</a></div></div>"""
     elif code == "boite_aux_lettres":
-        pod = f"""<div class="warn">Livré <b>sans signature</b> : colis déposé dans la boîte aux lettres du destinataire.</div><div class="pod">
-<div>Photo de dépôt : non disponible pour ce service.</div><div style="color:#64748b">Position GPS du livreur : {gps(s)}</div>
-<div style="margin-top:12px">Référence de preuve : <code class="ref">{e(s['preuve'])}</code></div>
-<div style="margin-top:14px"><a class="btn" href="/parcelia/shipments/{trk}/pod">Ouvrir l'attestation de dépôt</a></div></div>"""
+        pod = f"""<div class="warnb">{ic('inbox', 18)}<div>Livré <b>sans signature</b> : colis déposé dans la boîte aux lettres du destinataire.</div></div>
+<div class="pod"><div class="paper" style="text-align:center;padding:18px;color:var(--mute)"><span class="stamp warn">Déposé</span>Aucune signature recueillie pour ce service.</div>
+<div class="grid2" style="padding:6px 0 10px"><div><small>Date et heure</small>{fdate(evs[-1]['date'])}</div><div><small>Position GPS livreur</small><span class="mono">{gps(s)}</span></div></div>
+<div>Référence de preuve : <code class="ref">{e(s['preuve'])}</code></div>
+<div style="margin-top:16px"><a class="btn" href="/parcelia/shipments/{trk}/pod">{ic('file', 16)} Ouvrir l'attestation de dépôt</a></div></div>"""
     elif code == "perdu":
-        pod = f"""<div class="alert"><b>Anomalie : colis non localisé.</b> Une enquête a été ouverte. Aucune preuve de livraison n'existe pour cet envoi.</div>
-<div class="pod">Référence de preuve : <code class="ref">{e(s['preuve'])}</code></div>"""
+        pod = f"""<div class="alert">{ic('alert', 18)}<div><b>Anomalie : colis non localisé.</b> Une enquête a été ouverte auprès du réseau. Aucune preuve de livraison n'existe pour cet envoi.</div></div>
+<div class="pod" style="padding-top:0">Référence de preuve : <code class="ref">{e(s['preuve'])}</code></div>"""
     else:
-        pod = '<div class="pod" style="color:#64748b">Le colis est en cours d\'acheminement. La preuve de livraison sera disponible après la remise.</div>'
-    inner = f"""<div style="margin-bottom:14px"><a href="/parcelia" style="color:#0f766e;font-weight:700;text-decoration:none">← Tous les envois</a></div>
-<div class="box"><div class="status"><div><div style="color:#64748b;font-size:12px;font-weight:700;letter-spacing:.05em">ENVOI {e(trk)} · RÉF. CLIENT {e(s['order_id'])}</div>
-<div class="big {cls}">{e(s['statut'])}</div></div></div><div class="steps">{steps}</div></div>
-<div class="two"><div><div class="box"><h2>Historique des événements</h2><table><tr><th>Date</th><th>Heure</th><th>Lieu</th><th>Événement</th></tr>{ev}</table></div>
-<div class="box"><h2>Détails de l'envoi</h2><div class="meta"><div><small>Service</small>{e(s['service'])}</div><div><small>Poids</small>{s['poids_kg']} kg</div>
-<div><small>Expéditeur</small>Sportiva SAS — Lyon</div><div><small>Destination</small>{e(s['destination'])}</div></div></div></div>
-<div><div class="box"><h2>Preuve de livraison</h2>{pod}</div><div class="box"><h2>Trajet</h2>{france_map(city, code == 'perdu')}</div></div></div>"""
-    return parcelia_shell("envois", inner)
+        pod = '<div class="pod" style="color:var(--mute)">Le colis est en cours d\'acheminement. La preuve de livraison sera disponible après la remise.</div>'
+    label = f"""<div class="label"><div class="svc"><span>Express 48h</span><span>{e(s['poids_kg'])} kg</span></div>
+<div class="row"><div><small>DE</small>SPORTIVA SAS<br>Plateforme e-commerce<br>69125 Lyon</div><div><small>À</small>{e(s['destination'])}<br>France<br><span class="mono">Réf. {e(s['order_id'])}</span></div></div>
+<div class="bc">{barcode(trk)}<div style="margin-top:6px">{e(trk)}</div></div></div>"""
+    inner = f"""<div style="margin-bottom:14px"><a href="/parcelia" style="color:var(--teal-d);font-weight:800;text-decoration:none">← Tous les envois</a></div>
+<div class="box rise"><div class="head"><div><small>ENVOI · RÉF. CLIENT <span class="mono">{e(s['order_id'])}</span> · {e(s['destination']).upper()}</small>
+<div class="trkbig">{e(trk)}</div><div class="st {cls}">{ic(icon, 22)} {e(s['statut'])}</div></div><div class="eta">{eta}</div></div><div class="steps">{steps}</div></div>
+<div class="two"><div><div class="box rise d1"><h2>{ic('clock', 16)} Historique des scans<span class="r">{len(evs)} événements</span></h2><div class="evs">{ev}</div></div>
+<div class="box rise d2"><h2>{ic('file', 16)} Étiquette d'expédition</h2>{label}</div></div>
+<div><div class="box rise d1"><h2>{ic('check', 16)} Preuve de livraison</h2>{pod}</div>
+<div class="box rise d2"><h2>{ic('route', 16)} Trajet<span class="r">Hub Lyon → {e(city)}</span></h2><div class="map">{france_map(city, code == 'perdu')}</div></div></div></div>"""
+    return parcelia_shell(inner)
 
 
-def parcelia_pod(trk: str) -> str | None:
+def parcelia_pod(trk: str):
     s = DATA["shipments"].get(trk)
     if not s or s["code"] not in ("livre_signe", "boite_aux_lettres"):
         return None
     signed = s["code"] == "livre_signe"
-    css = """body{background:#e5e7eb;padding:30px}.doc{max-width:760px;margin:0 auto;background:#fff;padding:44px 50px;box-shadow:0 8px 30px rgba(0,0,0,.12)}
-.h{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #0c1b33;padding-bottom:14px}.h b{font-size:22px}
-table{width:100%;border-collapse:collapse;margin-top:22px}td{padding:9px 0;border-bottom:1px solid #eee}td:first-child{color:#64748b;width:42%}
-.sig{border:1px solid #cbd5e1;border-radius:8px;margin-top:8px}.pr{margin-top:26px}@media print{body{background:#fff;padding:0}.pr{display:none}.doc{box-shadow:none}}"""
+    css = PARCELIA_CSS + """body{padding:34px}.doc{max-width:780px;margin:0 auto;background:#fff;box-shadow:0 18px 50px -20px #0b152655;border-radius:6px;overflow:hidden}
+.dh{background:var(--navy);color:#fff;padding:22px 34px;display:flex;justify-content:space-between;align-items:center}.dh .lg{color:#fff}
+.dh span{font-weight:900;font-stretch:80%;letter-spacing:.1em;text-transform:uppercase;color:var(--teal)}.db{padding:26px 34px 34px;position:relative}
+table{margin-top:4px}td{padding:11px 0;border-top:1px solid #edf1f6}td:first-child{color:var(--mute);width:40%;font-weight:600}
+.sig{border:1px solid #ece4cf;background:#fffdf7;border-radius:8px}.big{position:absolute;right:40px;top:30px;transform:rotate(-12deg);border:4px solid #0f766e;color:#0f766e;
+font-weight:900;font-stretch:80%;font-size:26px;letter-spacing:.14em;padding:4px 14px;border-radius:8px;opacity:.8;text-transform:uppercase}.big.w{border-color:#a16207;color:#a16207}
+.pr{margin-top:24px;display:flex;gap:14px;align-items:center}@media print{body{background:#fff;padding:0}.pr{display:none}.doc{box-shadow:none}}"""
     sig = f'<tr><td>Signature</td><td><div class="sig">{signature(s["signe_par"])}</div></td></tr>' if signed else ""
-    body = f"""<div class="doc"><div class="h"><b>Parcelia</b><span>{'Preuve de livraison (POD)' if signed else 'Attestation de dépôt'}</span></div>
-<table><tr><td>Numéro de suivi</td><td><b>{e(trk)}</b></td></tr><tr><td>Référence client</td><td>{e(s['order_id'])}</td></tr>
-<tr><td>Expéditeur</td><td>Sportiva SAS — Lyon</td></tr><tr><td>Destination</td><td>{e(s['destination'])}</td></tr>
+    body = f"""<div class="doc"><div class="dh"><div class="lg">{PARCELIA_LOGO}PARCELIA <b>PRO</b></div><span>{'Preuve de livraison · POD' if signed else 'Attestation de dépôt'}</span></div>
+<div class="db"><div class="big {'' if signed else 'w'}">{'Livré' if signed else 'Déposé'}</div><div style="width:300px;margin-bottom:18px">{barcode(trk, 300, 46)}<div class="mono" style="font-weight:700;letter-spacing:.18em;margin-top:4px">{e(trk)}</div></div>
+<table><tr><td>Numéro de suivi</td><td class="mono"><b>{e(trk)}</b></td></tr><tr><td>Référence client</td><td class="mono">{e(s['order_id'])}</td></tr>
+<tr><td>Expéditeur</td><td>Sportiva SAS — Lyon</td></tr><tr><td>Destination</td><td>{e(s['destination'])}, France</td></tr>
 <tr><td>Date et heure de remise</td><td>{fdate(s['evenements'][-1]['date'])}</td></tr>
 <tr><td>Mode de remise</td><td>{'Remis en main propre contre signature' if signed else 'Déposé en boîte aux lettres, sans signature'}</td></tr>
-<tr><td>Réceptionnaire</td><td>{e(s['signe_par']) if signed else '—'}</td></tr><tr><td>Position GPS</td><td>{gps(s)}</td></tr>{sig}
+<tr><td>Réceptionnaire</td><td>{e(s['signe_par']) if signed else '—'}</td></tr><tr><td>Position GPS</td><td class="mono">{gps(s)}</td></tr>{sig}
 <tr><td>Référence de preuve à transmettre</td><td><code class="ref">{e(s['preuve'])}</code></td></tr></table>
-<p style="color:#64748b;font-size:12px;margin-top:22px">Document généré par le portail Parcelia Pro. Données fictives de démonstration.</p>
-<div class="pr"><button onclick="window.print()" style="padding:10px 16px">Imprimer / Enregistrer en PDF</button>
-<a href="/parcelia/shipments/{e(trk)}" style="margin-left:14px">← Retour à l'envoi</a></div></div>"""
-    return page(f"POD {trk} · Parcelia", body, css, "#14b8a6")
+<p style="color:var(--mute);font-size:12px;margin-top:20px">Document généré par le portail Parcelia Pro. Données fictives de démonstration.</p>
+<div class="pr"><button class="btn" onclick="window.print()">{ic('file', 16)} Imprimer / Enregistrer en PDF</button>
+<a href="/parcelia/shipments/{e(trk)}" style="color:var(--teal-d);font-weight:800">← Retour à l'envoi</a></div></div></div>"""
+    return page(f"POD {trk} · Parcelia Pro", body, css, "parcelia", "#2dd4bf")
 
 
 # ============================================================================ Sportiva Care
 CARE_CSS = """
-body{background:#f2f7f6;color:#0f2a26}.app{display:grid;grid-template-columns:72px 380px 1fr;height:100vh}
-.rail{background:#0f3d38;display:flex;flex-direction:column;align-items:center;padding:16px 0;gap:18px}
-.rail i{width:40px;height:40px;border-radius:12px;background:#2dd4bf;display:grid;place-items:center;font-style:normal;font-weight:900;color:#0f3d38}
-.rail a{color:#99f6e4;text-decoration:none;font-size:20px}.rail .out{margin-top:auto;font-size:12px}
-.list{background:#fff;border-right:1px solid #dcebe7;overflow:auto}.list .hd{padding:18px 18px 10px}.list h1{margin:0 0 10px;font-size:18px}
-.list input{width:100%;padding:9px 12px;border:1px solid #cfe3de;border-radius:10px}.t{display:block;padding:14px 18px;border-top:1px solid #eef5f3;text-decoration:none}
-.t:hover{background:#f6fbfa}.t.on{background:#e6f6f2;border-left:3px solid #0f766e}.t small{color:#5b7a73}.t .s{font-weight:700;margin:2px 0}
-.conv{overflow:auto;padding:26px 34px}.meta{color:#5b7a73;margin:6px 0 20px}.msg{max-width:660px;padding:12px 16px;border-radius:16px;margin:12px 0;line-height:1.5}
-.msg.client{background:#fff;border:1px solid #dcebe7}.msg.agent{background:#0f766e;color:#fff;margin-left:auto}.who{font-size:12px;opacity:.7;margin-bottom:4px}
-.exp{margin-top:24px;max-width:660px;background:#fff;border:1px dashed #0f766e;border-radius:12px;padding:14px 16px}
+:root{--deep:#123b38;--deep2:#0d2c2a;--cream:#fbf7f1;--sand:#f3ece1;--ink:#1d2a28;--mute:#6c7a76;--line:#ebe3d6;--coral:#f2765a;--teal:#1f7a6f}
+body{font-family:'Figtree',sans-serif;font-size:14px;background:var(--cream);color:var(--ink)}.serif{font-family:'Fraunces',serif}
+.app{display:grid;grid-template-columns:72px 360px minmax(0,1fr) 320px;height:100vh}
+.rail{background:var(--deep);display:flex;flex-direction:column;align-items:center;padding:16px 0;gap:8px}
+.rail .lg{width:42px;height:42px;border-radius:14px;background:var(--coral);display:grid;place-items:center;color:var(--deep);font-family:'Fraunces';font-weight:700;font-size:20px;margin-bottom:14px}
+.rail a{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;color:#9cc7c0;text-decoration:none}.rail a.on{background:#1d4f4a;color:#fff}
+.rail a:hover{background:#174642;color:#fff}.rail .bot{margin-top:auto}
+.list{background:var(--sand);border-right:1px solid var(--line);overflow:auto;display:flex;flex-direction:column}
+.lh{padding:20px 18px 12px;position:sticky;top:0;background:var(--sand);z-index:2}.lh h1{font-family:'Fraunces';font-size:24px;margin:0 0 4px;font-weight:600}
+.lh .sub{color:var(--mute);font-size:13px;margin-bottom:12px}.lh form{position:relative}.lh .ic{position:absolute;left:12px;top:11px;color:var(--mute)}
+.lh input{width:100%;padding:10px 12px 10px 38px;border:1px solid var(--line);border-radius:12px;background:#fff}
+.t{display:grid;grid-template-columns:36px 1fr;gap:10px;padding:14px 18px;text-decoration:none;border-top:1px solid #ece4d6;transition:.1s}
+.t:hover{background:#efe6d8}.t.on{background:#fff;box-shadow:inset 3px 0 0 var(--coral)}.t .av{width:36px;height:36px}
+.t .s{font-weight:700;margin:1px 0}.t small{color:var(--mute)}.t .top{display:flex;justify-content:space-between;gap:8px;color:var(--mute);font-size:12px}
+.av{border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;font-size:13px;flex:none}
+.p-ok{background:#dff3ec;color:#17694f}.p-wait{background:#fde9e3;color:#b4432a}
+.conv{display:flex;flex-direction:column;min-width:0;background:#fff}.ch{padding:20px 30px;border-bottom:1px solid var(--line)}
+.ch h2{font-family:'Fraunces';font-size:24px;margin:0 0 6px;font-weight:600}.ch .meta{color:var(--mute);display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center}
+.msgs{flex:1;overflow:auto;padding:22px 30px}.m{display:grid;grid-template-columns:36px 1fr;gap:12px;margin:14px 0;max-width:720px}
+.m .bub{background:var(--cream);border:1px solid var(--line);border-radius:4px 16px 16px 16px;padding:12px 16px;line-height:1.55}
+.m.agent{margin-left:auto;grid-template-columns:1fr 36px}.m.agent .bub{background:var(--deep);color:#e9f5f2;border-color:var(--deep);border-radius:16px 4px 16px 16px}
+.m.agent .av{order:2}.m .who{font-size:12px;color:var(--mute);margin-bottom:4px;font-weight:600}.m.agent .who{text-align:right}
+.exp{display:flex;gap:12px;align-items:center;max-width:720px;margin:22px 0 6px;padding:12px 16px;border:1.5px dashed #c9b99f;border-radius:14px;background:#fffdf8}
+.exp .fi{width:38px;height:38px;border-radius:10px;background:var(--sand);display:grid;place-items:center;color:var(--teal)}
+code.ref{font-family:ui-monospace,Menlo,monospace;background:var(--deep);color:#fff;padding:2px 9px;border-radius:6px;font-size:12.5px}
+.composer{margin:0 30px 22px;border:1px solid var(--line);border-radius:16px;padding:12px 14px;color:var(--mute);display:flex;align-items:center;gap:10px}
+.composer .send{margin-left:auto;background:var(--coral);color:#fff;border-radius:10px;padding:7px 14px;font-weight:700}
+.macros{display:flex;gap:8px;margin:0 30px 10px;flex-wrap:wrap}.macros span{background:var(--sand);border-radius:999px;padding:5px 12px;font-size:12.5px;font-weight:600;color:#5b4a33}
+.ctx{background:var(--cream);border-left:1px solid var(--line);overflow:auto;padding:22px 20px}.ctx h3{font-family:'Fraunces';font-size:16px;margin:22px 0 10px;font-weight:600}
+.cp{display:flex;gap:12px;align-items:center}.cp .av{width:48px;height:48px;font-size:16px}.cp b{font-size:16px}
+.kv{display:grid;gap:8px;margin-top:14px;font-size:13.5px}.kv div{display:flex;gap:8px;align-items:center;color:#3b4a47}.kv .ic{color:var(--mute)}
+.oc{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+.oc .mono{font-family:ui-monospace,Menlo,monospace;font-weight:600}.empty{flex:1;display:grid;place-items:center;color:var(--mute);text-align:center;padding:40px}
+.empty h2{font-family:'Fraunces';color:var(--ink);font-weight:600}
 """
+
+
+def care_avatar(name: str, size: int = 36) -> str:
+    return f'<span class="av" style="width:{size}px;height:{size}px;background:hsl({hue(name)} 38% 44%)">{e(initials(name))}</span>'
 
 
 def care_page(q: str, tid: str | None) -> str:
     ql = q.lower().strip()
     ts = [t for t in DATA["tickets"] if not ql or ql in f'{t["email"]} {t["client"]} {t["commande"]} {t["id"]} {t["sujet"]}'.lower()]
-    items = "".join(f'<a class="t {"on" if t["id"] == tid else ""}" href="/care/tickets/{quote(t["id"][1:])}?q={quote(q)}">'
-                    f'<span class="badge {"b-green" if t["statut"] == "Résolu" else "b-amber"}" style="float:right">{e(t["statut"])}</span>'
-                    f'<div class="s">{e(t["sujet"])}</div><small>{e(t["client"])} · {e(t["commande"])} · {fdate(t["date"], False)}</small></a>' for t in ts)
+    items = "".join(f"""<a class="t {'on' if t['id'] == tid else ''}" href="/care/tickets/{quote(t['id'][1:])}{'?q=' + quote(q) if q else ''}">{care_avatar(t['client'])}
+<div><div class="top"><span>{e(t['client'])}</span><span>{fdate(t['date'], False)}</span></div><div class="s">{e(t['sujet'])}</div>
+<small>{e(t['id'])} · {e(t['commande'])}</small> <span class="pill {'p-ok' if t['statut'] == 'Résolu' else 'p-wait'}" style="float:right"><i></i>{e(t['statut'])}</span></div></a>""" for t in ts)
     t = next((x for x in DATA["tickets"] if x["id"] == tid), None)
     if t:
-        msgs = "".join(f'<div class="msg {m[0]}"><div class="who">{e(t["client"]) if m[0] == "client" else "Agent Sportiva Care"}</div>{e(m[1])}</div>'
-                       for m in t["messages"])
-        conv = f"""<h2 style="margin:0">{e(t['sujet'])}</h2><div class="meta">Ticket {e(t['id'])} · {e(t['client'])} &lt;{e(t['email'])}&gt; ·
-commande {e(t['commande'])} · ouvert le {fdate(t['date'], False)} · <span class="badge {'b-green' if t['statut'] == 'Résolu' else 'b-amber'}">{e(t['statut'])}</span></div>
-{msgs}<div class="exp">📎 <b>Export de la conversation</b> (pièce justificative) — référence de preuve : <code class="ref">{e(t['preuve'])}</code></div>"""
+        r = random.Random(t["id"])
+        h0 = 9 + int(r.random() * 7)
+        msgs = "".join(f"""<div class="m {m[0]}">{care_avatar(t['client'] if m[0] == 'client' else 'Agent Care')}<div>
+<div class="who">{e(t['client']) if m[0] == 'client' else 'Agent Sportiva Care'} · {fdate(t['date'], False)}, {h0 + i}:{int(r.random() * 50) + 10:02d}</div>
+<div class="bub">{e(m[1])}</div></div></div>""" for i, m in enumerate(t["messages"]))
+        conv = f"""<div class="ch"><h2>{e(t['sujet'])}</h2><div class="meta"><span>Ticket <b>{e(t['id'])}</b></span><span>{e(t['client'])} &lt;{e(t['email'])}&gt;</span>
+<span>Commande <b>{e(t['commande'])}</b></span><span>Ouvert le {fdate(t['date'], False)}</span><span class="pill {'p-ok' if t['statut'] == 'Résolu' else 'p-wait'}"><i></i>{e(t['statut'])}</span></div></div>
+<div class="msgs">{msgs}<div class="exp"><div class="fi">{ic('attach')}</div><div><b>Export de la conversation</b> · pièce justificative PDF<br>
+<span style="color:var(--mute)">Référence de preuve :</span> <code class="ref">{e(t['preuve'])}</code></div></div></div>
+<div class="macros"><span>Remercier</span><span>Demander une photo</span><span>Proposer un échange</span><span>Escalader</span></div>
+<div class="composer">{ic('pen', 16)} Répondre à {e(t['client'].split()[0])}…<span class="send">Envoyer</span></div>"""
+        c = DATA["clients"].get(t["email"], {"nom": t["client"], "ville": "", "cp": "", "depuis": "", "commandes": 0})
+        orders = [o for o in DATA["orders"].values() if o["client_email"] == t["email"]]
+        oc = "".join(f'<div class="oc"><div><span class="mono">{o["id"]}</span><br><small style="color:var(--mute)">{fdate(o["date"], False)}</small></div>'
+                     f'<div style="text-align:right"><b>{eur(o["total"])}</b><br><small style="color:var(--mute)">{e(o["traitement"])}</small></div></div>' for o in orders)
+        ctx = f"""<aside class="ctx"><div class="cp">{care_avatar(c['nom'], 48)}<div><b>{e(c['nom'])}</b><br><small style="color:var(--mute)">Client depuis {e(c['depuis'])}</small></div></div>
+<div class="kv"><div>{ic('msg', 16)} {e(t['email'])}</div><div>{ic('pin', 16)} {e(c['cp'])} {e(c['ville'])}</div><div>{ic('orders', 16)} {c['commandes']} commande(s) au total</div></div>
+<h3>Commandes récentes</h3>{oc or '<small style="color:var(--mute)">Aucune commande.</small>'}
+<h3>Conversations</h3><small style="color:var(--mute)">{sum(1 for x in DATA['tickets'] if x['email'] == t['email'])} ticket(s) pour ce client</small></aside>"""
     else:
-        conv = '<p style="color:#5b7a73">Sélectionne un ticket, ou recherche un client, un e-mail ou un numéro de commande.</p>'
-    body = f"""<div class="app"><div class="rail"><i>C</i><a href="/care" title="Tickets">💬</a><a href="#" title="Clients">👥</a>
-<a href="#" title="Rapports">📈</a><a class="out" href="/care/logout">Quitter</a></div>
-<div class="list"><div class="hd"><h1>Tickets</h1><form action="/care"><input name="q" value="{e(q)}" placeholder="Rechercher : e-mail, nom, n° de commande"></form></div>
-{items or '<div class="t"><small>Aucun ticket trouvé.</small></div>'}</div><div class="conv">{conv}</div></div>"""
-    return page("Sportiva Care", body, CARE_CSS, "#0f766e")
+        conv = f'<div class="empty"><div>{ic("inbox", 40)}<h2>Aucun ticket sélectionné</h2>Choisis un ticket dans la liste, ou recherche un client, un e-mail ou un numéro de commande.</div></div>'
+        ctx = '<aside class="ctx"></aside>'
+    body = f"""<div class="app"><nav class="rail"><div class="lg">c</div><a class="on" href="/care" title="Tickets">{ic('inbox', 20)}</a><a href="#" title="Clients">{ic('users', 20)}</a>
+<a href="#" title="Rapports">{ic('chart', 20)}</a><a href="#" title="Paramètres">{ic('settings', 20)}</a><a class="bot" href="/care/logout" title="Déconnexion">{ic('out', 20)}</a></nav>
+<section class="list"><div class="lh"><h1>Tickets</h1><div class="sub">{len(ts)} conversation(s)</div><form action="/care">{ic('search', 17)}
+<input name="q" value="{e(q)}" placeholder="Rechercher : e-mail, nom, n° de commande"></form></div>{items or '<div style="padding:24px;color:var(--mute)">Aucun ticket trouvé.</div>'}</section>
+<main class="conv">{conv}</main>{ctx}</div>"""
+    return page("Sportiva Care", body, CARE_CSS, "care", "#f2765a")
 
 
 # ============================================================================ serveur
-INDEX = page("Sportiva — outils internes", """<div style="max-width:720px;margin:60px auto;padding:0 20px">
-<h1 style="margin-bottom:4px">Sportiva — outils internes</h1><p style="color:#6b7280">Environnement de démonstration. Marques et données fictives.</p>
-<p><a href="/admin">🧾 Sportiva Admin</a> — back-office (commandes, clients, remboursements)</p>
-<p><a href="/parcelia">🚚 Parcelia Pro</a> — portail transporteur (suivi, preuve de livraison)</p>
-<p><a href="/care">💬 Sportiva Care</a> — support client (tickets)</p></div>""")
+INDEX_CSS = """body{font-family:'IBM Plex Sans',sans-serif;background:#16171a;color:#f6f5f2;min-height:100vh;display:grid;place-items:center}
+.w{max-width:760px;padding:40px 24px}h1{font-family:'Bricolage Grotesque';font-size:44px;margin:0;letter-spacing:-.02em}p{color:#a9abb3}
+.g{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:28px}.g a{display:block;padding:22px;border-radius:16px;text-decoration:none;border:1px solid #2a2b31;background:#1c1d22;transition:.15s}
+.g a:hover{transform:translateY(-2px);border-color:#ff5a1f}.g b{display:block;font-family:'Bricolage Grotesque';font-size:18px;margin:10px 0 4px}.g small{color:#a9abb3}"""
+INDEX = page("Sportiva — outils internes", f"""<div class="w"><h1>Sportiva — outils internes</h1><p>Environnement de démonstration · marques et données fictives.</p>
+<div class="g"><a href="/admin">{ic('orders', 26)}<b>Sportiva Admin</b><small>Commandes, clients, remboursements</small></a>
+<a href="/parcelia">{ic('truck', 26)}<b>Parcelia Pro</b><small>Suivi, étiquettes, preuves de livraison</small></a>
+<a href="/care">{ic('msg', 26)}<b>Sportiva Care</b><small>Tickets et échanges clients</small></a></div></div>""", INDEX_CSS, "admin", "#ff5a1f")
 
 
 class H(BaseHTTPRequestHandler):
-    server_version = "Sportiva/1.0"
+    server_version = "Sportiva/1.1"
 
     def log_message(self, fmt, *args):
         pass
 
-    def send_html(self, body: str, code: int = 200, headers: dict | None = None):
+    def send_html(self, body: str, code: int = 200):
         data = body.encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Cache-Control", "no-store")
-        for k, v in (headers or {}).items():
-            self.send_header(k, v)
         self.end_headers()
         self.wfile.write(data)
 
@@ -523,11 +780,11 @@ class H(BaseHTTPRequestHandler):
         self.end_headers()
 
     def not_found(self):
-        self.send_html(page("Introuvable", '<div style="padding:60px;text-align:center"><h1>Page introuvable</h1><a href="/">Accueil</a></div>'), 404)
+        self.send_html(page("Introuvable", '<div style="padding:80px;text-align:center;font-family:sans-serif"><h1>Page introuvable</h1><a href="/">Accueil</a></div>',
+                            "", "", "#999"), 404)
 
     def do_POST(self):
-        path = urlparse(self.path).path.rstrip("/")
-        parts = path.strip("/").split("/")
+        parts = urlparse(self.path).path.strip("/").split("/")
         if len(parts) == 2 and parts[0] in APPS and parts[1] == "login":
             app = parts[0]
             n = int(self.headers.get("Content-Length") or 0)
@@ -555,8 +812,7 @@ class H(BaseHTTPRequestHandler):
             return self.send_html(login_page(app))
         if not logged(self, app):
             return self.redirect(f"/{app}/login")
-        rest = parts[1:]
-        out = None
+        rest, out = parts[1:], None
         if app == "admin":
             if not rest:
                 out = admin_home()
@@ -567,7 +823,6 @@ class H(BaseHTTPRequestHandler):
             elif rest == ["customers"]:
                 out = admin_customers(q.get("q", ""))
             elif len(rest) == 2 and rest[0] == "customers":
-                from urllib.parse import unquote
                 out = admin_customer(unquote(rest[1]))
             elif rest in (["products"], ["analytics"]):
                 out = admin_stub(rest[0], "Produits" if rest[0] == "products" else "Analyses")
