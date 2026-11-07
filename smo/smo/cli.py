@@ -112,7 +112,7 @@ def main(argv: list[str] | None = None) -> int:
     sub = p.add_subparsers(dest="cmd", required=True)
 
     d = sub.add_parser("doctor", help="vérifie les clés et les API ; --probe teste les capacités (crédits H)")
-    d.add_argument("--probe", nargs="*", choices=["skill", "guided", "tool", "all"])
+    d.add_argument("--probe", nargs="*", choices=["skill", "guided", "tool", "devin", "all"])
     d.set_defaults(fn=cmd_doctor)
 
     def pipeline_flags(sp):

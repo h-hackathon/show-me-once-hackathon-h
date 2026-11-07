@@ -75,9 +75,11 @@ On peut refaire une étape : `uv run smo run <id> --only understand --force`.
 2. **Le worker des tools** : quand un agent `smo-*` appelle un tool, sa session H attend. Le serveur le voit en interrogeant H toutes les 5 s, se rattache à la session et exécute le tool (`precheck_*`, `run_*`, `report_drift`, `check_supplier`…), même si la session a été lancée depuis l'interface H. Le webhook H (`/webhooks/h`) est facultatif : plus rapide, mais il demande une adresse publique et un secret.
 3. **Le relais vers h-tools** : les tools écrits par Devin vivent dans le repo h-tools, et chacun tourne dans son propre service Railway. SMO les appelle sur le réseau privé du projet (`http://tool-<nom>.railway.internal:8080`, `/describe`, `/precheck`, `/run`). Après chaque déploiement, h-tools vérifie `GET /tools/<nom>` puis appelle `POST /hooks/tool-deployed` : SMO remet à jour les agents H qui attendent ce tool, avec la Skill du repo et le bloc commun.
 
-Où il tourne, et quels agents il sert (`SMO_WORKER_KINDS`, réglé tout seul) :
-- **En ligne sur Railway** : l'agent **web**. La page en HTTPS, le navigateur cloud de H sur le site en ligne, les tools d'h-tools.
-- **Sur le Mac** : l'agent **bureau**. L'environnement desktop de H pilote la souris et l'écran de la machine où tourne `smo serve`, et les tools de bureau tournent là aussi, chargés depuis un clone d'h-tools (`H_TOOLS_DIR`). Une appli de bureau se capture donc depuis http://localhost:8000. Si `SMO_SERVER_URL` est défini (un serveur en ligne existe), le Mac ne sert que le bureau, pour qu'aucun appel ne soit servi deux fois.
+Où il tourne : **un seul serveur SMO, sur Railway, gère tout**. Sur la page, on choisit l'agent :
+- **web** : l'agent H travaille dans son navigateur cloud, sur le site en ligne ;
+- **bureau** : l'agent H travaille dans l'**environnement desktop de test configuré dans H**, dont on donne l'identifiant dans `H_DESKTOP_ENV`. Sans lui, SMO prend le bureau de la machine où il tourne, ce qui ne sert qu'en local.
+
+Les tools déterministes de bureau (accessibilité macOS) doivent tourner là où tourne l'appli : h-tools ne les déploie pas sur Railway. En attendant, l'agent bureau travaille en computer use.
 
 ## Déployer sur Railway
 
@@ -89,12 +91,14 @@ Où il tourne, et quels agents il sert (`SMO_WORKER_KINDS`, réglé tout seul) :
    - toutes les clés et les `SITE_*` du `.env` ;
    - **`SMO_RUNS_DIR=/data/runs`** ;
    - **`SMO_SERVER_TOKEN`** : 16 caractères minimum, par exemple `openssl rand -hex 24`. Sans lui, le serveur refuse de démarrer en ligne.
-   - inutiles sur Railway : `DESKTOP_*`, `H_TOOLS_DIR`.
+   - **`H_DESKTOP_ENV`** : l'identifiant de l'environnement desktop de test configuré dans H (agent bureau) ;
+   - `DESKTOP_LOGIN` / `DESKTOP_PASSWORD` : les identifiants de l'appli dans cet environnement ;
+   - inutile sur Railway : `H_TOOLS_DIR`.
 4. **Adresse** : Settings › Networking › Generate Domain. La mettre dans `SMO_SERVER_URL`, sur Railway et dans le `.env` du Mac.
 5. **h-tools** : dans les secrets GitHub du repo h-tools, `SMO_SERVER_URL` et `SMO_WATCHER_URL` = cette adresse, `SMO_SERVER_TOKEN` = le même jeton. Le déploiement d'un tool attend alors que SMO voie le nouveau commit, puis le prévient.
 6. **Vérifier** : `uv run smo doctor` (ligne « Serveur SMO »), puis ouvrir l'adresse dans Chrome ; la page demande le jeton.
 
-Sur le Mac, pour l'agent bureau : `gh repo clone Tomoroshimaru/h-tools ~/h-tools`, puis `H_TOOLS_DIR=~/h-tools` dans le `.env`, et `uv run smo serve`.
+En local, pour essayer un tool d'h-tools sans le déployer : `gh repo clone Tomoroshimaru/h-tools ~/h-tools`, puis `H_TOOLS_DIR=~/h-tools` dans le `.env`.
 
 ## Autres commandes
 

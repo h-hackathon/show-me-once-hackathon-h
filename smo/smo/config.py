@@ -39,6 +39,7 @@ ENV = {
     "h_tools_dir": "H_TOOLS_DIR",
     "tool_url": "SMO_TOOL_URL",
     "worker_kinds": "SMO_WORKER_KINDS",
+    "h_desktop_env": "H_DESKTOP_ENV",
 }
 
 DEFAULTS = {
@@ -82,7 +83,8 @@ class Settings:
     runs_dir: Path
     tools_dir: Path                # les tools d'h-tools : <H_TOOLS_DIR>/tools si un clone local existe
     tool_url: str | None           # adresse des tools déployés (défaut : réseau privé Railway du projet)
-    worker_kinds: tuple[str, ...]  # agents servis par ce serveur : web, desktop, ou les deux
+    worker_kinds: tuple[str, ...]  # agents servis par ce serveur (défaut : web et desktop)
+    h_desktop_env: str | None      # l'environnement desktop de test configuré dans H (son identifiant)
 
     def require(self, *names: str) -> None:
         missing = [ENV[n] for n in names if not getattr(self, n)]
@@ -130,14 +132,13 @@ def load() -> Settings:
         runs_dir=Path(env("runs_dir")),
         tools_dir=Path(env("h_tools_dir")) / "tools" if env("h_tools_dir") else ROOT / "tools",
         tool_url=env("tool_url"),
-        worker_kinds=worker_kinds(env("worker_kinds"), env("server_url")),
+        worker_kinds=worker_kinds(env("worker_kinds")),
+        h_desktop_env=env("h_desktop_env"),
     )
 
 
-def worker_kinds(value: str | None, server_url: str | None) -> tuple[str, ...]:
-    """Railway sert l'agent web ; le Mac sert l'agent bureau (et aussi le web s'il n'y a pas de serveur en ligne)."""
+def worker_kinds(value: str | None) -> tuple[str, ...]:
+    """Un seul serveur sert les agents web et bureau ; SMO_WORKER_KINDS le restreint si deux serveurs tournent."""
     if value:
         return tuple(k.strip() for k in value.split(",") if k.strip())
-    if os.environ.get("RAILWAY_ENVIRONMENT"):
-        return ("web",)
-    return ("desktop",) if server_url else ("web", "desktop")
+    return ("web", "desktop")

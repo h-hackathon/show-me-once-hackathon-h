@@ -3,8 +3,8 @@
 Catherine lance son agent dans H → la session passe en « awaiting_tool_results » → le worker le voit en
 interrogeant H toutes les 5 s (ou par le webhook H, facultatif) → il se rattache à la session et exécute les tools.
 
-Chaque serveur ne sert que ses agents (SMO_WORKER_KINDS) : Railway les agents -web, le Mac les agents -desktop,
-dont les tools pilotent l'écran du Mac. Ainsi un appel n'est jamais servi deux fois.
+Un seul serveur sert les agents -web et -desktop. SMO_WORKER_KINDS le restreint si deux serveurs tournent, pour
+qu'un appel ne soit jamais servi deux fois.
 """
 from __future__ import annotations
 

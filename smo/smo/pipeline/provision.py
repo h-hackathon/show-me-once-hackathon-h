@@ -48,7 +48,7 @@ def create(run: Run, s: Settings, log: Callable[[str], None]) -> None:
     client = h.client(s.hai_api_key)
     h.upsert_skill(client, sname, description=skill_description(run),
                    body=with_common_block(skill_body(run, s, tool), tname if tool else None))
-    env = target.environment(meta)   # web : navigateur (cloud, ou Chrome de cette machine en localhost) ; bureau : le Mac
+    env = target.environment(meta, s)   # web : navigateur (cloud, ou Chrome de cette machine en localhost) ; bureau : le Mac
     spec = dict(
         description=f"{meta.task}, appris d'une démonstration de {meta.owner} ({meta.software_kind}).",
         environments=[env],
@@ -63,7 +63,7 @@ def create(run: Run, s: Settings, log: Callable[[str], None]) -> None:
     name = agent_name(run, s)
     h.upsert_agent(client, name, **spec)
     run.write_model("agent.json", Provisioned(agent_name=name, skill_name=sname, tools=[t.name for t in tools],
-                                              tool_ready=tool is not None, environment=env.model_dump(mode="json")))
+                                              tool_ready=tool is not None, environment=target.as_dict(env)))
     log(f"agent {name} : {'tool ' + tname if tool else 'computer use (tool pas encore déployé)'}")
 
 

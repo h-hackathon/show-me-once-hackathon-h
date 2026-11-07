@@ -60,15 +60,25 @@ def test_capture_review_and_approve(client, s):
     assert run.has("skill.approved") and client.started == [run_id, run_id]
 
 
-def test_online_server_refuses_desktop_captures(s, monkeypatch):
-    router, runner = router_for(dataclasses.replace(s, worker_kinds=("web",)))
-    monkeypatch.setattr(runner, "start", lambda run: True)
+def test_online_desktop_capture_needs_the_h_desktop_environment(s, monkeypatch):
+    monkeypatch.setenv("RAILWAY_ENVIRONMENT", "production")
+    data = {"task": "t", "url": "COMPTAREX Cabinet 6.2", "software_kind": "desktop"}
+    for desktop_env, expected in ((None, 422), ("comptarex-desktop", 200)):
+        router, runner = router_for(dataclasses.replace(s, h_desktop_env=desktop_env))
+        monkeypatch.setattr(runner, "start", lambda run: True)
+        app = FastAPI()
+        app.include_router(router)
+        with TestClient(app) as c:
+            r = c.post("/api/captures", files={"video": ("capture.webm", b"x", "video/webm")}, data=data)
+        assert r.status_code == expected
+    assert "H_DESKTOP_ENV" in TestClient(_app(router_for(s)[0])).post(
+        "/api/captures", files={"video": ("c.webm", b"x", "video/webm")}, data=data).json()["detail"]
+
+
+def _app(router):
     app = FastAPI()
     app.include_router(router)
-    with TestClient(app) as c:
-        r = c.post("/api/captures", files={"video": ("capture.webm", b"x", "video/webm")},
-                   data={"task": "t", "url": "COMPTAREX Cabinet 6.2", "software_kind": "desktop"})
-    assert r.status_code == 422 and "Mac" in r.json()["detail"]
+    return app
 
 
 def test_unknown_run_and_token(client, s):

@@ -331,7 +331,9 @@ def test_desktop_gets_its_own_agent_environment_and_names(s, tmp_path):
     from smo.pipeline import target
     run = Run.create(s.runs_dir, CaptureMeta(task="Saisir une facture fournisseur", software_kind="desktop",
                                              software_url="COMPTAREX Cabinet 6.2", owner="Catherine"), [])
-    assert target.environment(run.meta).kind == "desktop" and target.environment(run.meta).host == "user_device"
+    local = target.environment(run.meta, s)                         # sans environnement H : le bureau de la machine
+    assert local.kind == "desktop" and local.host == "user_device"
+    assert target.environment(run.meta, dataclasses.replace(s, h_desktop_env="comptarex-desktop")) == "comptarex-desktop"
     assert skill.tool_name(run).endswith("_desktop") and provision.agent_name(run, s).endswith("-desktop")
     assert "application de bureau « COMPTAREX Cabinet 6.2 »" in target.where(run.meta)
     assert target.credentials(run.meta, s) == (s.desktop_login, s.desktop_password)
@@ -376,11 +378,10 @@ def test_find_prefers_the_local_clone_and_only_reaches_deployed_web_tools(s, mon
     assert rt.find(s, "saisir_web") == "remote" and rt.find(s, "saisir_desktop") is None   # le bureau, jamais en ligne
 
 
-def test_each_server_serves_only_its_kind_of_agent():
+def test_one_server_serves_both_kinds_unless_restricted():
     from smo.config import worker_kinds
-    assert worker_kinds(None, None) == ("web", "desktop")                 # Mac seul
-    assert worker_kinds(None, "https://smo.up.railway.app") == ("desktop",)   # Mac + Railway : le Mac garde le bureau
-    assert worker_kinds("web", None) == ("web",)
+    assert worker_kinds(None) == ("web", "desktop")
+    assert worker_kinds("web") == ("web",)
 
 
 def test_tool_deployed_hook_upgrades_the_waiting_agents(monkeypatch):

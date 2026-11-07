@@ -172,14 +172,27 @@ def probe_tool(s: Settings, log) -> Check:
     return Check("probe tool", "ok" if ok else "fail", f"appels reçus {calls} · réponse {str(answer)[:120]}")
 
 
-PROBES = {"skill": probe_skill, "guided": probe_guided, "tool": probe_tool}
+def probe_devin(s: Settings, log) -> Check:
+    """Créer une vraie session Devin (permission UseDevinSessions), plafonnée à 1 crédit, sans toucher à un repo."""
+    api = devin.Devin(s.devin_api_key, s.devin_org_id)
+    session = api.create_session("Test de SMO : réponds seulement « OK ». Ne clone aucun repo, n'ouvre aucune PR.",
+                                 tags=["smo", "probe"], max_acu=1)
+    devin_id = devin.session_id(session)
+    status = api.get_session(devin_id).get("status")
+    log(f"  session Devin : {session.get('url') or devin_id}")
+    return Check("probe devin", "ok", f"session créée ({status}), 1 crédit au plus : {session.get('url') or devin_id}")
+
+
+PROBES = {"skill": probe_skill, "guided": probe_guided, "tool": probe_tool, "devin": probe_devin}
+NEEDS = {"devin": ("devin_api_key", "devin_org_id")}
 
 
 def run(s: Settings, probes: list[str], log: Callable[[str], None] = print) -> bool:
     results = checks(s)
     for name in probes:
         log(f"… probe {name}")
-        results.append(_guard(f"probe {name}", ("hai_api_key",), s, lambda name=name: PROBES[name](s, log)))
+        results.append(_guard(f"probe {name}", NEEDS.get(name, ("hai_api_key",)), s,
+                              lambda name=name: PROBES[name](s, log)))
     for c in results:
         log(f"{ICON[c.state]} {c.name:<20} {c.detail}")
     return all(c.state in ("ok", "skip", "warn") for c in results)
