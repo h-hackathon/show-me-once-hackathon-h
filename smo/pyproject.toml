@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Show me once : une capture vidéo + voix devient un agent custom H, avec sa Skill et son tool déterministe"
 requires-python = ">=3.12"
 dependencies = [
-    "hai-agents[browser,desktop]==1.4.3",   # browser/desktop : navigateur et bureau de cette machine (localhost, appli Qt)
+    "hai-agents[browser]==1.4.3",   # browser : navigateur de cette machine (site en localhost)
     "httpx>=0.28",
     "pydantic>=2.7",
     "python-dotenv>=1.0",
@@ -14,6 +14,11 @@ dependencies = [
     "python-multipart>=0.0.9",   # envoi de la vidéo depuis la page d'enregistrement
     "playwright>=1.49",
 ]
+
+[project.optional-dependencies]
+# Agent bureau (appli de bureau, ex. Comptarex en Qt) : seulement sur le Mac, `uv sync --extra desktop`.
+# Pas sur Railway : sous Linux il tire evdev, à compiler, et le serveur ne pilote aucun bureau.
+desktop = ["hai-agents[desktop]==1.4.3"]
 
 [project.scripts]
 smo = "smo.cli:main"

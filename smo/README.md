@@ -22,7 +22,7 @@ Le plan complet et l'état des API sont dans [`PLAN.md`](PLAN.md).
 
 ```bash
 cd smo
-uv sync
+uv sync --extra desktop              # sur le Mac ; --extra desktop = l'agent bureau (appli de bureau)
 uv run playwright install chromium   # pour les tools compilés
 cp .env.example .env                 # puis remplir
 uv run smo doctor                    # ✅ / ⏭️ / ❌ par API
@@ -68,16 +68,31 @@ Chaque étape écrit son fichier dans `runs/<run_id>/` : `map.json` (gardée aus
 Option `--guided` : à l'étape trial, l'agent est guidé phrase par phrase au lieu de suivre seul sa Skill.
 On peut refaire une étape : `uv run smo run <id> --only understand --force`.
 
-## Serveur (Railway)
+## Le serveur
 
-```bash
-uv run smo serve                     # local : http://localhost:8000/docs
-uv run smo webhook                   # abonne SMO_SERVER_URL/webhooks/h aux sessions H → H_WEBHOOK_SECRET
-```
+`uv run smo serve` lance un seul programme qui fait trois choses :
+1. **La page d'enregistrement** (`/`) et son API (`/api/...`) : reçoit la vidéo, fait tourner le pipeline, montre l'avancement.
+2. **Le worker des tools** : quand un agent `smo-*` appelle un tool, sa session H attend. Le serveur l'apprend par le webhook H (`/webhooks/h`), ou en interrogeant H toutes les 5 s. Il se rattache alors à la session et exécute le tool (`precheck_*`, `run_*`, `report_drift`, `check_supplier`…), même si la session a été lancée depuis l'interface H.
+3. **Les tools compilés par Devin** (`tools/<nom>/`), chargés au démarrage. Une PR fusionnée déclenche un redéploiement, puis `smo run <id> --only upgrade --force` pousse le tool dans l'agent H.
 
-- Le serveur répond aux custom tools des agents `smo-*` : `precheck_*`, `run_*`, `report_drift`, `check_supplier`, `verify_entry`.
-- Il les sert même quand la session est lancée depuis l'interface H (webhook, et polling en secours).
-- Déploiement : le `Dockerfile` (Python 3.12 + Chromium) ; les variables Railway sont celles du `.env`.
+Où il tourne :
+- **En ligne sur Railway**, pour l'agent web : la page en HTTPS, les webhooks H, le navigateur cloud de H sur le site en ligne.
+- **Sur le Mac**, pour l'agent bureau : l'environnement desktop de H pilote la souris et l'écran de la machine où tourne `smo serve`. Railway n'a pas de bureau.
+
+## Déployer sur Railway
+
+1. **Service** : dans le projet Railway (là où tourne Comptarex), New › GitHub Repo › `show-me-once-prep`.
+   - Settings › Source : **Root Directory = `smo`** ; branche `main` une fois la PR fusionnée, ou `feat/smo` pour tester avant.
+   - Le reste vient de `railway.toml` : construction par le `Dockerfile`, vérification de santé sur `/health`, redémarrage en cas d'échec.
+2. **Volume** : clic droit sur le service › Attach Volume, monté sur **`/data`**. Sans lui, les runs et les cartes sont effacés à chaque redéploiement.
+3. **Variables** (Raw Editor : coller le `.env`, puis ajuster) :
+   - toutes les clés et les `SITE_*` du `.env` ;
+   - **`SMO_RUNS_DIR=/data/runs`** ;
+   - **`SMO_SERVER_TOKEN`** : 16 caractères minimum, par exemple `openssl rand -hex 24`. Sans lui, le serveur refuse de démarrer en ligne.
+   - Les `DESKTOP_*` sont inutiles sur Railway.
+4. **Adresse** : Settings › Networking › Generate Domain. La mettre dans `SMO_SERVER_URL`, sur Railway et dans le `.env` local.
+5. **Webhook H**, depuis le Mac, une fois le service en ligne : `uv run smo webhook`. Il affiche `H_WEBHOOK_SECRET` une seule fois : à ajouter aux variables Railway (cela redéploie).
+6. **Vérifier** : `uv run smo doctor` (ligne « Serveur SMO »), puis ouvrir l'adresse dans Chrome ; la page demande le jeton.
 
 ## Autres commandes
 

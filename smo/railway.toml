@@ -1,0 +1,9 @@
+# Service SMO sur Railway (dossier racine du service : smo/). Voir README, « Déployer sur Railway ».
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 120
+restartPolicyType = "ON_FAILURE"
