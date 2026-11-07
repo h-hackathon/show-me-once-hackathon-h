@@ -25,16 +25,23 @@ PORT = int(os.environ.get("PORT", "8042"))
 HOST = os.environ.get("HOST", "0.0.0.0" if PROD else "127.0.0.1")
 
 
+# Valeurs visibles dans le dépôt (code et .env.example) : jamais acceptées en ligne.
+VALEURS_PUBLIQUES = {"", DEFAUT_PASSWORD, DEFAUT_SECRET, "changez-moi"}
+
+
 def verifier_production() -> None:
-    """En ligne, refuse de démarrer si un secret est resté à sa valeur par défaut (visible dans le dépôt)."""
+    """En ligne, refuse de démarrer si un secret est absent, public (code, .env.example) ou trop court."""
     if not PROD:
         return
-    manquants = [nom for nom, valeur, defaut in (("SITE_PASSWORD", PASSWORD, DEFAUT_PASSWORD),
-                                                 ("SECRET_KEY", SECRET_KEY, DEFAUT_SECRET),
-                                                 ("SITE_ADMIN_TOKEN", ADMIN_TOKEN, ""))
-                 if not valeur or valeur == defaut]
-    if manquants:
-        raise SystemExit("Comptarex en production : variables à définir avant de démarrer : " + ", ".join(manquants))
+    refus = []
+    for nom, valeur, longueur_min in (("SITE_PASSWORD", PASSWORD, 8), ("SECRET_KEY", SECRET_KEY, 16),
+                                      ("SITE_ADMIN_TOKEN", ADMIN_TOKEN, 16)):
+        if valeur.strip() in VALEURS_PUBLIQUES:
+            refus.append(f"{nom} (absente ou valeur d'exemple)")
+        elif len(valeur) < longueur_min:
+            refus.append(f"{nom} (moins de {longueur_min} caractères)")
+    if refus:
+        raise SystemExit("Comptarex en production : secrets à définir avant de démarrer : " + ", ".join(refus))
 
 USER_CODE = "CMOREAU"             # le collaborateur du cabinet qui se connecte
 CABINET = "Fiduciaire Moreau & Associés"

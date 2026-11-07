@@ -101,7 +101,7 @@ Tout est prêt dans `comptarex/` :
 - `railway.json` : build Docker, vérification de santé sur `/api/health`, 1 seule instance ;
 - un mode production, activé tout seul sur Railway : cookies `Secure`, HTTPS derrière le proxy, `robots.txt` qui interdit l'indexation.
 
-**En production, le site refuse de démarrer** si `SITE_PASSWORD`, `SECRET_KEY` ou `SITE_ADMIN_TOKEN` manquent ou gardent leur valeur par défaut. Le journal de déploiement indique alors lesquelles régler.
+**En production, le site refuse de démarrer** si `SITE_PASSWORD`, `SECRET_KEY` ou `SITE_ADMIN_TOKEN` manquent ou reprennent une valeur visible dans le dépôt (valeur par défaut du code ou de `.env.example`), ou sont trop courts (8 caractères au minimum pour le mot de passe, 16 pour la clé et le jeton). Le journal de déploiement indique alors lesquelles régler.
 
 ### Étapes (tableau de bord Railway)
 
