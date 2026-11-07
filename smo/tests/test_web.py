@@ -1,0 +1,86 @@
+"""Page d'enregistrement : l'API vue par le navigateur, sans lancer le vrai pipeline."""
+from __future__ import annotations
+
+import dataclasses
+import subprocess
+
+import imageio_ffmpeg
+import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+from smo import config
+from smo.models import CaptureMeta, FrameSet, Transcript, Utterance
+from smo.pipeline import capture
+from smo.pipeline.orchestrator import NAMES
+from smo.runs import Run
+from smo.runtime.web import router_for
+
+
+@pytest.fixture
+def s(tmp_path) -> config.Settings:
+    return dataclasses.replace(config.load(), runs_dir=tmp_path / "runs", server_token=None, gladia_api_key=None)
+
+
+@pytest.fixture
+def client(s, monkeypatch):
+    router, runner = router_for(s)
+    started: list[str] = []
+    monkeypatch.setattr(runner, "start", lambda run: started.append(run.id) or True)
+    app = FastAPI()
+    app.include_router(router)
+    with TestClient(app) as c:
+        c.started = started
+        yield c
+
+
+def test_config_lists_every_stage_with_a_label(client):
+    body = client.get("/api/config").json()
+    assert [st["name"] for st in body["stages"]] == NAMES
+    assert all(st["label"] for st in body["stages"]) and body["live"] is False
+
+
+def test_capture_review_and_approve(client, s):
+    r = client.post("/api/captures", files={"video": ("capture.webm", b"\x1a\x45\xdf\xa3webm", "video/webm")},
+                    data={"task": "Saisir une facture fournisseur", "url": "http://127.0.0.1:8042",
+                          "owner": "Catherine", "sample": "INV-001"})
+    run_id = r.json()["run_id"]
+    run = Run.open(s.runs_dir, run_id)
+    assert run.video().name == "capture.webm" and run.meta.owner == "Catherine"
+    assert client.started == [run_id]
+
+    run.write_text("skill.md", "# Skill\n- HT + TVA = TTC\n")
+    run.set_status("review", "waiting")
+    state = client.get(f"/api/runs/{run_id}").json()
+    assert state["state"] == "waiting" and state["skill"].startswith("# Skill") and not state["approved"]
+
+    client.put(f"/api/runs/{run_id}/skill", json={"skill": "# Skill corrigée\n"})
+    assert run.file("skill.md").read_text() == "# Skill corrigée\n"
+    client.post(f"/api/runs/{run_id}/approve")
+    assert run.has("skill.approved") and client.started == [run_id, run_id]
+
+
+def test_unknown_run_and_token(client, s):
+    assert client.get("/api/runs/inconnu").status_code == 404
+    router, _ = router_for(dataclasses.replace(s, server_token="secret"))
+    app = FastAPI()
+    app.include_router(router)
+    with TestClient(app) as c:
+        assert c.get("/api/config").status_code == 401
+        assert c.get("/api/config", headers={"X-SMO-Token": "secret"}).status_code == 200
+
+
+def test_frames_from_a_recorded_webm(s):
+    """Les .webm de MediaRecorder n'ont pas d'index : l'extraction passe par un seul passage à 1 image/s."""
+    run = Run.create(s.runs_dir, CaptureMeta(task="t", software_url="http://x"), [])
+    video = run.file("capture/capture.webm")
+    made = subprocess.run([imageio_ffmpeg.get_ffmpeg_exe(), "-y", "-loglevel", "error", "-f", "lavfi",
+                           "-i", "testsrc=duration=4:size=320x240:rate=15", "-c:v", "libvpx", str(video)])
+    if made.returncode:
+        pytest.skip("ffmpeg sans encodeur libvpx")
+    run.write_model("transcript.json", Transcript(language="fr", utterances=[
+        Utterance(index=0, start=0.0, end=1.0, text="un"), Utterance(index=1, start=2.0, end=3.8, text="deux")]))
+    capture.frames(run, s, log=lambda _: None)
+    frames = run.read_model("frames.json", FrameSet).frames
+    assert [f.utterance_index for f in frames] == [0, 1]
+    assert all(run.file(f.path).exists() for f in frames) and not run.file("frames/all").exists()

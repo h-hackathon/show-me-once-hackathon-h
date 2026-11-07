@@ -18,6 +18,10 @@ from .tools import h_tools, load_tools
 
 log = logging.getLogger("smo.worker")
 
+# Sessions dont les tools sont déjà servis dans ce programme (ex. l'étape trial lancée depuis la page) :
+# le worker ne s'y rattache pas, pour ne pas répondre deux fois au même appel.
+SERVED_ELSEWHERE: set[str] = set()
+
 
 class Worker:
     def __init__(self, s: Settings):
@@ -39,7 +43,7 @@ class Worker:
     def attach(self, session_id: str) -> bool:
         """Sert la session dans un thread ; False si elle est déjà servie."""
         with self.lock:
-            if session_id in self.active:
+            if session_id in self.active or session_id in SERVED_ELSEWHERE:
                 return False
             self.active.add(session_id)
         threading.Thread(target=self._serve, args=(session_id,), daemon=True).start()

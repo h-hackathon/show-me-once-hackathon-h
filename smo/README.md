@@ -24,7 +24,25 @@ uv run smo doctor                    # ✅ / ⏭️ / ❌ par API
 uv run smo doctor --probe all        # vraies sessions H : Skill, agent guidé, tool exécuté par nous
 ```
 
-## Utiliser
+## La page d'enregistrement (le plus simple)
+
+```bash
+uv run smo serve                     # puis ouvrir http://localhost:8000 dans Chrome
+```
+
+La page suit quatre temps :
+1. **Préparer** : la tâche, l'adresse du logiciel, la pièce traitée et le prénom.
+2. **Enregistrer** : Chrome partage l'écran et le micro. Gladia transcrit en direct pendant qu'on parle.
+3. **Comprendre** : à l'arrêt, la vidéo part au serveur et le pipeline tourne. La page montre l'avancement, puis la Skill à relire et à valider.
+4. **Agent** : l'agent est créé dans H et teste la tâche à l'écran, puis Devin code le tool. La page donne les liens (session de test, PR).
+
+Quelques précisions :
+- **Clé Gladia** : elle reste sur le serveur, qui ouvre la session en direct ; le navigateur ne reçoit qu'une adresse à jeton temporaire.
+- **Transcription utilisée par le pipeline** : c'est celle du fichier complet, plus fiable que le direct.
+- **Accès** : la capture d'écran exige `localhost` ou HTTPS. Si `SMO_SERVER_TOKEN` est défini, la page demande le jeton.
+- **Reprendre un run** : `http://localhost:8000/?run=<run_id>`.
+
+## En ligne de commande
 
 ```bash
 # 1. Une capture → un run (vidéo, ou audio + images ; un PDF = pièce de référence)

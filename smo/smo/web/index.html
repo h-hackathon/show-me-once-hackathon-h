@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Show me once</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="wrap top-row">
+      <span class="brand"><span class="mark" aria-hidden="true"></span>Show me once</span>
+      <span class="built">construit avec H</span>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <ol class="stepper" aria-label="Étapes">
+      <li data-step="prepare">Préparer</li>
+      <li data-step="record">Enregistrer</li>
+      <li data-step="learn">Comprendre</li>
+      <li data-step="agent">Agent</li>
+    </ol>
+
+    <section id="view-prepare" class="view">
+      <div class="intro">
+        <h1>Montrez la tâche une fois.</h1>
+        <p>Faites-la comme d'habitude, en disant à voix haute ce que vous faites et pourquoi. Votre agent H fera les suivantes.</p>
+      </div>
+      <div class="grid">
+        <form id="prepare-form" class="card form" novalidate>
+          <div class="field">
+            <label for="task">Tâche</label>
+            <input id="task" name="task" required value="Saisir une facture fournisseur">
+          </div>
+          <div class="field">
+            <label for="url">Adresse du logiciel</label>
+            <input id="url" name="url" type="url" required placeholder="http://127.0.0.1:8042">
+          </div>
+          <div class="row">
+            <div class="field">
+              <label for="sample">Pièce traitée</label>
+              <input id="sample" name="sample" placeholder="INV-001">
+            </div>
+            <div class="field">
+              <label for="owner">Votre prénom</label>
+              <input id="owner" name="owner" placeholder="Catherine">
+            </div>
+          </div>
+          <button class="btn primary" type="submit">Choisir l'écran et enregistrer</button>
+          <p class="error" id="prepare-error" role="alert" hidden></p>
+        </form>
+        <aside class="card tips">
+          <h2>Pour une bonne démonstration</h2>
+          <ul>
+            <li><strong>Dites ce que vous faites, et pourquoi.</strong> « J'ouvre la facture, je recopie le numéro. »</li>
+            <li><strong>Dites vos règles.</strong> « Je vérifie toujours que HT + TVA = TTC. » « Si le fournisseur est étranger, alors… »</li>
+            <li><strong>Laissez en brouillon.</strong> Ne cliquez pas sur « Valider ».</li>
+            <li><strong>Une erreur ?</strong> Continuez en disant « je corrige ».</li>
+          </ul>
+          <p class="note">Chrome vous demandera l'écran à partager, puis le micro.</p>
+        </aside>
+      </div>
+    </section>
+
+    <section id="view-record" class="view" hidden>
+      <div class="card recording">
+        <div class="rec-head">
+          <span class="rec-dot" aria-hidden="true"></span>
+          <span class="rec-label">Enregistrement</span>
+          <span class="timer" id="timer">00:00</span>
+        </div>
+        <p class="task-line" id="rec-task"></p>
+        <div class="live">
+          <div class="live-head">
+            <span>Transcription en direct · Gladia</span>
+            <span class="live-status" id="live-status">connexion…</span>
+          </div>
+          <div class="live-text" id="live-text" aria-live="polite">
+            <p class="placeholder">Parlez : vos phrases apparaissent ici.</p>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn primary" id="stop" type="button">Terminer l'enregistrement</button>
+          <button class="btn ghost" id="cancel" type="button">Annuler</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-upload" class="view" hidden>
+      <div class="card">
+        <h2>Envoi de la démonstration</h2>
+        <div class="bar" role="progressbar" aria-label="Envoi" aria-valuemin="0" aria-valuemax="100"><span id="upload-bar"></span></div>
+        <p class="note" id="upload-note"></p>
+      </div>
+    </section>
+
+    <section id="view-follow" class="view" hidden>
+      <div class="follow-head">
+        <div>
+          <h1 id="follow-title"></h1>
+          <p class="note" id="follow-meta"></p>
+        </div>
+        <span class="pill" id="follow-state"></span>
+      </div>
+      <div class="grid follow-grid">
+        <div class="card">
+          <h2>Avancement</h2>
+          <ol class="stages" id="stages"></ol>
+          <div class="actions" id="resume-box" hidden>
+            <button class="btn ghost" id="resume" type="button">Relancer</button>
+          </div>
+        </div>
+        <div class="side">
+          <div class="card review" id="review" hidden>
+            <h2>Relisez la Skill de votre agent</h2>
+            <p class="note">C'est la méthode que votre agent va suivre. Corrigez ce qui est faux, ajoutez une règle oubliée, puis validez.</p>
+            <label for="skill" class="sr-only">Skill</label>
+            <textarea id="skill" spellcheck="false"></textarea>
+            <div class="actions">
+              <button class="btn primary" id="approve" type="button">Valider la Skill</button>
+            </div>
+          </div>
+          <div class="card" id="links" hidden>
+            <h2>Votre agent</h2>
+            <dl class="links" id="link-list"></dl>
+          </div>
+          <div class="card">
+            <h2>Journal</h2>
+            <pre class="log" id="log">—</pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <form class="card token" id="token-box" hidden>
+      <label for="token">Jeton SMO</label>
+      <input id="token" type="password" autocomplete="off">
+      <button class="btn primary" type="submit">Continuer</button>
+    </form>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

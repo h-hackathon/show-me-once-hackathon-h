@@ -95,7 +95,8 @@ Le SDK le prévoit explicitement : « for calls another process answers ».
 3. ~~Site compta~~ ✅ **Comptarex** tourne en local (http://127.0.0.1:8042) et `SITE_*` est rempli dans `smo/.env`.
    `doctor` est ✅ et le precheck réel v1/v2 est vérifié (`tests/test_site_live.py`).
    Reste à décider l'accès en ligne pour le navigateur cloud H : tunnel ou Railway. En attendant, le navigateur tourne sur cette machine (`host: "user_device"`).
-4. **1re capture réelle** : INV-001 sur le site, voix + écran, puis `uv run smo new capture.mov --task "Saisir une facture fournisseur" --owner catherine --sample INV-001 --go`.
+4. **Page d'enregistrement** ✅ (`uv run smo serve` → http://localhost:8000) : écran + voix dans Chrome, transcription Gladia en direct, suivi, relecture de la Skill, liens vers l'agent et la PR. Charte H (couleurs et polices relevées sur hcompany.ai), sans logo.
+   **1re capture réelle** : INV-001 sur le site, voix + écran, puis `uv run smo new capture.mov --task "Saisir une facture fournisseur" --owner catherine --sample INV-001 --go`.
 5. **Serveur SMO sur Railway** (Dockerfile prêt) :
    - variables d'environnement = `.env` ;
    - `uv run smo webhook` → `H_WEBHOOK_SECRET` ;
