@@ -111,6 +111,7 @@ class MessagerieWindow(QWidget):
         lay.addLayout(boutons(theme.bouton("Lire", self.lire), theme.bouton("Nouveau message...", self.nouveau),
                               theme.bouton("Actualiser", self.charger), None))
         self.charger()
+        self.resize(620, 250)
 
     def charger(self) -> None:
         sens = "recu" if self.vue.currentIndex() == 0 else "envoye"
@@ -200,6 +201,7 @@ class PiecesWindow(QWidget):
         lay.addLayout(boutons(theme.bouton("Ouvrir la pièce (PDF)", self.ouvrir), self.saisir_btn,
                               theme.bouton("Actualiser", self.charger), None))
         self.charger()
+        self.resize(680, 340)
 
     def charger(self) -> None:
         self.rows = compta.pieces(self.conn, self.main.dossier["code"])
@@ -411,6 +413,7 @@ class FactureWindow(QWidget):
         combo.addItems(list(compta.TAXES))
         combo.setCurrentText(taxe)
         combo.setAccessibleName("Taxe")
+        combo.setAccessibleDescription("Taxe")
         combo.currentIndexChanged.connect(lambda _i: self.recalculer())
         self.lignes.setCellWidget(i, 3, combo)
         item = QTableWidgetItem("")
@@ -531,6 +534,7 @@ class ListeFacturesWindow(QWidget):
                               theme.bouton("Nouvelle facture", lambda: main.ouvrir_facture()),
                               theme.bouton("Actualiser", self.charger), None))
         self.charger()
+        self.resize(780, 380)
 
     def charger(self) -> None:
         self.rows = compta.factures(self.conn, self.main.dossier["code"])
@@ -578,6 +582,7 @@ class GrandLivreWindow(QWidget):
         self.pagineur = Pagineur(self.afficher_page)
         lay.addWidget(self.pagineur)
         self.lignes = []
+        self.resize(820, 520)
 
     def afficher(self) -> None:
         numero = self.compte.currentData() or self.compte.currentText().split(" ")[0].strip()
@@ -623,6 +628,7 @@ class RechercheWindow(QWidget):
         self.pagineur = Pagineur(self.afficher_page)
         lay.addWidget(self.pagineur)
         self.rows = []
+        self.resize(820, 520)
 
     def rechercher(self) -> None:
         if not self.journal.currentData():
@@ -668,6 +674,7 @@ class BalanceWindow(QWidget):
         self.table = tableau(["Compte", "Libellé", "Total débit", "Total crédit", "Solde débiteur", "Solde créditeur"],
                              "Balance générale")
         lay.addWidget(self.table)
+        self.resize(780, 520)
 
     def afficher(self) -> None:
         au = compta.parse_date_fr(self.au.text())
