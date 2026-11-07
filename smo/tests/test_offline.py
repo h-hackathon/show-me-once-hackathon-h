@@ -78,6 +78,16 @@ def test_condense_events():
     assert images == [(0, {"type": "url", "source": "https://img/1.png"})]
 
 
+def test_condense_reads_user_messages_as_h_sends_them():
+    """Forme réelle (session du 7 nov.) : AgentEvent message_event, caller_id user, content = [str]."""
+    steps, _ = h.condense([
+        {"type": "AgentEvent", "data": {"kind": "message_event", "caller_id": "user",
+                                        "content": ["Clique dans le champ « E-mail »."]}},
+        {"type": "AgentEvent", "data": {"kind": "observation_event", "metadata": {"url": "http://127.0.0.1:8042/login"}}},
+    ])
+    assert steps[0].instruction == "Clique dans le champ « E-mail »."
+
+
 def test_skill_applies_linkup_correction():
     context = Context(rule_checks=[RuleCheck(rule="Fournisseur étranger : TVA 0 %", verdict="corrected",
                                              correction="Fournisseur UE : autoliquidation (20 % EU)")])
