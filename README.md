@@ -9,6 +9,8 @@ Devin ─PR─▶ tests verts ─▶ Devin fusionne ─▶ deploy.yml : tests �
                                                                └─▶ railway up ─▶ SMO met l'agent H à jour
 ```
 
+La méthode de Devin est la skill `.agents/skills/smo-tool/SKILL.md` : procédure, règles du tool, interdits, sortie JSON.
+
 ## Un tool
 
 ```
