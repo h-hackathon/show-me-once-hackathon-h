@@ -1,8 +1,9 @@
 """Le driver : enchaîne les étapes d'un run, saute ce qui est déjà fait, s'arrête proprement sinon.
 
-capture ─► transcribe ─► frames ─► understand ─► enrich ─► skill ─► review ─► provision ─► trial ─► compile ─► upgrade
-           Gladia        ffmpeg     Holo (LLM)    Linkup    .md      humain     agent H     agent H   Devin      agent H
-                                    info digeste  (option)                      + Skill     CU→trace  tool       + tool
+capture ─► transcribe ─► frames ─► read ─────► understand ─► enrich ─► skill ─► review ─► provision ─► trial ─► compile ─► upgrade
+           Gladia        ffmpeg     Holo,        Holo, texte    Linkup    .md      humain     agent H     agent H   Devin      agent H
+                                    1 capture    seul : étapes  (option)                      + Skill     CU→trace  tool       + tool
+                                    par appel    et règles
 
 L'agent existe dans H dès « provision » ; « trial » le fait travailler une fois à l'écran avec sa Skill, et sa trace
 part chez Devin ; « upgrade » lui donne le tool. En exploitation, si le tool échoue, l'agent reprend en computer use
@@ -32,7 +33,8 @@ class Stage:
 STAGES = [
     Stage("transcribe", capture.transcribe, ("gladia_api_key",), lambda r: r.has("transcript.json")),
     Stage("frames", capture.frames, (), lambda r: r.has("frames.json")),
-    Stage("understand", understand.run, ("hai_api_key",), lambda r: r.has("procedure.json")),
+    Stage("read", understand.read, ("hai_api_key",), lambda r: r.has("notes.json") or r.has("procedure.json")),
+    Stage("understand", understand.synthesize, ("hai_api_key",), lambda r: r.has("procedure.json")),
     Stage("enrich", enrich.run, ("linkup_api_key",), lambda r: r.has("context.json"), optional=True),
     Stage("skill", skill.run, (), lambda r: r.has("skill.md")),
     Stage("review", skill.review, (), lambda r: r.has("skill.approved")),

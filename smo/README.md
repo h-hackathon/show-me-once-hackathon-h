@@ -6,8 +6,9 @@ Capturer, automatiser et maintenir des agents H pour des tâches répétitives. 
 - la trace de chaque reprise renvoie Devin corriger le tool et la Skill.
 
 ```
-capture → transcribe → frames → understand → enrich → skill → review → provision → trial → compile → upgrade
-          Gladia       ffmpeg   Holo (LLM)   Linkup            humain   agent H     agent H  Devin     agent H + tool
+capture → transcribe → frames → read → understand → enrich → skill → review → provision → trial → compile → upgrade
+          Gladia       ffmpeg   Holo   Holo        Linkup            humain   agent H     agent H  Devin     agent H + tool
+                                (1 capture par appel, puis synthèse en texte seul)
 ```
 
 Le plan complet et l'état des API sont dans [`PLAN.md`](PLAN.md).
@@ -39,7 +40,7 @@ uv run smo status <run_id>
 uv run smo new capture.mov --task "..." --owner catherine --go --auto
 ```
 
-Chaque étape écrit son fichier dans `runs/<run_id>/` : `transcript.json`, `frames/`, `procedure.json`, `context.json`, `skill.md`, `agent.json`, `trace.json` (+ `trace/`), `trial.json`, `compile.json`.
+Chaque étape écrit son fichier dans `runs/<run_id>/` : `transcript.json`, `frames/`, `notes.json`, `procedure.json`, `context.json`, `skill.md`, `agent.json`, `trace.json` (+ `trace/`), `trial.json`, `compile.json`.
 Option `--guided` : à l'étape trial, l'agent est guidé phrase par phrase au lieu de suivre seul sa Skill.
 On peut refaire une étape : `uv run smo run <id> --only understand --force`.
 

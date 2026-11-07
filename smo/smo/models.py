@@ -54,6 +54,35 @@ class Step(BaseModel):
     utterance_index: int | None = None
 
 
+class ScreenReading(BaseModel):
+    """Ce que Holo voit sur la capture d'une phrase (passe 1, une image par appel)."""
+    screen: str | None = None              # titre ou nom de l'écran
+    action: str = "none"                   # navigate, click, type, select, check, read ou none
+    target: str | None = None              # libellé exact de l'élément concerné
+    value: str | float | int | None = None
+
+
+class ScreenNote(ScreenReading):
+    utterance_index: int
+    error: str | None = None               # capture illisible : la passe 2 s'appuie alors sur la phrase seule
+
+
+class DocumentReading(BaseModel):
+    """Ce que Holo lit sur une pièce de référence (ex. la facture de la démo)."""
+    kind: str | None = None
+    fields: dict[str, str | float | int | None] = {}
+
+
+class DocumentNote(DocumentReading):
+    path: str
+
+
+class Notes(BaseModel):
+    """Passe 1 de la compréhension (notes.json)."""
+    screens: list[ScreenNote] = []
+    documents: list[DocumentNote] = []
+
+
 class Rule(BaseModel):
     text: str
     kind: Literal["check", "exception", "never", "stop"]

@@ -173,6 +173,35 @@ def test_tool_registry_and_h_definitions(s):
     assert drifts == [("run_x", "bouton renommé")]
 
 
+def test_read_sends_one_image_per_call_and_survives_an_unreadable_one(run, s, monkeypatch):
+    from smo.models import Frame, FrameSet, Notes, ScreenReading
+    from smo.pipeline import understand
+    run.write_model("frames.json", FrameSet(
+        frames=[Frame(utterance_index=0, time_s=1.5, path="frames/u000.png"),
+                Frame(utterance_index=1, time_s=5.5, path="frames/u001.png")],
+        references=[Frame(utterance_index=None, time_s=None, path="capture/images/INV-001.pdf")]))
+    calls = []
+
+    def fake_chat_model(prompt, model_cls, api_key, model, images=()):
+        calls.append(len(images))
+        if "u001" in str(images[0]):
+            raise RuntimeError("JSON invalide")
+        if model_cls is ScreenReading:
+            return ScreenReading(screen="Factures fournisseurs", action="click", target="Nouvelle facture")
+        return model_cls(kind="facture", fields={"Total TTC": 298.8})
+
+    monkeypatch.setattr(understand.holo, "chat_model", fake_chat_model)
+    understand.read(run, s, log=lambda _: None)
+    notes = run.read_model("notes.json", Notes)
+    assert calls == [1, 1, 1]                                   # jamais plus d'une image par appel
+    assert notes.screens[0].target == "Nouvelle facture" and notes.screens[1].error
+    assert notes.documents[0].fields == {"Total TTC": 298.8}
+
+    prompt = understand.synthesis_prompt(run, run.read_model("transcript.json", Transcript), notes)
+    assert "vu : écran « Factures fournisseurs » · click « Nouvelle facture »" in prompt
+    assert "Total TTC : 298.8" in prompt and "HT plus TVA égale TTC" in prompt   # phrase sans capture lisible gardée
+
+
 def test_turn_stops_on_idle_event_even_if_status_flips_back():
     class FakeHandle:
         def stream(self, **kwargs):

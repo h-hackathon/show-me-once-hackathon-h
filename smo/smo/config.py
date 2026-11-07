@@ -15,6 +15,7 @@ load_dotenv(ROOT / ".env")
 ENV = {
     "hai_api_key": "HAI_API_KEY",
     "holo_model": "HOLO_MODEL",
+    "synth_model": "HOLO_SYNTH_MODEL",
     "agent_model": "SMO_AGENT_MODEL",
     "replay_agent": "SMO_REPLAY_AGENT",
     "agent_prefix": "SMO_AGENT_PREFIX",
@@ -54,6 +55,7 @@ class MissingConfig(RuntimeError):
 class Settings:
     hai_api_key: str | None
     holo_model: str
+    synth_model: str | None        # passe 2 de la compréhension (texte seul) ; vide = HOLO_MODEL
     agent_model: str | None        # modèle de l'agent custom (None = défaut H, holo4-27b)
     replay_agent: str              # agent H qui refait la démo, guidé pas à pas
     agent_prefix: str              # les agents créés par SMO commencent par ce préfixe
@@ -89,6 +91,7 @@ def load() -> Settings:
     return Settings(
         hai_api_key=env("hai_api_key"),
         holo_model=env("holo_model"),
+        synth_model=env("synth_model"),
         agent_model=env("agent_model"),
         replay_agent=env("replay_agent"),
         agent_prefix=env("agent_prefix"),
