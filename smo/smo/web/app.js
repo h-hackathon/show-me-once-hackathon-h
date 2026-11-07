@@ -198,11 +198,11 @@ function upload() {
 
 // --- 3-4. suivre ---------------------------------------------------------------------------------
 
-let pollId = null, skillLoaded = false;
+let pollId = null, editorMode = null;   // editorMode : "review" ou "retry" une fois la Skill chargée dans l'éditeur
 
 function follow(runId) {
   history.replaceState(null, "", `?run=${encodeURIComponent(runId)}`);
-  skillLoaded = false;
+  editorMode = null;
   show("follow", "learn");
   poll(runId);
 }
@@ -228,6 +228,7 @@ const PILL = {
 
 function waitingLabel(run) {
   if (run.status.review?.state === "waiting" && !run.approved) return ["À relire", "act"];
+  if (run.status.trial?.state === "waiting") return ["Essais sans succès", "act"];
   if (run.status.upgrade?.state === "waiting") return ["PR à fusionner", "act"];
   return ["En attente", "act"];
 }
@@ -263,22 +264,35 @@ function render(run) {
     return li;
   }));
 
+  // Éditeur de Skill : à la relecture, ou après 3 essais ratés (la Skill contient alors les leçons des essais).
   const reviewing = run.status.review?.state === "waiting" && !run.approved && run.skill;
-  $("review").hidden = !reviewing;
-  if (reviewing && !skillLoaded) { $("skill").value = run.skill; skillLoaded = true; }
-  $("resume-box").hidden = run.busy || !["failed", "waiting", "idle"].includes(run.state) || reviewing;
+  const retrying = !run.busy && run.status.trial?.state === "waiting" && run.skill;
+  const mode = reviewing ? "review" : retrying ? "retry" : null;
+  $("review").hidden = !mode;
+  if (mode && editorMode !== mode) { $("skill").value = run.skill; editorMode = mode; }
+  if (mode === "retry") {
+    $("review-title").textContent = "L'agent n'a pas réussi en 3 essais";
+    $("review-note").textContent = "Ses leçons sont à la fin de la Skill. Corrigez ce qui bloque, puis relancez les essais.";
+    $("approve").textContent = "Relancer les essais";
+  }
+  $("resume-box").hidden = run.busy || !["failed", "waiting", "idle"].includes(run.state) || Boolean(mode);
 
-  renderLinks(run.links || {});
+  renderLinks(run.links || {}, run.attempts || []);
   $("log").textContent = run.log.length ? run.log.join("\n") : "—";
-  $("approve").onclick = () => approve(run.id);
+  $("approve").onclick = () => (mode === "retry" ? retry(run.id) : approve(run.id));
   $("resume").onclick = () => resume(run.id);
 }
 
-function renderLinks(links) {
+function renderLinks(links, attempts) {
   const rows = [];
   if (links.agent) rows.push(["Agent dans H", code(links.agent)]);
   if (links.agent) rows.push(["Mode", document.createTextNode(links.tool_ready ? "tool + reprise à l'écran" : "à l'écran (tool en préparation)")]);
-  if (links.trial_replay) rows.push(["Test de l'agent", anchor(links.trial_replay, "revoir la session")]);
+  for (const a of attempts) {
+    const cell = document.createElement("span");
+    cell.append(a.success ? "réussi" : `raté${a.gap ? ` : ${a.gap}` : ""}`);
+    if (a.replay) cell.append(" · ", anchor(a.replay, "revoir"));
+    rows.push([`Essai ${a.n}`, cell]);
+  }
   if (links.devin) rows.push(["Devin", anchor(links.devin, "voir la session")]);
   if (links.pr) rows.push(["Pull request", anchor(links.pr, links.pr.replace(/^https:\/\/github\.com\//, ""))]);
   $("links").hidden = rows.length === 0;
@@ -309,6 +323,20 @@ async function approve(runId) {
     poll(runId);
   } catch (err) {
     $("log").textContent = `Validation impossible : ${err.message}`;
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function retry(runId) {
+  const button = $("approve");
+  button.disabled = true;
+  try {
+    await api(`/api/runs/${encodeURIComponent(runId)}/skill`, {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ skill: $("skill").value }),
+    });
+    editorMode = null;
+    await resume(runId);
   } finally {
     button.disabled = false;
   }

@@ -42,6 +42,7 @@ def frames(run: Run, s: Settings, log: Callable[[str], None]) -> None:
     transcript = run.read_model("transcript.json", Transcript)
     references = [Frame(utterance_index=None, time_s=None, path=str(p.relative_to(run.path))) for p in run.images()]
     shots: list[Frame] = []
+    final: str | None = None
     video = run.video()
     if video:
         every = run.file("frames/all")
@@ -56,6 +57,9 @@ def frames(run: Run, s: Settings, log: Callable[[str], None]) -> None:
             path = run.file(f"frames/u{u.index:03d}.png")
             shutil.copy(still, path)
             shots.append(Frame(utterance_index=u.index, time_s=round(t, 2), path=str(path.relative_to(run.path))))
+        if stills:
+            shutil.copy(stills[-1], run.file("frames/final.png"))
+            final = "frames/final.png"
         shutil.rmtree(every)
-    run.write_model("frames.json", FrameSet(frames=shots, references=references))
+    run.write_model("frames.json", FrameSet(frames=shots, references=references, final=final))
     log(f"{len(shots)} captures extraites, {len(references)} images de référence")

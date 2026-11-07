@@ -22,7 +22,7 @@ from pydantic import BaseModel
 
 from ..clients import gladia
 from ..config import Settings
-from ..models import CaptureMeta, CompileResult, Provisioned, Trace
+from ..models import CaptureMeta, CompileResult, Provisioned, Trace, Trial
 from ..pipeline.orchestrator import NAMES, run_pipeline
 from ..runs import Run
 from .auth import token_checker
@@ -40,7 +40,7 @@ LABELS = {
     "skill": "Skill écrite",
     "review": "Relecture de la Skill",
     "provision": "Agent créé dans H",
-    "trial": "L'agent fait la tâche à l'écran",
+    "trial": "L'agent essaie la tâche à l'écran (3 essais max)",
     "compile": "Devin code le tool",
     "upgrade": "L'agent reçoit son tool",
 }
@@ -104,6 +104,13 @@ def links(run: Run) -> dict:
     return out
 
 
+def attempts(run: Run) -> list[dict]:
+    if not run.has("trial.json"):
+        return []
+    return [{"n": a.n, "success": a.verdict.success, "gap": a.verdict.gap, "lesson": a.verdict.lesson,
+             "replay": a.replay_url} for a in run.read_model("trial.json", Trial).attempts]
+
+
 def router_for(s: Settings) -> tuple[APIRouter, Runner]:
     router = APIRouter(prefix="/api")
     runner = Runner(s)
@@ -154,7 +161,7 @@ def router_for(s: Settings) -> tuple[APIRouter, Runner]:
         return {"id": run.id, "meta": run.meta.model_dump(mode="json"), "state": overall(status, busy), "busy": busy,
                 "status": status, "approved": run.has("skill.approved"),
                 "skill": run.file("skill.md").read_text(encoding="utf-8") if run.has("skill.md") else None,
-                "links": links(run), "log": log_lines}
+                "links": links(run), "attempts": attempts(run), "log": log_lines}
 
     @router.put("/runs/{run_id}/skill", dependencies=[Depends(check_token)])
     def save_skill(run_id: str, body: SkillText) -> dict:

@@ -43,6 +43,7 @@ class Frame(BaseModel):
 class FrameSet(BaseModel):
     frames: list[Frame]
     references: list[Frame] = []
+    final: str | None = None               # dernière image de la vidéo : le résultat attendu, pour juger les essais
 
 
 class Step(BaseModel):
@@ -155,6 +156,27 @@ class Provisioned(BaseModel):
     tools: list[str]
     tool_ready: bool                       # False : l'agent travaille en computer use en attendant le tool
     environment: dict[str, Any]
+
+
+class Verdict(BaseModel):
+    """Holo compare l'écran final de l'agent à celui de la démo : même résultat ou pas."""
+    success: bool
+    gap: str | None = None                 # ce qui diffère
+    lesson: str | None = None              # consigne courte à ajouter à la Skill pour l'essai suivant
+
+
+class Attempt(BaseModel):
+    n: int
+    session_id: str
+    replay_url: str | None = None
+    answer: Any = None
+    verdict: Verdict
+
+
+class Trial(BaseModel):
+    """Les essais de l'agent (trial.json) : démo → essai → oui / non → nouvel essai ou Devin."""
+    attempts: list[Attempt] = []
+    success: bool = False
 
 
 class RunReport(BaseModel):

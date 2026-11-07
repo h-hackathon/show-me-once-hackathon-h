@@ -42,6 +42,10 @@ def agent_name(run: Run, s: Settings) -> str:
     return f"{s.agent_prefix}{slug(meta.owner, max_len=12)}-{slug(meta.task, max_len=40)}"
 
 
+def skill_description(run: Run) -> str:
+    return f"À utiliser pour : {run.meta.task} dans {run.meta.software_url}."
+
+
 def skill_body(run: Run, s: Settings) -> str:
     """La Skill du repo si Devin l'a écrite ou corrigée, sinon celle relue par l'humain."""
     in_repo = s.tools_dir / tool_name(run) / "skill.md"
@@ -55,8 +59,7 @@ def create(run: Run, s: Settings, log: Callable[[str], None]) -> None:
     tools = h_tools({tname: compiled[tname]} if ready else {}, s, on_drift=lambda *_: None)
 
     client = h.client(s.hai_api_key)
-    h.upsert_skill(client, sname, description=f"À utiliser pour : {meta.task} dans {meta.software_url}.",
-                   body=skill_body(run, s))
+    h.upsert_skill(client, sname, description=skill_description(run), body=skill_body(run, s))
     env = h.web_environment(meta.software_url)   # localhost : Chrome de cette machine (user_device)
     spec = dict(
         description=f"{meta.task}, appris d'une démonstration de {meta.owner}.",

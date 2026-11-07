@@ -10,7 +10,9 @@
 flowchart LR
     A["1 · Capture<br/>vidéo + voix"] --> B["2 · Comprendre<br/>Skill .md"]
     B --> C["3 · Tester<br/>agent H à l'écran"]
-    C -- trace --> D["4 · Coder<br/>Devin : tool + PR"]
+    C --> J{"Holo juge :<br/>même résultat<br/>que la démo ?"}
+    J -- "non : leçon ajoutée<br/>à la Skill (3 essais max)" --> C
+    J -- "oui : trace" --> D["4 · Coder<br/>Devin : tool + PR"]
     D --> E["5 · Exploiter<br/>agent H + tool"]
     E -- "tool en échec,<br/>interface changée" --> F["6 · Reprendre<br/>agent H à l'écran"]
     F -- "nouvelle trace" --> D
@@ -20,7 +22,7 @@ flowchart LR
 |---|---|---|---|
 | 1 | Capture | Humain + Gladia | ce qui est dit, horodaté, plus une capture d'écran par phrase |
 | 2 | Comprendre | Holo (Models API) | étapes et règles implicites, en Skill .md relisible |
-| 3 | Tester | Agent custom H | il fait la tâche une fois en computer use, ce qui donne la trace des actions réelles |
+| 3 | Tester | Agent custom H + Holo | l'agent essaie seul en computer use ; Holo compare son écran final à la fin de la démo ; si c'est raté, la leçon entre dans la Skill et un nouvel essai repart de zéro (3 au plus) |
 | 4 | Coder | Devin | tool déterministe, contrat d'interface, tests et Skill corrigée, dans une PR |
 | 5 | Exploiter | Agent H + tool | precheck, tool, puis contrôle du résultat réel dans le logiciel |
 | 6 | Reprendre | Agent H → Devin | il finit à l'écran, et sa trace renvoie Devin corriger le tool et la Skill |

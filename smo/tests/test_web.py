@@ -99,6 +99,7 @@ def test_frames_from_a_recorded_webm(s):
     run.write_model("transcript.json", Transcript(language="fr", utterances=[
         Utterance(index=0, start=0.0, end=1.0, text="un"), Utterance(index=1, start=2.0, end=3.8, text="deux")]))
     capture.frames(run, s, log=lambda _: None)
-    frames = run.read_model("frames.json", FrameSet).frames
-    assert [f.utterance_index for f in frames] == [0, 1]
-    assert all(run.file(f.path).exists() for f in frames) and not run.file("frames/all").exists()
+    frameset = run.read_model("frames.json", FrameSet)
+    assert [f.utterance_index for f in frameset.frames] == [0, 1]
+    assert all(run.file(f.path).exists() for f in frameset.frames) and not run.file("frames/all").exists()
+    assert frameset.final == "frames/final.png" and run.file(frameset.final).exists()   # référence du juge

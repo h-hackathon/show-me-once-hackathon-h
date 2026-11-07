@@ -229,6 +229,42 @@ def test_long_demo_keeps_the_last_screens_and_bad_document_is_tolerated(run, s, 
     assert "illisible.pdf" not in understand.synthesis_prompt(run, run.read_model("transcript.json", Transcript), notes)
 
 
+def _trial_setup(run, monkeypatch, verdicts):
+    """Essais simulés : chaque essai renvoie une trace, le juge rend les verdicts donnés, dans l'ordre."""
+    from smo.models import Provisioned, Verdict
+    from smo.pipeline import trial
+    run.write_text("skill.md", "# Skill\n- HT + TVA = TTC\n")
+    run.write_model("agent.json", Provisioned(agent_name="smo-catherine-x", skill_name="smo-catherine-x",
+                                              tools=[], tool_ready=False, environment={}))
+    pushed, queue = [], [Verdict(**v) for v in verdicts]
+    monkeypatch.setattr(trial.h, "client", lambda key: None)
+    monkeypatch.setattr(trial.h, "upsert_skill", lambda client, name, description, body: pushed.append(body))
+    monkeypatch.setattr(trial, "attempt", lambda run, s, n, agent, task, log: Trace(
+        session_id=f"sess-{n}", agent="smo-catherine-x", status="idle", steps=[], answer=f"essai {n}"))
+    monkeypatch.setattr(trial, "judge", lambda run, s, trace: queue.pop(0))
+    return trial, pushed
+
+
+def test_trial_retries_with_the_lesson_then_hands_the_good_attempt_to_devin(run, s, monkeypatch):
+    from smo.models import Trial
+    trial, pushed = _trial_setup(run, monkeypatch, [
+        {"success": False, "gap": "dossier non ouvert", "lesson": "Ouvrir d'abord le dossier 00417"},
+        {"success": True}])
+    assert trial.run(run, s, log=lambda _: None) is None
+    result = run.read_model("trial.json", Trial)
+    assert result.success and [a.verdict.success for a in result.attempts] == [False, True]
+    assert run.read_model("trace.json", Trace).session_id == "sess-2"          # Devin reçoit l'essai réussi
+    skill_md = run.file("skill.md").read_text()
+    assert "## Leçons des essais" in skill_md and "Essai 1 : Ouvrir d'abord le dossier 00417" in skill_md
+    assert len(pushed) == 2 and "Ouvrir d'abord" in pushed[1]                  # la Skill corrigée est poussée dans H
+
+
+def test_trial_waits_for_the_human_after_three_failures(run, s, monkeypatch):
+    trial, _ = _trial_setup(run, monkeypatch, [{"success": False, "gap": "raté"}] * 3)
+    assert trial.run(run, s, log=lambda _: None) == "waiting"
+    assert not run.has("trace.json")
+
+
 def test_turn_stops_on_idle_event_even_if_status_flips_back():
     class FakeHandle:
         def stream(self, **kwargs):
