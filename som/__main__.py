@@ -3,7 +3,7 @@
   python -m som doctor                  vérifie que tout est prêt (clés, Sheet, Databricks, outils)
   python -m som notebooks               (re)génère databricks/01_setup_crm.py à importer dans Databricks
   python -m som truth -p FR,IT          affiche ce que l'onglet doit contenir (vérité terrain)
-  python -m som sheet-reset             remet le Sheet à l'état « semaine précédente »
+  python -m som sheet-status            le Sheet est-il à l'état « semaine précédente » ?
   python -m som capture demo.mov        vidéo commentée → phrases horodatées + captures
   python -m som skill --demo runs/demo/demo/demo.json      → skills/crm-dashboard.md
   python -m som skill --transcript data/demo/demo_narration.txt   (sans vidéo, pour tester)
@@ -61,9 +61,7 @@ def cmd_doctor(a):
     for key, hint in [("HAI_API_KEY", "platform.hcompany.ai/settings/api-keys"),
                       ("GLADIA_API_KEY", "app.gladia.io > API Keys"),
                       ("DATABRICKS_URL", "l'adresse de ton workspace Free Edition (https://….cloud.databricks.com)"),
-                      ("SHEET_URL", "lien du Google Sheet (partagé « tous les utilisateurs disposant du lien » en éditeur)"),
-                      ("SHEET_WEBAPP_URL", "Apps Script > Déployer > Application Web → URL /exec"),
-                      ("SHEET_TOKEN", "même valeur que TOKEN dans sheets/dashboard.gs")]:
+                      ("SHEET_URL", "lien du Google Sheet (partagé « tous les utilisateurs disposant du lien » en éditeur)")]:
         good &= _ok(key, bool(env(key)), hint)
 
     print("— Connexion de l'agent à Databricks")
@@ -76,17 +74,19 @@ def cmd_doctor(a):
         print("⚠️  ni profil navigateur (HAI_BROWSER_PROFILE_ID) ni OTP par IMAP : l'agent risque de bloquer sur le code e-mail")
 
     print("— Google Sheet")
-    if env("SHEET_WEBAPP_URL") and env("SHEET_TOKEN"):
+    if env("SHEET_URL"):
         try:
-            from .sheet import read
+            from .crm_data import generate
+            from .sheet import is_reset, read
             tabs = read()
-            missing = [p for p in PAYS if not tabs.get(p)]
-            good &= _ok(f"API du Sheet : {len(PAYS) - len(missing)}/10 onglets pays", not missing,
-                        f"onglets manquants : {', '.join(missing)} → lance la fonction setup dans Apps Script")
-            filled = sum(1 for p in PAYS if tabs.get(p) and len(tabs[p]) > 1)
-            print(f"ℹ️  {filled}/10 onglets contiennent des données" + ("" if filled else " → python -m som sheet-reset"))
+            headed = [p for p in PAYS if tabs.get(p) and tabs[p][0][:1] == ["campagne_id"]]
+            good &= _ok(f"Sheet lisible : {len(headed)}/10 onglets pays", len(headed) == len(PAYS),
+                        "lance la fonction setup dans Apps Script (sheets/dashboard.gs)")
+            ok, diff = is_reset(generate(), tabs)
+            print("✅ Sheet à l'état « semaine précédente »" if ok else
+                  f"ℹ️  onglets déjà modifiés : {', '.join(diff)} → menu Show me once › Remettre à zéro")
         except (SystemExit, Exception) as e:
-            good &= _ok("API du Sheet", False, str(e)[:200])
+            good &= _ok("lecture du Sheet", False, str(e)[:200])
     if env("DATABRICKS_URL"):
         good &= _ok(f"Databricks joignable ({env('DATABRICKS_URL')})", _reachable(env("DATABRICKS_URL")))
 
@@ -137,9 +137,26 @@ def cmd_truth(a):
             print("\t".join(str(r[c]) for c in COLONNES_RAPPORT))
 
 
-def cmd_sheet_reset(a):
-    from .sheet import reset
-    print(f"🧹 {reset()} onglet(s) remis à la semaine précédente")
+def wait_for_reset(tables) -> None:
+    """Avant chaque lot : le Sheet doit être à l'état « semaine précédente » (menu Show me once › Remettre à zéro)."""
+    from .sheet import is_reset
+    for _ in range(5):
+        ok, diff = is_reset(tables)
+        if ok:
+            print("✅ Sheet à l'état « semaine précédente »")
+            return
+        print(f"🧹 Onglets à remettre à zéro : {', '.join(diff)}\n"
+              "   → dans le Sheet : menu « Show me once » › « Remettre à zéro (semaine précédente) »")
+        input("   Appuie sur Entrée quand c'est fait… ")
+    raise SystemExit("❌ Le Sheet n'est toujours pas à zéro")
+
+
+def cmd_sheet_status(a):
+    from .crm_data import generate
+    from .sheet import is_reset
+    ok, diff = is_reset(generate())
+    print("✅ Sheet à l'état « semaine précédente »" if ok else
+          f"ℹ️  onglets modifiés : {', '.join(diff)} → menu Show me once › Remettre à zéro")
 
 
 def cmd_capture(a):
@@ -179,7 +196,6 @@ def _check_and_log(tables, pays_list, answers, out_dir, run_id, condition):
 def _execute(conditions, a):
     from .crm_data import generate
     from .runner import new_run_dir, run_batch
-    from .sheet import reset
     pays_list = _pays(a.pays)
     skill = _skill_text(a.skill) if "B" in conditions else None
     tables = generate()
@@ -188,7 +204,7 @@ def _execute(conditions, a):
     for run_id in range(1, a.runs + 1):
         for cond in conditions:
             if not a.no_reset:
-                print(f"🧹 Sheet remis à la semaine précédente ({reset(tables)} onglets)")
+                wait_for_reset(tables)
             rows = run_batch(pays_list, cond, skill, run_id, a.concurrency, out)
             answers = {r["pays"]: r["_answer"] for r in rows if r["_answer"]}
             (out / f"answers_run{run_id}_{cond}.json").write_text(json.dumps(answers, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -233,7 +249,7 @@ def main(argv=None):
     t.add_argument("-p", "--pays", default="all")
     t.set_defaults(fn=cmd_truth)
 
-    sub.add_parser("sheet-reset", help="Sheet → semaine précédente").set_defaults(fn=cmd_sheet_reset)
+    sub.add_parser("sheet-status", help="le Sheet est-il remis à zéro ?").set_defaults(fn=cmd_sheet_status)
 
     c = sub.add_parser("capture", help="vidéo de démo → phrases + captures")
     c.add_argument("media", help="vidéo .mov/.mp4 (ou audio .wav)")
@@ -256,7 +272,7 @@ def main(argv=None):
         r.add_argument("--runs", type=int, default=1 if name == "run" else 2)
         r.add_argument("--concurrency", type=int, default=3)
         r.add_argument("--skill", help=f"défaut : {DEFAULT_SKILL.relative_to(ROOT)}")
-        r.add_argument("--no-reset", action="store_true", help="ne pas remettre le Sheet à zéro avant chaque lot")
+        r.add_argument("--no-reset", action="store_true", help="ne pas vérifier la remise à zéro du Sheet avant chaque lot")
         r.set_defaults(fn=fn)
 
     k = sub.add_parser("check", help="Sheet vs vérité terrain")

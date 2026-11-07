@@ -126,4 +126,17 @@ def build() -> Path:
     out.parent.mkdir(exist_ok=True)
     out.write_text(CELL.join(cells) + "\n", encoding="utf-8")
     (ROOT / "databricks" / "rapport_TEMPLATE.py").write_text(RAPPORT.replace("__CAT__", cat), encoding="utf-8")
+    build_sheet_script()
+    return out
+
+
+def build_sheet_script() -> Path:
+    """sheets/dashboard.gs = modèle + données de la semaine précédente (état « avant » de la démo)."""
+    import json
+    from .crm_data import COLONNES_RAPPORT, PAYS, generate, previous
+    t = generate()
+    data = {p: [[r[c] for c in COLONNES_RAPPORT] for r in previous(t, p)] for p in PAYS}
+    tpl = (ROOT / "sheets" / "dashboard.template.gs").read_text(encoding="utf-8")
+    out = ROOT / "sheets" / "dashboard.gs"
+    out.write_text(tpl.replace("/*__PRECEDENTE__*/{}", json.dumps(data, ensure_ascii=False)), encoding="utf-8")
     return out

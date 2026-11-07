@@ -17,7 +17,7 @@ Hackathon H Company × 42AI — 7–8 novembre 2026.
 2. skill     phrases + captures ──Holo (Models API)──► skills/crm-dashboard.md   (relue par l'humain)
 3. run       10 pays × Agents API (h/web-surfer-pro) en parallèle :
              Databricks ▸ notebook rapport_<PAYS> ▸ Run all ▸ copier le résultat ▸ Google Sheet ▸ onglet <PAYS> ▸ Dashboard
-4. check     contenu réel du Sheet (API Apps Script) vs vérité terrain ──► score, alertes, affirmations fausses
+4. check     contenu réel du Sheet (export CSV public) vs vérité terrain ──► score, alertes, affirmations fausses
 ```
 
 **Données** : base CRM 100 % fictive, 5 tables reliées dans `workspace.decathlon_crm` (clés primaires/étrangères) :
@@ -36,7 +36,7 @@ Générée par `som/crm_data.py` avec une graine fixe : Databricks et notre vér
 |---|---|
 | `som/crm_data.py` | génération de la base + calcul du rapport + règles (vérité terrain) |
 | `som/notebooks.py` → `databricks/01_setup_crm.py` | notebook de setup à importer dans Databricks |
-| `sheets/dashboard.gs` | Apps Script : onglets pays, dashboard + graphiques, API lecture/reset |
+| `sheets/dashboard.gs` | Apps Script (généré) : onglets pays, dashboard + graphiques, menu « Remettre à zéro » |
 | `som/capture.py` | vidéo → phrases Gladia + captures |
 | `som/skill_builder.py` | démo → Skill (Holo) |
 | `som/runner.py` | sessions Agents API en parallèle, réponse structurée |
@@ -58,11 +58,12 @@ Remplis `HAI_API_KEY` et `GLADIA_API_KEY` dans `.env`.
 - Il crée les 5 tables et les 10 notebooks `rapport_<PAYS>` dans le dossier `show-me-once`.
 - Copie l'adresse du workspace dans `DATABRICKS_URL`.
 
-**3. Google Sheet**
-- Nouveau Sheet ▸ Extensions ▸ Apps Script ▸ colle `sheets/dashboard.gs` ▸ change `TOKEN` ▸ exécute `setup`.
-- Déployer ▸ Nouveau déploiement ▸ Application Web (Exécuter en tant que : Moi · Accès : Tout le monde) ▸ URL `/exec` → `SHEET_WEBAPP_URL`.
-- Partager ▸ « Tous les utilisateurs disposant du lien » ▸ **Éditeur** → lien dans `SHEET_URL` (l'agent n'a pas à se connecter à Google).
-- `SHEET_TOKEN` = la valeur de `TOKEN`.
+**3. Google Sheet** (l'agent y colle les données directement ; le script ne sert qu'à créer le décor)
+- Nouveau Sheet (sheets.new) ▸ Extensions ▸ Apps Script ▸ colle `sheets/dashboard.gs` ▸ Cmd + S ▸ exécute `setup` (autoriser l'accès).
+  → 10 onglets pays remplis avec la semaine précédente + onglet Dashboard et ses 2 graphiques.
+- Partager ▸ « Tous les utilisateurs disposant du lien » ▸ **Éditeur** → lien dans `SHEET_URL`
+  (l'agent n'a pas à se connecter à Google ; notre vérificateur lit l'export CSV public).
+- Avant chaque lot du benchmark : menu **Show me once ▸ Remettre à zéro** (la commande `bench` attend que ce soit fait).
 
 **4. Connexion de l'agent à Databricks** (Free Edition envoie un code par e-mail)
 - **Option 1, recommandée** : créer un profil navigateur sur la plateforme H, s'y connecter une fois à Databricks → `HAI_BROWSER_PROFILE_ID`.
@@ -70,7 +71,6 @@ Remplis `HAI_API_KEY` et `GLADIA_API_KEY` dans `.env`.
 
 **5. Vérifier**
 ```bash
-python -m som sheet-reset
 python -m som doctor --online
 ```
 
@@ -99,7 +99,7 @@ Le script de la narration (avec les 3 règles à dire à voix haute) est dans `d
 ```bash
 python -m som bench --runs 2 --concurrency 5
 ```
-10 pays × (A, B) × 2 runs = 40 sessions. Le Sheet est remis à la semaine précédente avant chaque lot.
+10 pays × (A, B) × 2 runs = 40 sessions. Avant chaque lot, la commande vérifie que le Sheet est remis à zéro (menu du Sheet) et attend sinon.
 Résultats dans `runs/<date>/` : `log.csv` (format du brief H, avec le lien de replay de chaque session),
 `scores.csv` (détail par pays), `answers_*.json`.
 
