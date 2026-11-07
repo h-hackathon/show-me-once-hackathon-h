@@ -100,7 +100,23 @@ def test_real_stages_wait_for_review_then_block_on_keys(run, s):
     assert run.has("skill.md") and run.status()["enrich"]["state"] == "skipped"
     run.write_text("skill.approved", "ok\n")
     assert orchestrator.run_pipeline(run, s, log=lambda _: None) == "blocked"
-    assert run.status()["replay"]["missing"] == ["HAI_API_KEY", "SITE_LOGIN", "SITE_PASSWORD"]
+    assert run.status()["provision"]["missing"] == ["HAI_API_KEY"]
+    assert orchestrator.NAMES[-4:] == ["provision", "trial", "compile", "upgrade"]
+
+
+def test_skill_from_repo_wins_once_devin_wrote_it(run, s):
+    run.write_text("skill.md", "# relue par l'humain\n")
+    assert provision.skill_body(run, s).startswith("# relue")
+    folder = s.tools_dir / skill.tool_name(run)
+    folder.mkdir(parents=True)
+    (folder / "skill.md").write_text("# corrigée par Devin\n")
+    assert provision.skill_body(run, s).startswith("# corrigée")
+
+
+def test_repair_brief_has_every_field():
+    from string import Template
+    Template((config.ROOT / "docs" / "DEVIN_REPAIR.md").read_text()).substitute(
+        tool_name="x", repo="r", url="u", details="d", contract="{}", skill="k", trace="t")
 
 
 def test_pipeline_blocks_on_missing_key(s):

@@ -9,9 +9,10 @@ Détails du logiciel (écrans, libellés exacts, API technique, formats) : `docs
 
 $skill
 
-## 2. Ce que l'agent H a fait à l'écran en refaisant la démo (trace condensée)
+## 2. Ce que l'agent H a fait à l'écran en suivant cette Skill (trace condensée)
 
-Chaque ligne : écran (URL, titre) → consigne de l'humain → actions de l'agent.
+L'agent custom a traité la pièce de la démo une fois en computer use, sans tool. Chaque ligne : écran (URL, titre) → consigne en cours → actions de l'agent.
+Pièces jointes : `trace.json` (trace complète), `trial.json` (réponse de l'agent et ce qui est réellement enregistré dans le logiciel), captures d'écran.
 
 $trace
 
@@ -24,6 +25,7 @@ $checks
 1. `tools/$tool_name/tool.py` : `NAME = "$tool_name"`, `DESCRIPTION`, `Params` (pydantic, un champ par valeur lue sur la pièce, avec une description), `precheck(page, cfg)`, `run(page, params, cfg)`.
 2. `tools/$tool_name/ui_contract.json` : chaque écran traversé, avec ses éléments attendus (rôle + libellé visible).
 3. `tools/$tool_name/test_tool.py` : rejoue la pièce de la démo contre le site (interface v1) et vérifie le résultat par l'API technique (`GET /api/invoices?reference=...`).
+4. `tools/$tool_name/skill.md` : la Skill ci-dessus, corrigée seulement là où la trace montre le vrai chemin (libellés exacts, écran intermédiaire oublié). C'est elle que l'agent utilisera en reprise à l'écran : garde les règles métier telles quelles.
 
 ## Contraintes
 

@@ -9,7 +9,10 @@ tools/<nom>/
   tool.py            NAME, DESCRIPTION, Params, precheck(page, cfg), run(page, params, cfg)
   ui_contract.json   les écrans traversés et leurs éléments attendus
   test_tool.py       rejoue la pièce de la démo contre le site, vérifie par l'API technique
+  skill.md           la Skill de l'agent (reprise à l'écran), poussée dans H à chaque `upgrade`
 ```
+
+Devin crée ce dossier à partir de la trace de l'agent (étape `trial`), puis le corrige à chaque réparation : tool et Skill dans la même PR.
 
 Partir de `tools/_template/` (ignoré par le serveur tant qu'il commence par `_`).
 

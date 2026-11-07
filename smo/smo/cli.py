@@ -38,7 +38,7 @@ def _pipeline(run, a, s):
     from .pipeline.orchestrator import run_pipeline
     state = run_pipeline(run, s, start=getattr(a, "start", None), stop=getattr(a, "stop", None),
                          only=getattr(a, "only", None), force=getattr(a, "force", False),
-                         auto=a.auto, wait=not a.no_wait)
+                         auto=a.auto, wait=not a.no_wait, guided=a.guided)
     print(f"→ {state} ({run.path})")
     return 0 if state in ("done", "waiting") else 1
 
@@ -118,6 +118,8 @@ def main(argv: list[str] | None = None) -> int:
     def pipeline_flags(sp):
         sp.add_argument("--auto", action="store_true", help="approuve la Skill sans relecture (parcours Catherine)")
         sp.add_argument("--no-wait", action="store_true", help="n'attend pas Devin (relancer `smo run` pour suivre)")
+        sp.add_argument("--guided", action="store_true",
+                        help="trial : l'agent est guidé phrase par phrase au lieu de suivre seul sa Skill")
 
     n = sub.add_parser("new", help="crée un run à partir d'une capture (vidéo, audio, images)")
     n.add_argument("files", nargs="+")
