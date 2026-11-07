@@ -17,7 +17,7 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Form, Header, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from ..clients import gladia
@@ -25,9 +25,11 @@ from ..config import Settings
 from ..models import CaptureMeta, CompileResult, Provisioned, Trace
 from ..pipeline.orchestrator import NAMES, run_pipeline
 from ..runs import Run
+from .auth import token_checker
 
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
+MAX_UPLOAD_MB = 500   # ~25 min d'écran enregistré par la page ; au-delà, 413
 
 LABELS = {
     "transcribe": "Transcription de la voix (Gladia)",
@@ -105,10 +107,7 @@ def links(run: Run) -> dict:
 def router_for(s: Settings) -> tuple[APIRouter, Runner]:
     router = APIRouter(prefix="/api")
     runner = Runner(s)
-
-    def check_token(x_smo_token: str | None = Header(default=None)) -> None:
-        if s.server_token and x_smo_token != s.server_token:
-            raise HTTPException(401, "Jeton SMO requis (X-SMO-Token)")
+    check_token = token_checker(s)
 
     def open_run(run_id: str) -> Run:
         try:
@@ -132,8 +131,13 @@ def router_for(s: Settings) -> tuple[APIRouter, Runner]:
                              owner: str = Form("demo"), sample: str = Form("")) -> dict:
         folder = Path(tempfile.mkdtemp())
         dest = folder / f"capture{Path(video.filename or '').suffix or '.webm'}"
+        size = 0
         with dest.open("wb") as fh:
             while chunk := await video.read(1 << 20):
+                size += len(chunk)
+                if size > MAX_UPLOAD_MB * 1_000_000:
+                    shutil.rmtree(folder)
+                    raise HTTPException(413, f"Vidéo trop lourde (plus de {MAX_UPLOAD_MB} Mo)")
                 fh.write(chunk)
         meta = CaptureMeta(task=task.strip(), software_url=url.strip(), owner=owner.strip() or "demo",
                            sample=sample.strip() or None)

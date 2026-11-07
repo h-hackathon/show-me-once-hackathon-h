@@ -70,6 +70,24 @@ def test_unknown_run_and_token(client, s):
         assert c.get("/api/config", headers={"X-SMO-Token": "secret"}).status_code == 200
 
 
+def test_online_server_refuses_to_start_without_a_real_token(s, monkeypatch):
+    from smo.runtime.auth import require_safe_deployment
+    require_safe_deployment(s)                                   # en local sans jeton : ouvert
+    monkeypatch.setenv("RAILWAY_ENVIRONMENT", "production")
+    for weak in (None, "court"):
+        with pytest.raises(RuntimeError, match="SMO_SERVER_TOKEN"):
+            require_safe_deployment(dataclasses.replace(s, server_token=weak))
+    require_safe_deployment(dataclasses.replace(s, server_token="x" * 16))
+
+
+def test_upload_too_big_is_refused(client, s, monkeypatch):
+    from smo.runtime import web
+    monkeypatch.setattr(web, "MAX_UPLOAD_MB", 0)
+    r = client.post("/api/captures", files={"video": ("capture.webm", b"0123456789", "video/webm")},
+                    data={"task": "t", "url": "http://x"})
+    assert r.status_code == 413 and client.started == [] and not s.runs_dir.exists()
+
+
 def test_frames_from_a_recorded_webm(s):
     """Les .webm de MediaRecorder n'ont pas d'index : l'extraction passe par un seul passage à 1 image/s."""
     run = Run.create(s.runs_dir, CaptureMeta(task="t", software_url="http://x"), [])

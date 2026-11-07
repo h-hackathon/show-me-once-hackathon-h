@@ -39,7 +39,8 @@ La page suit quatre temps :
 Quelques précisions :
 - **Clé Gladia** : elle reste sur le serveur, qui ouvre la session en direct ; le navigateur ne reçoit qu'une adresse à jeton temporaire.
 - **Transcription utilisée par le pipeline** : c'est celle du fichier complet, plus fiable que le direct.
-- **Accès** : la capture d'écran exige `localhost` ou HTTPS. Si `SMO_SERVER_TOKEN` est défini, la page demande le jeton.
+- **Accès** : la capture d'écran exige `localhost` ou HTTPS. Si `SMO_SERVER_TOKEN` est défini, la page demande le jeton. En ligne (Railway), ce jeton est obligatoire (16 caractères minimum) : sans lui, le serveur refuse de démarrer, pour que personne ne dépense nos crédits.
+- **Taille** : une vidéo de plus de 500 Mo est refusée.
 - **Reprendre un run** : `http://localhost:8000/?run=<run_id>`.
 
 ## En ligne de commande

@@ -9,12 +9,13 @@ import os
 import threading
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from hai_agents.webhook_verification import WebhookVerificationError, verify_webhook
 
 from ..config import load
+from .auth import require_safe_deployment, token_checker
 from .tools import input_schema, load_tools
 from .web import WEB_DIR, router_for
 from .worker import Worker
@@ -22,6 +23,8 @@ from .worker import Worker
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
 settings = load()
+require_safe_deployment(settings)   # en ligne sans jeton : on ne démarre pas
+check_token = token_checker(settings)
 worker = Worker(settings) if settings.hai_api_key else None
 
 
@@ -43,9 +46,6 @@ def page() -> FileResponse:
     return FileResponse(WEB_DIR / "index.html")
 
 
-def check_token(x_smo_token: str | None = Header(default=None)) -> None:
-    if settings.server_token and x_smo_token != settings.server_token:
-        raise HTTPException(401, "X-SMO-Token invalide")
 
 
 @app.get("/health")
