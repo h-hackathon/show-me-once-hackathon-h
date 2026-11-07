@@ -1,12 +1,15 @@
-# Show me once
+# Show me once — la cellule litiges qui apprend en regardant
 
 > « Vos équipes n'ont pas besoin d'apprendre à automatiser. Elles font la tâche une fois, l'agent fait les 500 suivantes. »
 
-**Cas de démo** : chaque lundi, une personne de l'équipe CRM lance un notebook Databricks qui calcule les résultats
-des campagnes email de la semaine, colle le résultat dans un Google Sheet, et le dashboard se met à jour.
-Elle le fait **une fois** en commentant à voix haute ; Show me once en tire une **Skill** (procédure + règles implicites),
-elle la relit, puis l'agent H fait la même chose pour les 10 pays en parallèle.
-Le score ne vient pas du résumé de l'agent : il vient de **ce qui est réellement écrit dans le Sheet**.
+**Le problème.** Chaque contestation de paiement (chargeback) non défendue à temps, c'est de l'argent perdu.
+Une marketplace en reçoit des centaines par jour, à environ 15 minutes chacune : 400 litiges = 100 heures de travail.
+Et ce n'est pas automatisable par API : les preuves sont dispersées dans des outils qui n'en ont pas
+(back-office, portail transporteur, support), et la décision dépend de règles que seule l'équipe connaît.
+
+**Ce qu'on a construit.** Une analyste traite **un** litige en commentant à voix haute. Show me once en tire une **Skill**
+(procédure + règles), elle la relit, puis l'agent H traite toute la file en parallèle, directement dans le Dashboard Stripe.
+Le score ne vient pas de ce que l'agent raconte : il vient **des vrais statuts des litiges dans Stripe**.
 
 Hackathon H Company × 42AI — 7–8 novembre 2026.
 
@@ -14,95 +17,97 @@ Hackathon H Company × 42AI — 7–8 novembre 2026.
 
 ```
 1. capture   vidéo commentée ──ffmpeg──► audio ──Gladia──► phrases horodatées (+ 1 capture d'écran par phrase)
-2. skill     phrases + captures ──Holo (Models API)──► skills/crm-dashboard.md   (relue par l'humain)
-3. run       10 pays × Agents API (h/web-surfer-pro) en parallèle :
-             Databricks ▸ notebook rapport_<PAYS> ▸ Run all ▸ copier le résultat ▸ Google Sheet ▸ onglet <PAYS> ▸ Dashboard
-4. check     contenu réel du Sheet (export CSV public) vs vérité terrain ──► score, alertes, affirmations fausses
+2. skill     phrases + captures ──Holo (Models API)──► skills/litiges.md   (relue et corrigée par l'humain)
+3. run       N litiges × Agents API (h/web-surfer-pro) en parallèle :
+             Stripe (litige) ▸ Sportiva Admin ▸ Parcelia Pro ▸ Sportiva Care ▸ décision ▸ Stripe (contester / accepter / bloquer)
+4. check     API Stripe : statut réel de chaque litige vs vérité terrain ──► € récupérés, erreurs, fraudeurs bloqués
+5. watch     écran de démo local « € récupérés » qui se met à jour pendant que les agents travaillent
 ```
 
-**Données** : base CRM 100 % fictive, 5 tables reliées dans `workspace.decathlon_crm` (clés primaires/étrangères) :
-`clients` (≈14 000) ─< `envois` (≈98 000) >─ `campagnes` (179) · `envois` ─< `evenements` (≈37 000) · `commandes` (≈3 000).
-Générée par `som/crm_data.py` avec une graine fixe : Databricks et notre vérité terrain sont identiques.
+## Les règles de l'équipe (ce que la Skill doit apprendre)
 
-**Les 3 pièges** (semaine du 26 octobre 2026) — c'est ce que la Skill doit apprendre de la démo :
+| # | Situation | Où le voir | Décision |
+|---|---|---|---|
+| 1 | Montant < 15 € | Stripe | accepter (les frais coûtent plus cher) |
+| 2 | Le titulaire confirme le vol de sa carte | Sportiva Care | accepter **et bloquer le client** (métadonnée `bloque = oui`) |
+| 3 | Client déjà remboursé | Sportiva Admin | **contester** avec le justificatif de remboursement (sinon on paie deux fois) |
+| 4 | Livré contre signature | Parcelia Pro | contester avec la preuve de livraison |
+| 5 | Sans signature, mais le client a écrit « bien reçu » | Sportiva Care | contester avec l'export du ticket |
+| 6 | Aucune preuve | — | accepter |
 
-| Pays | Piège | Comportement attendu |
+**24 litiges réels** dans Stripe (mode test), mélangés : 8 livrés signés, 3 réceptions confirmées au support,
+3 déjà remboursés, 3 petits montants, 3 cartes volées, 4 sans aucune preuve. `python -m som truth` affiche la décision attendue.
+
+**Pourquoi c'est réel.** Les litiges sont créés par les cartes de test Stripe qui déclenchent un chargeback.
+En mode test, Stripe tranche selon la preuve : `winning_evidence` fait gagner, `losing_evidence` fait perdre.
+Chaque document des outils affiche sa « référence de preuve » : une preuve qui ne prouve rien fait perdre le litige.
+
+## Résultat attendu du benchmark (simulation)
+
+| | Agent seul (A) | Agent + Skill (B) |
 |---|---|---|
-| FR | campagne « [TEST] Newsletter Running » envoyée à la liste interne | l'exclure du rapport |
-| IT | bug de tracking : taux d'ouverture de 112 % | ne pas publier la ligne, prévenir |
-| CH | aucune campagne cette semaine | ne pas toucher l'onglet, prévenir |
+| Litiges bien traités | 12 / 24 | **24 / 24** |
+| € récupérés | 880 € | **1 182 €** |
+| Contestés à tort | 144 € | **0 €** |
+| Fraudeurs bloqués | 0 / 3 | **3 / 3** |
 
-| Fichier | Rôle |
-|---|---|
-| `som/crm_data.py` | génération de la base + calcul du rapport + règles (vérité terrain) |
-| `som/notebooks.py` → `databricks/01_setup_crm.py` | notebook de setup à importer dans Databricks |
-| `sheets/dashboard.gs` | Apps Script (généré) : onglets pays, dashboard + graphiques, menu « Remettre à zéro » |
-| `som/capture.py` | vidéo → phrases Gladia + captures |
-| `som/skill_builder.py` | démo → Skill (Holo) |
-| `som/runner.py` | sessions Agents API en parallèle, réponse structurée |
-| `som/checker.py` | notation contre la vérité terrain |
+(Simulation avec un agent « classique » qui conteste dès qu'il voit une preuve de livraison. Les chiffres réels sortent de `bench`.)
 
-## Installation (≈ 20 min)
+## Installation
 
-**1. Python**
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
 ```
-Remplis `HAI_API_KEY` et `GLADIA_API_KEY` dans `.env`.
 
-**2. Databricks Free Edition** (databricks.com/learn/free-edition, compte dédié au hackathon)
-- Workspace ▸ ton dossier ▸ ⋮ ▸ **Import** ▸ fichier `databricks/01_setup_crm.py` ▸ **Run all** (≈ 1–2 min).
-- Il crée les 5 tables et les 10 notebooks `rapport_<PAYS>` dans le dossier `show-me-once`.
-- Copie l'adresse du workspace dans `DATABRICKS_URL`.
+1. **Clés** : `HAI_API_KEY`, `GLADIA_API_KEY`, et `STRIPE_SECRET_KEY` (clé **de test** `sk_test_…` d'un compte Stripe créé pour le hackathon).
+2. **Outils internes** : `python -m som outils` génère `app/data.json`. On déploie le dossier `app/` sur Railway (voir `app/README.md`) → `OUTILS_URL`.
+3. **Connexion de l'agent à Stripe** : sur la plateforme H, crée un **profil navigateur**, connecte-toi une fois au Dashboard Stripe dedans
+   → `HAI_BROWSER_PROFILE_ID`. (Sinon : `STRIPE_LOGIN` + lecture du code e-mail par IMAP, voir `.env.example`.)
+4. **Vérifier** : `python -m som doctor --online`
 
-**3. Google Sheet** (l'agent y colle les données directement ; le script ne sert qu'à créer le décor)
-- Nouveau Sheet (sheets.new) ▸ Extensions ▸ Apps Script ▸ colle `sheets/dashboard.gs` ▸ Cmd + S ▸ exécute `setup` (autoriser l'accès).
-  → 10 onglets pays remplis avec la semaine précédente + onglet Dashboard et ses 2 graphiques.
-- Partager ▸ « Tous les utilisateurs disposant du lien » ▸ **Éditeur** → lien dans `SHEET_URL`
-  (l'agent n'a pas à se connecter à Google ; notre vérificateur lit l'export CSV public).
-- Avant chaque lot du benchmark : menu **Show me once ▸ Remettre à zéro** (la commande `bench` attend que ce soit fait).
-
-**4. Connexion de l'agent à Databricks** (Free Edition envoie un code par e-mail)
-- **Option 1, recommandée** : créer un profil navigateur sur la plateforme H, s'y connecter une fois à Databricks → `HAI_BROWSER_PROFILE_ID`.
-- **Option 2** : `DATABRICKS_EMAIL` + une boîte mail lue en IMAP (`OTP_IMAP_*`, mot de passe d'application) : l'agent récupère le code tout seul.
-
-**5. Vérifier**
-```bash
-python -m som doctor --online
-```
-
-## Premier test
+## Utilisation
 
 ```bash
+python -m som stripe-seed --batch demo
 python -m som skill --transcript data/demo/demo_narration.txt
-python -m som run -c B -p FR
-python -m som run -c AB -p FR,IT,CH
+python -m som watch --batch demo
+python -m som run -c B --batch demo -o CMD-10247
+python -m som run -c B --batch demo --concurrency 5
+python -m som check --batch demo
 ```
-Après la commande `skill` : relis `skills/crm-dashboard.md`, corrige si besoin, passe `reviewed: true`.
-`run -c AB -p FR,IT,CH` lance les 2 conditions sur les 3 pays piégés.
 
-Pour voir ce que chaque onglet doit contenir : `python -m som truth -p FR,IT,CH`.
+- `stripe-seed` crée les 24 litiges (1–2 min).
+- Après `skill` : relis `skills/litiges.md`, corrige, passe `reviewed: true`.
+- `watch` ouvre l'écran de démo sur http://localhost:8787, à laisser ouvert dans un 2e terminal.
+- `run -o CMD-10247` traite 1 litige (le premier test) ; sans `-o`, toute la file.
 
-## Avec une vraie démo
+**Benchmark A/B** — un litige traité ne se rejoue pas, donc chaque condition a son propre lot :
 
 ```bash
-python -m som capture demo_FR.mov
-python -m som skill --demo runs/demo/demo_FR/demo.json
+python -m som stripe-seed --batch runA
+python -m som stripe-seed --batch runB
+python -m som bench --batch-a runA --batch-b runB --concurrency 5
 ```
-Le script de la narration (avec les 3 règles à dire à voix haute) est dans `data/demo/demo_narration.txt`.
 
-## Benchmark A/B
+Résultats dans `runs/<date>/` : `log.csv` (format du brief H, lien de replay de chaque session), `scores.csv`, `answers_*.json`.
 
-```bash
-python -m som bench --runs 2 --concurrency 5
-```
-10 pays × (A, B) × 2 runs = 40 sessions. Avant chaque lot, la commande vérifie que le Sheet est remis à zéro (menu du Sheet) et attend sinon.
-Résultats dans `runs/<date>/` : `log.csv` (format du brief H, avec le lien de replay de chaque session),
-`scores.csv` (détail par pays), `answers_*.json`.
+**Avec une vraie démo** : enregistre l'écran + la voix en traitant un litige, puis
+`python -m som capture demo.mov` et `python -m som skill --demo runs/demo/demo/demo.json`.
+Le texte à dire (avec les 6 règles) est dans `data/demo/demo_narration.txt`.
 
-## À vérifier sur le premier vrai run
-- L'agent arrive-t-il à copier le texte du dernier bloc du notebook ? Sinon : bouton de téléchargement CSV du tableau, puis Fichier ▸ Importer dans Sheets.
-- Combien de sessions en parallèle nos crédits et le profil navigateur acceptent (`--concurrency`).
+## Fichiers
+
+| Fichier | Rôle |
+|---|---|
+| `som/scenarios.py` | les 24 litiges, leurs preuves, les règles (vérité terrain) |
+| `som/seed.py`, `som/stripe_api.py` | création des litiges dans Stripe (mode test), lecture des statuts |
+| `som/tools_site.py` → `app/` | Sportiva Admin, Parcelia Pro, Sportiva Care : app Python sans dépendance, déployable sur Railway |
+| `som/capture.py`, `som/skill_builder.py` | démo → phrases Gladia + captures → Skill (Holo) |
+| `som/runner.py` | une session agent par litige, en parallèle, réponse structurée |
+| `som/checker.py` | notation depuis l'état réel de Stripe |
+| `som/watch.py` | écran de démo « € récupérés » |
+
+Toutes les données sont fictives (marketplace « Sportiva »). Aucune clé live Stripe n'est acceptée par le code.

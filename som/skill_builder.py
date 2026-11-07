@@ -12,11 +12,11 @@ from .config import SKILLS, env
 
 HOLO_API = "https://api.hcompany.ai/v1/chat/completions"
 
-CONSIGNE = """Une personne de l'équipe CRM a fait une tâche une fois sur son ordinateur en commentant à voix haute.
+CONSIGNE = """Une personne de l'équipe ops a fait une tâche une fois sur son ordinateur en commentant à voix haute.
 Tu reçois la transcription horodatée de ce qu'elle a dit{captures}.
 
 Rédige une SKILL en français, réutilisable par un agent computer-use qui devra refaire la même tâche
-pour d'autres pays ou d'autres semaines. Format Markdown, exactement ces 3 sections :
+sur d'autres dossiers du même type. Format Markdown, exactement ces 3 sections :
 
 ## ETAPES
 La procédure numérotée : sites, menus, boutons, cellules ; ce qu'il faut copier, d'où, et où le coller.

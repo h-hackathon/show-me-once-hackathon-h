@@ -1,4 +1,4 @@
-hai-agents[all]   # SDK Agents API H (+ outils OTP)
+hai-agents[all]   # SDK Agents API H (+ navigateur local, outils OTP)
 pydantic>=2
 python-dotenv
 httpx
