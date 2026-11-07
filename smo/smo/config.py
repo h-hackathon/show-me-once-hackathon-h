@@ -15,6 +15,7 @@ load_dotenv(ROOT / ".env")
 ENV = {
     "hai_api_key": "HAI_API_KEY",
     "holo_model": "HOLO_MODEL",
+    "synth_model": "HOLO_SYNTH_MODEL",
     "agent_model": "SMO_AGENT_MODEL",
     "replay_agent": "SMO_REPLAY_AGENT",
     "agent_prefix": "SMO_AGENT_PREFIX",
@@ -28,7 +29,8 @@ ENV = {
     "site_login": "SITE_LOGIN",
     "site_password": "SITE_PASSWORD",
     "site_admin_token": "SITE_ADMIN_TOKEN",
-    "site_dossier": "SITE_DOSSIER",
+    "desktop_login": "DESKTOP_LOGIN",
+    "desktop_password": "DESKTOP_PASSWORD",
     "server_url": "SMO_SERVER_URL",
     "server_token": "SMO_SERVER_TOKEN",
     "h_webhook_secret": "H_WEBHOOK_SECRET",
@@ -54,6 +56,7 @@ class MissingConfig(RuntimeError):
 class Settings:
     hai_api_key: str | None
     holo_model: str
+    synth_model: str | None        # passe 2 de la compréhension (texte seul) ; vide = HOLO_MODEL
     agent_model: str | None        # modèle de l'agent custom (None = défaut H, holo4-27b)
     replay_agent: str              # agent H qui refait la démo, guidé pas à pas
     agent_prefix: str              # les agents créés par SMO commencent par ce préfixe
@@ -67,7 +70,8 @@ class Settings:
     site_login: str | None
     site_password: str | None
     site_admin_token: str | None
-    site_dossier: str | None       # dossier à ouvrir après la connexion (ex. « 00417 ATELIER DORN SAS »)
+    desktop_login: str | None      # appli de bureau (base locale) : identifiants propres, sinon ceux du site
+    desktop_password: str | None
     server_url: str | None       # serveur SMO déployé (Railway)
     server_token: str | None
     h_webhook_secret: str | None
@@ -81,6 +85,15 @@ class Settings:
             raise MissingConfig(f"À renseigner dans smo/.env : {', '.join(missing)}")
 
 
+def url(value: str | None) -> str | None:
+    """« xxx.up.railway.app » → « https://xxx.up.railway.app » ; localhost sans schéma → http://."""
+    value = (value or "").strip().rstrip("/")
+    if not value or "://" in value:
+        return value or None
+    local = value.startswith(("localhost", "127.0.0.1"))
+    return f"{'http' if local else 'https'}://{value}"
+
+
 def load() -> Settings:
     def env(name: str) -> str | None:
         value = os.environ.get(ENV[name], "").strip()
@@ -89,6 +102,7 @@ def load() -> Settings:
     return Settings(
         hai_api_key=env("hai_api_key"),
         holo_model=env("holo_model"),
+        synth_model=env("synth_model"),
         agent_model=env("agent_model"),
         replay_agent=env("replay_agent"),
         agent_prefix=env("agent_prefix"),
@@ -98,12 +112,13 @@ def load() -> Settings:
         devin_org_id=env("devin_org_id"),
         devin_repo=env("devin_repo"),
         devin_max_acu=int(env("devin_max_acu")),
-        site_url=(env("site_url") or "").rstrip("/") or None,
+        site_url=url(env("site_url")),
         site_login=env("site_login"),
         site_password=env("site_password"),
         site_admin_token=env("site_admin_token"),
-        site_dossier=env("site_dossier"),
-        server_url=(env("server_url") or "").rstrip("/") or None,
+        desktop_login=env("desktop_login") or env("site_login"),
+        desktop_password=env("desktop_password") or env("site_password"),
+        server_url=url(env("server_url")),
         server_token=env("server_token"),
         h_webhook_secret=env("h_webhook_secret"),
         auto_repair=env("auto_repair") == "1",

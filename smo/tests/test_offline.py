@@ -50,8 +50,8 @@ PROCEDURE = Procedure(
 
 def test_slug_and_names(run):
     assert slug("Saisir une facture fournisseur") == "saisir-une-facture-fournisseur"
-    assert skill.tool_name(run) == "saisir_une_facture_fournisseur"
-    assert skill.skill_name(run) == "smo-catherine-saisir-une-facture-fournisseur"
+    assert skill.tool_name(run) == "saisir_une_facture_fournisseur_web"
+    assert skill.skill_name(run) == "smo-catherine-saisir-une-facture-fournisseur-web"
 
 
 def test_extract_json_fenced_and_raw():
@@ -76,6 +76,16 @@ def test_condense_events():
     assert steps[0].actions == [{"tool_name": "click", "args": {"x": 10, "y": 20}}]
     assert steps[0].results and steps[1].actions[0]["tool_name"] == "type"
     assert images == [(0, {"type": "url", "source": "https://img/1.png"})]
+
+
+def test_condense_reads_user_messages_as_h_sends_them():
+    """Forme réelle (session du 7 nov.) : AgentEvent message_event, caller_id user, content = [str]."""
+    steps, _ = h.condense([
+        {"type": "AgentEvent", "data": {"kind": "message_event", "caller_id": "user",
+                                        "content": ["Clique dans le champ « E-mail »."]}},
+        {"type": "AgentEvent", "data": {"kind": "observation_event", "metadata": {"url": "http://127.0.0.1:8042/login"}}},
+    ])
+    assert steps[0].instruction == "Clique dans le champ « E-mail »."
 
 
 def test_skill_applies_linkup_correction():
@@ -173,6 +183,169 @@ def test_tool_registry_and_h_definitions(s):
     assert drifts == [("run_x", "bouton renommé")]
 
 
+def test_read_sends_one_image_per_call_and_survives_an_unreadable_one(run, s, monkeypatch):
+    from smo.models import Frame, FrameSet, Notes, ScreenReading
+    from smo.pipeline import understand
+    run.write_model("frames.json", FrameSet(
+        frames=[Frame(utterance_index=0, time_s=1.5, path="frames/u000.png"),
+                Frame(utterance_index=1, time_s=5.5, path="frames/u001.png")],
+        references=[Frame(utterance_index=None, time_s=None, path="capture/images/INV-001.pdf")]))
+    calls = []
+
+    def fake_chat_model(prompt, model_cls, api_key, model, images=()):
+        calls.append(len(images))
+        if "u001" in str(images[0]):
+            raise RuntimeError("JSON invalide")
+        if model_cls is ScreenReading:
+            return ScreenReading(screen="Factures fournisseurs", action="click", target="Nouvelle facture")
+        return model_cls(kind="facture", fields={"Total TTC": 298.8})
+
+    monkeypatch.setattr(understand.holo, "chat_model", fake_chat_model)
+    understand.read(run, s, log=lambda _: None)
+    notes = run.read_model("notes.json", Notes)
+    assert calls == [1, 1, 1]                                   # jamais plus d'une image par appel
+    assert notes.screens[0].target == "Nouvelle facture" and notes.screens[1].error
+    assert notes.documents[0].fields == {"Total TTC": 298.8}
+
+    prompt = understand.synthesis_prompt(run, run.read_model("transcript.json", Transcript), notes)
+    assert "vu : écran « Factures fournisseurs » · click « Nouvelle facture »" in prompt
+    assert "Total TTC : 298.8" in prompt and "HT plus TVA égale TTC" in prompt   # phrase sans capture lisible gardée
+
+
+def test_long_demo_keeps_the_last_screens_and_bad_document_is_tolerated(run, s, monkeypatch):
+    from smo.models import Frame, FrameSet, Notes
+    from smo.pipeline import understand
+    assert understand.spread(list(range(100)), 5) == [0, 25, 50, 74, 99]
+    run.write_model("frames.json", FrameSet(frames=[], references=[
+        Frame(utterance_index=None, time_s=None, path="capture/images/illisible.pdf")]))
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("PDF illisible")
+
+    monkeypatch.setattr(understand.holo, "chat_model", broken)
+    understand.read(run, s, log=lambda _: None)
+    notes = run.read_model("notes.json", Notes)
+    assert notes.documents[0].error
+    assert "illisible.pdf" not in understand.synthesis_prompt(run, run.read_model("transcript.json", Transcript), notes)
+
+
+def _trial_setup(run, monkeypatch, verdicts):
+    """Essais simulés : chaque essai renvoie une trace, le juge rend les verdicts donnés, dans l'ordre."""
+    from smo.models import Provisioned, Verdict
+    from smo.pipeline import trial
+    run.write_text("skill.md", "# Skill\n- HT + TVA = TTC\n")
+    run.write_model("agent.json", Provisioned(agent_name="smo-catherine-x", skill_name="smo-catherine-x",
+                                              tools=[], tool_ready=False, environment={}))
+    pushed, queue = [], [Verdict(**v) for v in verdicts]
+    monkeypatch.setattr(trial.h, "client", lambda key: None)
+    monkeypatch.setattr(trial.h, "upsert_skill", lambda client, name, description, body: pushed.append(body))
+    monkeypatch.setattr(trial, "attempt", lambda run, s, n, agent, task, log: Trace(
+        session_id=f"sess-{n}", agent="smo-catherine-x", status="idle", steps=[], answer=f"essai {n}"))
+    monkeypatch.setattr(trial, "judge", lambda run, s, trace, piece: queue.pop(0))
+    return trial, pushed
+
+
+def test_trial_retries_with_the_lesson_then_hands_the_good_attempt_to_devin(run, s, monkeypatch):
+    from smo.models import Trial
+    trial, pushed = _trial_setup(run, monkeypatch, [
+        {"success": False, "gap": "dossier non ouvert", "lesson": "Ouvrir d'abord le dossier 00417"},
+        {"success": True}])
+    assert trial.run(run, s, log=lambda _: None) is None
+    result = run.read_model("trial.json", Trial)
+    assert result.success and [a.verdict.success for a in result.attempts] == [False, True]
+    assert run.read_model("trace.json", Trace).session_id == "sess-2"          # Devin reçoit l'essai réussi
+    skill_md = run.file("skill.md").read_text()
+    assert "## Leçons des essais" in skill_md and "Essai 1 : Ouvrir d'abord le dossier 00417" in skill_md
+    assert len(pushed) == 2 and "Ouvrir d'abord" in pushed[1]                  # la Skill corrigée est poussée dans H
+
+
+def test_trial_waits_for_the_human_after_three_failures(run, s, monkeypatch):
+    trial, _ = _trial_setup(run, monkeypatch, [{"success": False, "gap": "raté"}] * 3)
+    assert trial.run(run, s, log=lambda _: None) == "waiting"
+    assert not run.has("trace.json")
+
+
+MAP = {"screens": [{"name": "Nouvelle facture", "url": "/factures/nouvelle", "how_to_reach": "Saisie > Factures fournisseurs",
+                     "fields": ["Fournisseur", "Référence fournisseur"], "buttons": ["Enregistrer le brouillon"]}],
+       "notes": "écran « Choix du dossier » après la connexion"}
+
+
+def test_map_is_reused_from_cache_and_forgotten_when_the_ui_changes(run, s, monkeypatch):
+    from smo.models import SoftwareMap
+    from smo.pipeline import mapping
+    cached = mapping.cache_path(s, run.meta.software_url, run.meta.task)
+    cached.parent.mkdir(parents=True)
+    cached.write_text(SoftwareMap(**MAP, software_url=run.meta.software_url, task=run.meta.task).model_dump_json())
+    monkeypatch.setattr(mapping.h, "client", lambda key: (_ for _ in ()).throw(AssertionError("pas d'appel H")))
+    mapping.run(run, s, log=lambda _: None)
+    assert mapping.load(run).screens[0].name == "Nouvelle facture"
+    assert mapping.forget(s, run.meta.software_url) == 1 and not cached.exists()
+
+
+def test_map_feeds_the_synthesis_and_the_skill(run, s):
+    from smo.models import Notes, SoftwareMap
+    from smo.pipeline import understand
+    run.write_model("map.json", SoftwareMap(**MAP, software_url=run.meta.software_url, task=run.meta.task))
+    prompt = understand.synthesis_prompt(run, run.read_model("transcript.json", Transcript), Notes())
+    assert "Carte du logiciel" in prompt and "Saisie > Factures fournisseurs" in prompt
+    skill.run(run, s, log=lambda _: None)
+    md = run.file("skill.md").read_text()
+    assert "## Carte du logiciel" in md and "Boutons : Enregistrer le brouillon" in md and "Choix du dossier" in md
+
+
+def test_background_stage_runs_in_parallel_and_is_awaited(run, s, monkeypatch):
+    import time as _time
+    order = []
+
+    def slow_map(r, s, log):
+        _time.sleep(0.3)
+        r.write_text("bg.done", "")
+        order.append("map")
+
+    fake = [orchestrator.Stage("map", slow_map, (), lambda r: r.has("bg.done"), optional=True, join_before="b"),
+            orchestrator.Stage("a", lambda r, s, log: order.append("a"), (), lambda r: False),
+            orchestrator.Stage("b", lambda r, s, log: order.append("b" if r.has("bg.done") else "b-trop-tôt"), (),
+                               lambda r: False)]
+    monkeypatch.setattr(orchestrator, "STAGES", fake)
+    monkeypatch.setattr(orchestrator, "NAMES", [st.name for st in fake])
+    assert orchestrator.run_pipeline(run, s, log=lambda _: None) == "done"
+    assert order == ["a", "map", "b"]                 # a n'attend pas la carte, b l'attend
+
+
+def test_each_attempt_takes_the_next_piece():
+    from smo.pipeline.trial import trial_piece
+    assert [trial_piece("INV-001", n) for n in (1, 2, 3)] == ["INV-002", "INV-003", "INV-004"]
+    assert "autre pièce" in trial_piece(None, 1)
+
+
+def test_common_block_is_added_to_the_skill_sent_to_h():
+    with_tool = skill.with_common_block("# Skill\n", "saisir_web")
+    assert "## Utiliser les tools" in with_tool and "`precheck_saisir_web`" in with_tool and "`run_saisir_web`" in with_tool
+    without = skill.with_common_block("# Skill\n", None)
+    assert "Pas encore de tool" in without and "$" not in without
+
+
+def test_desktop_gets_its_own_agent_environment_and_names(s, tmp_path):
+    from smo.pipeline import target
+    run = Run.create(s.runs_dir, CaptureMeta(task="Saisir une facture fournisseur", software_kind="desktop",
+                                             software_url="COMPTAREX Cabinet 6.2", owner="Catherine"), [])
+    assert target.environment(run.meta).kind == "desktop" and target.environment(run.meta).host == "user_device"
+    assert skill.tool_name(run).endswith("_desktop") and provision.agent_name(run, s).endswith("-desktop")
+    assert "application de bureau « COMPTAREX Cabinet 6.2 »" in target.where(run.meta)
+    assert target.credentials(run.meta, s) == (s.desktop_login, s.desktop_password)
+
+
+def test_docs_summary_feeds_holo(run):
+    from smo.models import Notes
+    from smo.pipeline import docs, understand
+    assert docs.summary(run) == ""
+    run.write_json("docs.json", {"query": "q", "answer": "Saisie > Factures fournisseurs > Nouvelle facture",
+                                 "sources": ["https://doc.example/factures"], "pages": [{"url": "https://x", "text": "Connexion"}]})
+    assert "Ce que dit la documentation" in docs.summary(run) and "https://doc.example/factures" in docs.summary(run)
+    prompt = understand.synthesis_prompt(run, run.read_model("transcript.json", Transcript), Notes())
+    assert "Documentation publique du logiciel (Linkup)" in prompt
+
+
 def test_turn_stops_on_idle_event_even_if_status_flips_back():
     class FakeHandle:
         def stream(self, **kwargs):
@@ -209,7 +382,8 @@ def test_devin_brief_renders(run, s):
     assert "> Consigne : Étape 1" in text and "click(" in text
     from string import Template
     prompt = Template((config.ROOT / "docs" / "DEVIN_BRIEF.md").read_text()).substitute(
-        task="t", repo="r", tool_name="x", url="u", sample="s", skill="k", trace=text, checks="c")
+        task="t", repo="r", tool_name="x", url="u", sample="s", skill="k", trace=text, checks="c", map="m",
+        docs="d", kind="web")
     assert "tools/x/" in prompt and "$" not in prompt.replace("$tool", "")
 
 

@@ -4,11 +4,13 @@ L'humain la relit et la corrige avant la suite (« l'agent apprend votre méthod
 """
 from __future__ import annotations
 
+from string import Template
 from typing import Callable
 
-from ..config import Settings
-from ..models import Context, Procedure
+from ..config import ROOT, Settings
+from ..models import Context, Procedure, SoftwareMap
 from ..runs import Run, slug
+from . import mapping
 
 
 VERB = {"navigate": "Aller sur", "click": "Cliquer sur", "type": "Remplir", "select": "Choisir dans",
@@ -16,16 +18,27 @@ VERB = {"navigate": "Aller sur", "click": "Cliquer sur", "type": "Remplir", "sel
 
 
 def skill_name(run: Run) -> str:
+    """Un agent, une Skill et un tool par type de logiciel (web, desktop) : le nom porte le type."""
     meta = run.meta
-    return f"smo-{slug(meta.owner, max_len=12)}-{slug(meta.task, max_len=40)}"
+    return f"smo-{slug(meta.owner, max_len=12)}-{slug(meta.task, max_len=36)}-{meta.software_kind}"
 
 
 def tool_name(run: Run) -> str:
     """Nom du tool compilé : lettres, chiffres et _ (format imposé par H), aussi nom du dossier tools/<nom>."""
-    return slug(run.meta.task, sep="_", max_len=40)
+    return f"{slug(run.meta.task, sep='_', max_len=36)}_{run.meta.software_kind}"
 
 
-def render(procedure: Procedure, context: Context, url: str) -> str:
+def with_common_block(body: str, tool: str | None) -> str:
+    """La Skill envoyée à H = celle de la tâche + le bloc commun SMO pour utiliser les tools (skills/).
+
+    Le bloc n'est ni montré à la relecture ni écrit par Devin : SMO l'ajoute à chaque envoi dans H.
+    """
+    name = "bloc_commun.md" if tool else "bloc_commun_sans_tool.md"
+    block = Template((ROOT / "skills" / name).read_text(encoding="utf-8"))
+    return body.rstrip() + "\n\n" + block.substitute(precheck=f"precheck_{tool}", run=f"run_{tool}").strip() + "\n"
+
+
+def render(procedure: Procedure, context: Context, url: str, soft_map: SoftwareMap | None = None) -> str:
     corrections = {c.rule: c for c in context.rule_checks if c.verdict == "corrected" and c.correction}
     lines = [f"# {procedure.task}", "", f"Logiciel : {procedure.software} ({url})", "", "## Étapes"]
     for st in procedure.steps:
@@ -47,13 +60,15 @@ def render(procedure: Procedure, context: Context, url: str) -> str:
     lines += [f"- {c}" for c in procedure.stop_conditions] or ["- une valeur est illisible ou incohérente"]
     if procedure.inputs:
         lines += ["", "## À lire sur la pièce"] + [f"- {i}" for i in procedure.inputs]
+    if soft_map and soft_map.screens:
+        lines += ["", "## Carte du logiciel", mapping.summary(soft_map)]
     return "\n".join(lines) + "\n"
 
 
 def run(run: Run, s: Settings, log: Callable[[str], None]) -> None:
     procedure = run.read_model("procedure.json", Procedure)
     context = run.read_model("context.json", Context) if run.has("context.json") else Context()
-    run.write_text("skill.md", render(procedure, context, run.meta.software_url))
+    run.write_text("skill.md", render(procedure, context, run.meta.software_url, mapping.load(run)))
     log(f"Skill écrite : {run.file('skill.md')}")
 
 

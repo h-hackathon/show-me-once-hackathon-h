@@ -6,8 +6,14 @@ Capturer, automatiser et maintenir des agents H pour des tâches répétitives. 
 - la trace de chaque reprise renvoie Devin corriger le tool et la Skill.
 
 ```
-capture → transcribe → frames → understand → enrich → skill → review → provision → trial → compile → upgrade
-          Gladia       ffmpeg   Holo (LLM)   Linkup            humain   agent H     agent H  Devin     agent H + tool
+capture → transcribe → frames → read → understand → enrich → skill → review → provision → trial → compile → upgrade
+   ├──→ map (agent H, en parallèle : carte des écrans de la tâche) ──┤
+   └──→ docs (Linkup, en parallèle : documentation publique du logiciel) ──┘
+
+Un agent H par type de logiciel : `web` (navigateur) ou `desktop` (bureau du Mac), chacun avec sa Skill et ses tools.
+Chaque Skill envoyée dans H se termine par le bloc commun `skills/bloc_commun.md` (utiliser les tools).
+          Gladia       ffmpeg   Holo   Holo        Linkup            humain   agent H     agent H  Devin     agent H + tool
+                                (1 capture par appel, puis synthèse en texte seul)
 ```
 
 Le plan complet et l'état des API sont dans [`PLAN.md`](PLAN.md).
@@ -23,7 +29,26 @@ uv run smo doctor                    # ✅ / ⏭️ / ❌ par API
 uv run smo doctor --probe all        # vraies sessions H : Skill, agent guidé, tool exécuté par nous
 ```
 
-## Utiliser
+## La page d'enregistrement (le plus simple)
+
+```bash
+uv run smo serve                     # puis ouvrir http://localhost:8000 dans Chrome
+```
+
+La page suit quatre temps :
+1. **Préparer** : la tâche, l'adresse du logiciel, la pièce traitée et le prénom.
+2. **Enregistrer** : Chrome partage l'écran et le micro. Gladia transcrit en direct pendant qu'on parle.
+3. **Comprendre** : à l'arrêt, la vidéo part au serveur et le pipeline tourne. La page montre l'avancement, puis la Skill à relire et à valider.
+4. **Agent** : l'agent est créé dans H et teste la tâche à l'écran, puis Devin code le tool. La page donne les liens (session de test, PR).
+
+Quelques précisions :
+- **Clé Gladia** : elle reste sur le serveur, qui ouvre la session en direct ; le navigateur ne reçoit qu'une adresse à jeton temporaire.
+- **Transcription utilisée par le pipeline** : c'est celle du fichier complet, plus fiable que le direct.
+- **Accès** : la capture d'écran exige `localhost` ou HTTPS. Si `SMO_SERVER_TOKEN` est défini, la page demande le jeton. En ligne (Railway), ce jeton est obligatoire (16 caractères minimum) : sans lui, le serveur refuse de démarrer, pour que personne ne dépense nos crédits.
+- **Taille** : une vidéo de plus de 500 Mo est refusée.
+- **Reprendre un run** : `http://localhost:8000/?run=<run_id>`.
+
+## En ligne de commande
 
 ```bash
 # 1. Une capture → un run (vidéo, ou audio + images ; un PDF = pièce de référence)
@@ -39,7 +64,7 @@ uv run smo status <run_id>
 uv run smo new capture.mov --task "..." --owner catherine --go --auto
 ```
 
-Chaque étape écrit son fichier dans `runs/<run_id>/` : `transcript.json`, `frames/`, `procedure.json`, `context.json`, `skill.md`, `agent.json`, `trace.json` (+ `trace/`), `trial.json`, `compile.json`.
+Chaque étape écrit son fichier dans `runs/<run_id>/` : `map.json` (gardée aussi dans `runs/_maps/`), `transcript.json`, `frames/`, `notes.json`, `procedure.json`, `context.json`, `skill.md`, `agent.json`, `trace.json` (+ `trace/`), `trial.json`, `compile.json`.
 Option `--guided` : à l'étape trial, l'agent est guidé phrase par phrase au lieu de suivre seul sa Skill.
 On peut refaire une étape : `uv run smo run <id> --only understand --force`.
 

@@ -1,6 +1,6 @@
-"""Serveur SMO (Railway) : répond aux tools des agents H et expose les tools compilés pour les tests.
+"""Serveur SMO (Railway) : la page d'enregistrement, les tools des agents H, et les tools compilés pour les tests.
 
-    uv run smo serve        # http://localhost:8000/docs
+    uv run smo serve        # page : http://localhost:8000 · API : http://localhost:8000/docs
 """
 from __future__ import annotations
 
@@ -9,16 +9,22 @@ import os
 import threading
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from hai_agents.webhook_verification import WebhookVerificationError, verify_webhook
 
 from ..config import load
+from .auth import require_safe_deployment, token_checker
 from .tools import input_schema, load_tools
+from .web import WEB_DIR, router_for
 from .worker import Worker
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
 settings = load()
+require_safe_deployment(settings)   # en ligne sans jeton : on ne démarre pas
+check_token = token_checker(settings)
 worker = Worker(settings) if settings.hai_api_key else None
 
 
@@ -30,11 +36,16 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="SMO", lifespan=lifespan)
+web_router, runner = router_for(settings)
+app.include_router(web_router)
+app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
 
 
-def check_token(x_smo_token: str | None = Header(default=None)) -> None:
-    if settings.server_token and x_smo_token != settings.server_token:
-        raise HTTPException(401, "X-SMO-Token invalide")
+@app.get("/", include_in_schema=False)
+def page() -> FileResponse:
+    return FileResponse(WEB_DIR / "index.html")
+
+
 
 
 @app.get("/health")

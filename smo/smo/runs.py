@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import re
 import shutil
+import threading
 import unicodedata
 from datetime import datetime
 from pathlib import Path
@@ -15,6 +16,7 @@ from .models import CaptureMeta
 
 
 M = TypeVar("M", bound=BaseModel)
+STATUS_LOCK = threading.Lock()
 
 VIDEO = {".mp4", ".mov", ".webm", ".mkv"}
 AUDIO = {".wav", ".mp3", ".m4a", ".ogg", ".flac"}
@@ -100,6 +102,7 @@ class Run:
         return self.read_json("status.json") if self.has("status.json") else {}
 
     def set_status(self, stage: str, state: str, **extra) -> None:
-        status = self.status()
-        status[stage] = {"state": state, "at": datetime.now().isoformat(timespec="seconds"), **extra}
-        self.write_json("status.json", status)
+        with STATUS_LOCK:   # la cartographie écrit en parallèle des autres étapes
+            status = self.status()
+            status[stage] = {"state": state, "at": datetime.now().isoformat(timespec="seconds"), **extra}
+            self.write_json("status.json", status)

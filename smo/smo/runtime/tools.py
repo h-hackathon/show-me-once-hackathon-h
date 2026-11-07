@@ -26,17 +26,29 @@ class CompiledTool:
     params: type[BaseModel]
     module: ModuleType
     path: Path
+    kind: str = "web"   # web : precheck(page, cfg) / run(page, params, cfg) ; desktop : sans page (accessibilité macOS)
 
     @property
     def contract(self) -> dict:
         return getattr(self.module, "CONTRACT", None) or contract_of(str(self.path / "tool.py"))
 
     def precheck(self, cfg) -> dict:
+        if self.kind == "desktop":
+            return guarded(lambda: self.module.precheck(cfg))
         return with_page(lambda page: self.module.precheck(page, cfg))
 
     def run(self, cfg, **values: Any) -> dict:
         params = self.params(**values)
+        if self.kind == "desktop":
+            return guarded(lambda: self.module.run(params, cfg))
         return with_page(lambda page: self.module.run(page, params, cfg))
+
+
+def guarded(fn: Callable) -> dict:
+    try:
+        return fn()
+    except Exception as err:   # un tool qui casse ne doit jamais faire planter la session H
+        return {"ok": False, "status": "error", "error": f"{type(err).__name__}: {err}"}
 
 
 def with_page(fn: Callable) -> dict:
@@ -58,7 +70,7 @@ def load_tool(folder: Path) -> CompiledTool:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return CompiledTool(name=module.NAME, description=module.DESCRIPTION, params=module.Params,
-                        module=module, path=folder)
+                        module=module, path=folder, kind=getattr(module, "KIND", "web"))
 
 
 def load_tools(tools_dir: Path) -> dict[str, CompiledTool]:

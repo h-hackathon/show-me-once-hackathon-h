@@ -1,8 +1,9 @@
 """Le driver : enchaîne les étapes d'un run, saute ce qui est déjà fait, s'arrête proprement sinon.
 
-capture ─► transcribe ─► frames ─► understand ─► enrich ─► skill ─► review ─► provision ─► trial ─► compile ─► upgrade
-           Gladia        ffmpeg     Holo (LLM)    Linkup    .md      humain     agent H     agent H   Devin      agent H
-                                    info digeste  (option)                      + Skill     CU→trace  tool       + tool
+capture ─► transcribe ─► frames ─► read ─────► understand ─► enrich ─► skill ─► review ─► provision ─► trial ─► compile ─► upgrade
+           Gladia        ffmpeg     Holo,        Holo, texte    Linkup    .md      humain     agent H     agent H   Devin      agent H
+                                    1 capture    seul : étapes  (option)                      + Skill     CU→trace  tool       + tool
+                                    par appel    et règles
 
 L'agent existe dans H dès « provision » ; « trial » le fait travailler une fois à l'écran avec sa Skill, et sa trace
 part chez Devin ; « upgrade » lui donne le tool. En exploitation, si le tool échoue, l'agent reprend en computer use
@@ -11,13 +12,14 @@ Chaque étape écrit un fichier dans runs/<id>/ : on peut relancer, reprendre, o
 """
 from __future__ import annotations
 
+import threading
 import time
 from dataclasses import dataclass
 from typing import Callable
 
 from ..config import ENV, Settings
 from ..runs import Run
-from . import capture, compile, enrich, provision, skill, trial, understand
+from . import capture, compile, docs, enrich, mapping, provision, skill, trial, understand
 
 
 @dataclass(frozen=True)
@@ -26,13 +28,18 @@ class Stage:
     fn: Callable
     needs: tuple[str, ...]                 # réglages indispensables (voir config.ENV)
     done: Callable[[Run], bool]
-    optional: bool = False                 # réglage absent → étape sautée, la suite continue
+    optional: bool = False                 # réglage absent ou échec → étape sautée, la suite continue
+    join_before: str | None = None         # lancée en parallèle dès le début, attendue avant cette étape
 
 
 STAGES = [
+    Stage("map", mapping.run, ("hai_api_key", "site_login", "site_password"), lambda r: r.has("map.json"),
+          optional=True, join_before="understand"),
+    Stage("docs", docs.run, ("linkup_api_key",), lambda r: r.has("docs.json"), optional=True, join_before="understand"),
     Stage("transcribe", capture.transcribe, ("gladia_api_key",), lambda r: r.has("transcript.json")),
     Stage("frames", capture.frames, (), lambda r: r.has("frames.json")),
-    Stage("understand", understand.run, ("hai_api_key",), lambda r: r.has("procedure.json")),
+    Stage("read", understand.read, ("hai_api_key",), lambda r: r.has("notes.json") or r.has("procedure.json")),
+    Stage("understand", understand.synthesize, ("hai_api_key",), lambda r: r.has("procedure.json")),
     Stage("enrich", enrich.run, ("linkup_api_key",), lambda r: r.has("context.json"), optional=True),
     Stage("skill", skill.run, (), lambda r: r.has("skill.md")),
     Stage("review", skill.review, (), lambda r: r.has("skill.approved")),
@@ -50,34 +57,57 @@ def run_pipeline(run: Run, s: Settings, *, start: str | None = None, stop: str |
     """Renvoie "done", "waiting" (Devin ou relecture humaine), "blocked" (réglage manquant) ou "failed"."""
     first = NAMES.index(start) if start else 0
     last = NAMES.index(stop) + 1 if stop else len(STAGES)
-    for stage in STAGES[first:last]:
-        if only and stage.name not in only:
-            continue
+    selected = [st for st in STAGES[first:last] if not only or st.name in only]
+    extras = {"review": {"auto": auto}, "compile": {"wait": wait}, "trial": {"guided": guided}}
+
+    background: dict[str, list[tuple[Stage, threading.Thread]]] = {}
+    for stage in selected:
+        if stage.join_before and not (stage.done(run) and not force):
+            thread = threading.Thread(target=_execute, args=(stage, run, s, log, {}), daemon=True)
+            thread.start()
+            background.setdefault(stage.join_before, []).append((stage, thread))
+
+    for stage in selected:
+        if stage.join_before:
+            continue                                   # tourne déjà en parallèle
+        for waited, thread in background.pop(stage.name, []):
+            if thread.is_alive():
+                log(f"… attente de {waited.name}")
+            thread.join(timeout=900)
         if stage.done(run) and not force:
             log(f"✓ {stage.name}")
             continue
-        missing = [ENV[n] for n in stage.needs if not getattr(s, n)]
-        if missing:
-            if stage.optional:
-                run.set_status(stage.name, "skipped", missing=missing)
-                log(f"– {stage.name} sautée (manque {', '.join(missing)})")
-                continue
-            run.set_status(stage.name, "blocked", missing=missing)
-            log(f"■ {stage.name} bloquée : à renseigner dans smo/.env → {', '.join(missing)}")
-            return "blocked"
+        state = _execute(stage, run, s, log, extras.get(stage.name, {}))
+        if state in ("blocked", "failed", "waiting"):
+            return state
+    for _, thread in (pair for pairs in background.values() for pair in pairs):   # ex. `--only map`
+        thread.join(timeout=900)
+    return "done"
 
-        run.set_status(stage.name, "running")
-        log(f"▶ {stage.name}")
-        started = time.time()
-        extra = {"review": {"auto": auto}, "compile": {"wait": wait}, "trial": {"guided": guided}}.get(stage.name, {})
-        try:
-            state = stage.fn(run, s, lambda msg: log(f"  {msg}"), **extra)
-        except Exception as err:
-            run.set_status(stage.name, "failed", error=f"{type(err).__name__}: {err}")
-            log(f"✗ {stage.name} : {type(err).__name__}: {err}")
-            return "failed"
-        if state == "waiting":
-            run.set_status(stage.name, "waiting")
-            return "waiting"
-        run.set_status(stage.name, "done", seconds=round(time.time() - started, 1))
+
+def _execute(stage: Stage, run: Run, s: Settings, log: Callable[[str], None], extra: dict) -> str:
+    """Une étape : statut, durée, erreurs. Renvoie done, skipped, waiting, blocked ou failed."""
+    missing = [ENV[n] for n in stage.needs if not getattr(s, n)]
+    if missing:
+        if stage.optional:
+            run.set_status(stage.name, "skipped", missing=missing)
+            log(f"– {stage.name} sautée (manque {', '.join(missing)})")
+            return "skipped"
+        run.set_status(stage.name, "blocked", missing=missing)
+        log(f"■ {stage.name} bloquée : à renseigner dans smo/.env → {', '.join(missing)}")
+        return "blocked"
+
+    run.set_status(stage.name, "running")
+    log(f"▶ {stage.name}")
+    started = time.time()
+    try:
+        state = stage.fn(run, s, lambda msg: log(f"  {msg}"), **extra)
+    except Exception as err:
+        run.set_status(stage.name, "failed", error=f"{type(err).__name__}: {err}")
+        log(f"✗ {stage.name} : {type(err).__name__}: {err}")
+        return "skipped" if stage.optional else "failed"
+    if state == "waiting":
+        run.set_status(stage.name, "waiting")
+        return "waiting"
+    run.set_status(stage.name, "done", seconds=round(time.time() - started, 1))
     return "done"

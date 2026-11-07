@@ -1,6 +1,7 @@
 """Étapes 1-2 : la voix (Gladia) et les images (ffmpeg) de la capture."""
 from __future__ import annotations
 
+import shutil
 import subprocess
 from typing import Callable
 
@@ -29,18 +30,36 @@ def transcribe(run: Run, s: Settings, log: Callable[[str], None]) -> None:
     log(f"{len(transcript.utterances)} phrases transcrites")
 
 
+FPS = 1   # une image par seconde suffit : on garde ensuite la plus proche du milieu de chaque phrase
+
+
 def frames(run: Run, s: Settings, log: Callable[[str], None]) -> None:
-    """Une capture d'écran au milieu de chaque phrase : ce que l'humain regardait quand il parlait."""
+    """Une capture d'écran au milieu de chaque phrase : ce que l'humain regardait quand il parlait.
+
+    Un seul passage ffmpeg à FPS images/s plutôt qu'un saut à chaque instant : les .webm de MediaRecorder
+    (page d'enregistrement) n'ont pas d'index et s'y positionnent mal.
+    """
     transcript = run.read_model("transcript.json", Transcript)
     references = [Frame(utterance_index=None, time_s=None, path=str(p.relative_to(run.path))) for p in run.images()]
     shots: list[Frame] = []
+    final: str | None = None
     video = run.video()
     if video:
-        run.file("frames").mkdir(exist_ok=True)
+        every = run.file("frames/all")
+        every.mkdir(parents=True, exist_ok=True)
+        _ffmpeg("-i", str(video), "-vf", f"fps={FPS},scale='min(1280,iw)':-2", str(every / "f%05d.png"))
+        stills = sorted(every.glob("f*.png"))          # f00001.png = l'image de 0 à 1 s
         for u in transcript.utterances:
-            t = round((u.start + u.end) / 2, 2)
+            if not stills:
+                break
+            t = (u.start + u.end) / 2
+            still = stills[min(int(t * FPS), len(stills) - 1)]
             path = run.file(f"frames/u{u.index:03d}.png")
-            _ffmpeg("-ss", str(t), "-i", str(video), "-frames:v", "1", "-vf", "scale='min(1280,iw)':-2", str(path))
-            shots.append(Frame(utterance_index=u.index, time_s=t, path=str(path.relative_to(run.path))))
-    run.write_model("frames.json", FrameSet(frames=shots, references=references))
+            shutil.copy(still, path)
+            shots.append(Frame(utterance_index=u.index, time_s=round(t, 2), path=str(path.relative_to(run.path))))
+        if stills:
+            shutil.copy(stills[-1], run.file("frames/final.png"))
+            final = "frames/final.png"
+        shutil.rmtree(every)
+    run.write_model("frames.json", FrameSet(frames=shots, references=references, final=final))
     log(f"{len(shots)} captures extraites, {len(references)} images de référence")

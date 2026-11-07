@@ -15,31 +15,24 @@ from ..config import Settings
 from ..models import CompileResult, Provisioned, RunReport
 from ..runs import Run, slug
 from ..runtime.tools import definitions, h_tools, load_tools
-from .skill import skill_name, tool_name
+from . import target
+from .skill import skill_name, tool_name, with_common_block
 
 
-INSTRUCTIONS = """Tu es l'agent « {task} » de {owner}. Tu travailles dans {url}, une pièce à la fois, \
-en suivant la Skill « {skill} ».
-{mode}
-Dans tous les cas :
-- Vérifie que la pièce est bien enregistrée en brouillon avec les bonnes valeurs (à l'écran et avec `verify_entry`).
-- Si un fournisseur est inconnu ou douteux, vérifie-le avec `check_supplier`.
-- Si une règle de la Skill demande l'arrêt (incohérence, cas inconnu), n'enregistre rien et explique pourquoi.
-- Ne clique jamais sur « Valider ».
-- Réponds au format demandé : mode = "tool" si le tool a fait la saisie, "computer_use" si tu l'as faite à l'écran."""
-
-WITH_TOOL = """Pour chaque pièce :
-1. Appelle `precheck_{tool}` : il vérifie, sans rien modifier, que l'interface n'a pas changé.
-2. Si le precheck est OK : ouvre la pièce, lis ses valeurs, puis appelle `run_{tool}` avec ces valeurs.
-3. Si le precheck échoue ou si `run_{tool}` renvoie une erreur : fais la saisie toi-même à l'écran \
-en suivant la Skill, puis appelle `report_drift` en décrivant ce qui a changé."""
-
-WITHOUT_TOOL = "Le tool automatique n'est pas encore prêt : fais la saisie toi-même à l'écran en suivant la Skill."
+INSTRUCTIONS = """Tu es l'agent « {task} » de {owner}. Tu travailles dans {where}, une pièce à la fois.
+Suis ta Skill « {skill} » : sa méthode, ses règles, et sa dernière partie « Utiliser les tools ».
+{dossier_rule}
+Si une règle de la Skill demande l'arrêt (incohérence, cas inconnu), n'enregistre rien et explique pourquoi.
+Ne clique jamais sur « Valider ». Réponds au format demandé."""
 
 
 def agent_name(run: Run, s: Settings) -> str:
     meta = run.meta
-    return f"{s.agent_prefix}{slug(meta.owner, max_len=12)}-{slug(meta.task, max_len=40)}"
+    return f"{s.agent_prefix}{slug(meta.owner, max_len=12)}-{slug(meta.task, max_len=36)}-{meta.software_kind}"
+
+
+def skill_description(run: Run) -> str:
+    return f"À utiliser pour : {run.meta.task} dans {run.meta.software_url}."
 
 
 def skill_body(run: Run, s: Settings) -> str:
@@ -55,14 +48,14 @@ def create(run: Run, s: Settings, log: Callable[[str], None]) -> None:
     tools = h_tools({tname: compiled[tname]} if ready else {}, s, on_drift=lambda *_: None)
 
     client = h.client(s.hai_api_key)
-    h.upsert_skill(client, sname, description=f"À utiliser pour : {meta.task} dans {meta.software_url}.",
-                   body=skill_body(run, s))
-    env = h.web_environment(meta.software_url)   # localhost : Chrome de cette machine (user_device)
+    h.upsert_skill(client, sname, description=skill_description(run),
+                   body=with_common_block(skill_body(run, s), tname if ready else None))
+    env = target.environment(meta)   # web : navigateur (cloud, ou Chrome de cette machine en localhost) ; bureau : le Mac
     spec = dict(
-        description=f"{meta.task}, appris d'une démonstration de {meta.owner}.",
+        description=f"{meta.task}, appris d'une démonstration de {meta.owner} ({meta.software_kind}).",
         environments=[env],
-        instructions=INSTRUCTIONS.format(task=meta.task, owner=meta.owner, url=meta.software_url, skill=sname,
-                                         mode=WITH_TOOL.format(tool=tname) if ready else WITHOUT_TOOL),
+        instructions=INSTRUCTIONS.format(task=meta.task, owner=meta.owner, where=target.where(meta), skill=sname,
+                                         dossier_rule=target.DOSSIER_RULE),
         skills=[sname],
         tools=[ToolDefinition(**d) for d in definitions(tools)],
         answer_format=RunReport.model_json_schema(),

@@ -87,7 +87,8 @@ def _clip(text: Any, limit: int) -> str | None:
 def _message_text(data: dict) -> str | None:
     if isinstance(data.get("message"), str):
         return data["message"]
-    parts = [c.get("text") for c in data.get("content") or [] if isinstance(c, dict) and c.get("text")]
+    parts = [c if isinstance(c, str) else c.get("text") for c in data.get("content") or []
+             if isinstance(c, str) or (isinstance(c, dict) and c.get("text"))]
     return " ".join(parts) or None
 
 
@@ -108,7 +109,9 @@ def condense(events: list[dict]) -> tuple[list[TraceStep], list[tuple[int, dict]
         if kind_of_event != "AgentEvent":
             continue
         kind = data.get("kind")
-        if kind == "observation_event":
+        if kind == "message_event" and data.get("caller_id") == "user":   # forme vue le 7 nov. : content = [str]
+            instruction = _message_text(data) or instruction
+        elif kind == "observation_event":
             meta = data.get("metadata") or {}
             current = TraceStep(index=len(steps), timestamp=ev.get("timestamp"), instruction=instruction,
                                 url=meta.get("url"), title=meta.get("title"),

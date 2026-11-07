@@ -24,15 +24,17 @@ def locate(page: Page, anchor: dict) -> Locator:
     raise ValueError(f"Ancre invalide : {anchor}")
 
 
-def login(page: Page, cfg) -> None:
-    """Connexion au site compta (docs/CONTRAT_SITE.md), puis ouverture du dossier si besoin."""
+def login(page: Page, cfg, dossier: str | None = None) -> None:
+    """Connexion au site compta (docs/CONTRAT_SITE.md), puis ouverture du dossier de la pièce si on le donne.
+
+    Aucun dossier n'est imposé : le tool le reçoit en paramètre (le client indiqué sur la pièce)."""
     page.goto(f"{cfg.site_url}/login")
     page.get_by_label("E-mail").fill(cfg.site_login)
     page.get_by_label("Mot de passe").fill(cfg.site_password)
     page.get_by_role("button", name="Se connecter").click()
     page.wait_for_load_state()
-    if cfg.site_dossier:
-        page.get_by_text(cfg.site_dossier, exact=False).first.click()
+    if dossier:
+        page.get_by_text(dossier, exact=False).first.click()
         page.wait_for_load_state()
 
 

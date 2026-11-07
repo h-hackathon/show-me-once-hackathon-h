@@ -9,8 +9,12 @@
 ```mermaid
 flowchart LR
     A["1 · Capture<br/>vidéo + voix"] --> B["2 · Comprendre<br/>Skill .md"]
+    A --> M["Cartographie<br/>agent H, lecture seule"]
+    M -- "écrans, libellés exacts" --> B
     B --> C["3 · Tester<br/>agent H à l'écran"]
-    C -- trace --> D["4 · Coder<br/>Devin : tool + PR"]
+    C --> J{"Holo juge :<br/>même résultat<br/>que la démo ?"}
+    J -- "non : leçon ajoutée<br/>à la Skill (3 essais max)" --> C
+    J -- "oui : trace" --> D["4 · Coder<br/>Devin : tool + PR"]
     D --> E["5 · Exploiter<br/>agent H + tool"]
     E -- "tool en échec,<br/>interface changée" --> F["6 · Reprendre<br/>agent H à l'écran"]
     F -- "nouvelle trace" --> D
@@ -19,8 +23,8 @@ flowchart LR
 | # | Étape | Qui | Ce qui en sort |
 |---|---|---|---|
 | 1 | Capture | Humain + Gladia | ce qui est dit, horodaté, plus une capture d'écran par phrase |
-| 2 | Comprendre | Holo (Models API) | étapes et règles implicites, en Skill .md relisible |
-| 3 | Tester | Agent custom H | il fait la tâche une fois en computer use, ce qui donne la trace des actions réelles |
+| 2 | Comprendre | Holo (Models API) + agent H + Linkup | étapes et règles implicites, en Skill .md relisible ; en parallèle, un agent H cartographie les écrans de la tâche en lecture seule (chemin, libellés exacts), carte gardée par logiciel et par tâche ; en parallèle aussi, Linkup cherche la documentation publique du logiciel |
+| 3 | Tester | Agent custom H + Holo | l'agent essaie seul en computer use ; Holo compare son écran final à la fin de la démo ; si c'est raté, la leçon entre dans la Skill et un nouvel essai repart de zéro (3 au plus) |
 | 4 | Coder | Devin | tool déterministe, contrat d'interface, tests et Skill corrigée, dans une PR |
 | 5 | Exploiter | Agent H + tool | precheck, tool, puis contrôle du résultat réel dans le logiciel |
 | 6 | Reprendre | Agent H → Devin | il finit à l'écran, et sa trace renvoie Devin corriger le tool et la Skill |
@@ -95,7 +99,8 @@ Le SDK le prévoit explicitement : « for calls another process answers ».
 3. ~~Site compta~~ ✅ **Comptarex** tourne en local (http://127.0.0.1:8042) et `SITE_*` est rempli dans `smo/.env`.
    `doctor` est ✅ et le precheck réel v1/v2 est vérifié (`tests/test_site_live.py`).
    Reste à décider l'accès en ligne pour le navigateur cloud H : tunnel ou Railway. En attendant, le navigateur tourne sur cette machine (`host: "user_device"`).
-4. **1re capture réelle** : INV-001 sur le site, voix + écran, puis `uv run smo new capture.mov --task "Saisir une facture fournisseur" --owner catherine --sample INV-001 --go`.
+4. **Page d'enregistrement** ✅ (`uv run smo serve` → http://localhost:8000) : écran + voix dans Chrome, transcription Gladia en direct, suivi, relecture de la Skill, liens vers l'agent et la PR. Charte H (couleurs et polices relevées sur hcompany.ai), sans logo.
+   **1re capture réelle** : INV-001 sur le site, voix + écran, puis `uv run smo new capture.mov --task "Saisir une facture fournisseur" --owner catherine --sample INV-001 --go`.
 5. **Serveur SMO sur Railway** (Dockerfile prêt) :
    - variables d'environnement = `.env` ;
    - `uv run smo webhook` → `H_WEBHOOK_SECRET` ;

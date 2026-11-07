@@ -46,6 +46,18 @@ def transcribe(audio: Path, api_key: str, language: str = "fr", timeout_s: float
     ])
 
 
+def start_live(api_key: str, language: str = "fr") -> dict:
+    """Ouvre une session de transcription en direct. Renvoie {id, url} : `url` (wss://…?token=…) porte un jeton
+    temporaire, le navigateur s'y connecte directement et la clé ne quitte pas le serveur."""
+    r = httpx.post(f"{API}/live", headers={"x-gladia-key": api_key}, timeout=30, json={
+        "encoding": "wav/pcm", "sample_rate": 16000, "bit_depth": 16, "channels": 1,
+        "language_config": {"languages": [language], "code_switching": False},
+        "messages_config": {"receive_partial_transcripts": True, "receive_final_transcripts": True},
+    })
+    r.raise_for_status()
+    return r.json()
+
+
 def ping(api_key: str) -> int:
     """Code HTTP d'une lecture sans coût (liste des transcriptions)."""
     return httpx.get(f"{API}/pre-recorded", params={"limit": 1},
