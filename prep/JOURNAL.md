@@ -209,3 +209,13 @@ sur n'importe quel outil sans API (back-office maison, portail fournisseur…). 
 - **Plateforme H** : « browser profiles » et « vaults » → l'agent peut garder une session connectée
   et des identifiants sans les écrire dans la consigne (règle le risque de connexion Stripe/Odoo).
 - **H a ses propres « Skills »** (hub.hcompany.ai/agents-api/skills/overview) → notre Skill doit être une vraie Skill H.
+
+## Samedi 7 nov, 11h30 — Décisions d'architecture
+
+- **Cas d'usage** : contrôle d'un nouveau client B2B (existence, TVA) puis facture brouillon dans Stripe.
+- **Découpage vidéo** : ffmpeg (code fixe, déterministe, gratuit) — une capture par phrase Gladia.
+- **Écriture de la Skill : Devin** (choix de l'équipe : plus puissant que Holo). Holo reste possible pour lire les captures.
+  Question jury à préparer : « Pourquoi pas notre modèle ? » → « On a testé Holo (3 s, bon), Devin écrit mieux la procédure longue ; l'exécution, elle, c'est 100 % H. »
+- **Principe** : le déterminisme est dans les **règles et les contrôles**, pas dans les clics.
+  L'agent H regarde l'écran et s'adapte (computer use) ; la Skill lui dit quoi faire et pourquoi ;
+  les **custom tools** (notre code) font les vérifications exactes et la pause « demander à l'humain ».
