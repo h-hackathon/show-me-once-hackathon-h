@@ -1,5 +1,6 @@
-# Serveur SMO (Railway) : page d'enregistrement, worker des custom tools H, tools compilés (Playwright/Chromium).
-# Sans l'option desktop : sous Linux elle tire evdev (à compiler), et le serveur en ligne ne pilote aucun bureau.
+# Serveur SMO (Railway) : page d'enregistrement, worker des custom tools H, relais vers h-tools (Playwright/Chromium).
+# Sans l'option desktop de hai-agents : sous Linux elle tire evdev (sources seules, il faudrait gcc), et le serveur
+# n'en a pas besoin (l'agent bureau travaille dans l'environnement desktop configuré dans H).
 FROM python:3.12-slim
 COPY --from=ghcr.io/astral-sh/uv:0.13.1 /uv /usr/local/bin/uv
 ENV PYTHONUNBUFFERED=1 UV_LINK_MODE=copy
@@ -8,7 +9,7 @@ WORKDIR /app
 # Dépendances d'abord (couche en cache tant que pyproject.toml et uv.lock ne changent pas)
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
-RUN .venv/bin/playwright install --with-deps chromium
+RUN .venv/bin/playwright install --with-deps chromium   # pas « uv run » : le code du projet n'est pas encore copié
 
 # Puis le code
 COPY . .
