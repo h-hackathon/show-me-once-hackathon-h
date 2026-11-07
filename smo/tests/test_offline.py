@@ -350,49 +350,59 @@ def test_docs_summary_feeds_holo(run):
     assert "Documentation publique du logiciel (Linkup)" in prompt
 
 
-def test_deployed_tool_is_described_and_unreachable_one_returns_an_error():
+def test_deployed_tool_is_called_at_its_announced_address_with_the_shared_password(s):
     import httpx
-    from smo.runtime.remote import RemoteTool, tool_url
-    assert tool_url(None, "saisir_facture_web") == "http://tool-saisir-facture-web.railway.internal:8080"
+    from smo.runtime import remote
+    from smo.runtime.remote import RemoteTool
+    assert remote.tool_url(s, "saisir_facture_web") is None                      # inconnu tant qu'il n'est pas annoncé
+    remote.register(s, "saisir_facture_web", "https://tool-saisir-facture-web.up.railway.app/", "abc")
+    assert remote.tool_url(s, "saisir_facture_web") == "https://tool-saisir-facture-web.up.railway.app"
 
     def handler(request):
-        assert request.url.path == "/saisir-facture-web/describe"
+        assert request.headers.get("X-SMO-Token") == "secret-commun-1234"
         return httpx.Response(200, json={"name": "saisir_facture_web", "description": "Saisit", "sha": "abc",
                                          "params": {"type": "object", "properties": {"reference": {"type": "string"}}},
                                          "skill": "# Skill d'h-tools"})
 
-    tool = RemoteTool.fetch("saisir_facture_web", "http://tools.test/{name}", transport=httpx.MockTransport(handler))
+    tool = RemoteTool.fetch("saisir_facture_web", "https://tool.test", "secret-commun-1234",
+                            transport=httpx.MockTransport(handler))
     assert tool.sha == "abc" and tool.skill.startswith("# Skill") and "reference" in tool.schema["properties"]
     down = RemoteTool(name="x", description="", schema={}, skill=None, sha=None, base_url="http://127.0.0.1:9")
     assert down.precheck(None)["status"] == "error"
     assert RemoteTool.fetch("x", "http://127.0.0.1:9") is None
 
 
-def test_find_prefers_the_local_clone_and_only_reaches_deployed_web_tools(s, monkeypatch):
+def test_find_prefers_the_local_clone_then_the_announced_tool(s, monkeypatch):
+    from smo.runtime import remote
     from smo.runtime import tools as rt
-    calls = []
-    monkeypatch.setattr(rt.RemoteTool, "fetch", classmethod(lambda cls, name, url=None: calls.append(name) or "remote"))
-    monkeypatch.delenv("RAILWAY_ENVIRONMENT", raising=False)
-    assert rt.find(s, "saisir_web") is None and calls == []              # en local, sans SMO_TOOL_URL : rien à joindre
-    monkeypatch.setenv("RAILWAY_ENVIRONMENT", "production")
-    assert rt.find(s, "saisir_web") == "remote" and rt.find(s, "saisir_desktop") is None   # le bureau, jamais en ligne
+    monkeypatch.setattr(rt.RemoteTool, "fetch", classmethod(lambda cls, name, url, token=None: f"distant:{url}"))
+    assert rt.find(s, "saisir_web") is None                                       # ni clone local, ni annonce
+    remote.register(s, "saisir_web", "https://tool-saisir-web.up.railway.app", "abc")
+    assert rt.find(s, "saisir_web") == "distant:https://tool-saisir-web.up.railway.app"
+
+
+def test_tool_announcement_upgrades_agents_only_once_the_new_commit_is_live(monkeypatch):
+    from fastapi.testclient import TestClient
+    from smo.runtime import server
+    live = {"sha": "ancien"}
+    registered, upgraded = [], []
+    monkeypatch.setattr(server.remote, "register", lambda s, name, url, sha: registered.append(url))
+    monkeypatch.setattr(server, "find", lambda s, name: type("T", (), {"sha": live["sha"]})())
+    monkeypatch.setattr(server, "runs_with_tool", lambda s, name: [type("R", (), {"id": f"run-{name}"})()])
+    monkeypatch.setattr(server, "_upgrade", lambda run_: upgraded.append(run_.id))
+    announce = {"tool": "saisir_web", "sha": "neuf", "url": "https://tool-saisir-web.up.railway.app"}
+    with TestClient(server.app) as client:
+        first = client.post("/hooks/tool-deployed", json=announce).json()
+        live["sha"] = "neuf"                                                      # Railway a basculé
+        second = client.post("/hooks/tool-deployed", json=announce).json()
+    assert first == {"tool": "saisir_web", "live": False, "live_sha": "ancien"} and upgraded == ["run-saisir_web"]
+    assert second["live"] is True and second["live_sha"] == "neuf" and len(registered) == 2
 
 
 def test_one_server_serves_both_kinds_unless_restricted():
     from smo.config import worker_kinds
     assert worker_kinds(None) == ("web", "desktop")
     assert worker_kinds("web") == ("web",)
-
-
-def test_tool_deployed_hook_upgrades_the_waiting_agents(monkeypatch):
-    from fastapi.testclient import TestClient
-    from smo.runtime import server
-    upgraded = []
-    monkeypatch.setattr(server, "runs_with_tool", lambda s, name: [type("R", (), {"id": f"run-{name}"})()])
-    monkeypatch.setattr(server, "_upgrade", lambda run_: upgraded.append(run_.id))
-    with TestClient(server.app) as client:
-        body = client.post("/hooks/tool-deployed", json={"tool": "saisir_web", "sha": "abc"}).json()
-    assert body["runs"] == ["run-saisir_web"]
 
 
 def test_turn_stops_on_idle_event_even_if_status_flips_back():

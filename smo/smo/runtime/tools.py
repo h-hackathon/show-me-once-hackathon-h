@@ -8,7 +8,6 @@ tournent sur le Mac), sinon déployé par h-tools sur Railway (remote.py, résea
 from __future__ import annotations
 
 import importlib.util
-import os
 import sys
 from dataclasses import dataclass
 from functools import partial
@@ -20,6 +19,7 @@ from hai_agents import Tool
 from pydantic import BaseModel
 
 from . import builtins
+from . import remote
 from .remote import RemoteTool
 from .ui import contract_of
 
@@ -103,13 +103,13 @@ def kind_of(name: str) -> str:
 
 
 def find(s, name: str):
-    """Le tool `name`, s'il existe : clone local d'h-tools d'abord, sinon le service déployé (outils web, en ligne)."""
+    """Le tool `name`, s'il existe : clone local d'h-tools d'abord, sinon le service déployé par h-tools
+    (adresse annoncée à SMO, appelée avec le mot de passe commun)."""
     folder = s.tools_dir / name
     if (folder / "tool.py").exists():
         return load_tool(folder)
-    if kind_of(name) == "web" and (os.environ.get("RAILWAY_ENVIRONMENT") or s.tool_url):
-        return RemoteTool.fetch(name, s.tool_url)
-    return None
+    url = remote.tool_url(s, name)
+    return RemoteTool.fetch(name, url, s.server_token) if url else None
 
 
 def input_schema(model: type[BaseModel]) -> dict:

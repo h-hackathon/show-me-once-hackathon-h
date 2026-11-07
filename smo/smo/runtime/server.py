@@ -17,6 +17,7 @@ from hai_agents.webhook_verification import WebhookVerificationError, verify_web
 from ..config import load
 from .auth import require_safe_deployment, token_checker
 from ..pipeline.provision import runs_with_tool, upgrade
+from . import remote
 from .remote import RemoteTool
 from .tools import find, load_tools
 from .web import WEB_DIR, router_for
@@ -80,12 +81,20 @@ def tool_info(name: str) -> dict:
 
 @app.post("/hooks/tool-deployed", dependencies=[Depends(check_token)])
 def tool_deployed(body: dict) -> dict:
-    """h-tools vient de déployer un tool : chaque agent qui l'attend reçoit le tool et la Skill du repo."""
-    name = body.get("tool") or ""
-    runs = [r for r in runs_with_tool(settings, name)]
+    """h-tools annonce un tool déployé : {tool, sha, url}. SMO retient l'adresse, appelle le tool, et répond
+    live_sha = le commit qu'il voit. h-tools recommence tant que ce n'est pas le nouveau. Quand c'est le bon,
+    chaque agent qui attend ce tool le reçoit, avec la Skill du repo."""
+    name, sha = body.get("tool") or "", body.get("sha")
+    if body.get("url"):
+        remote.register(settings, name, body["url"], sha)
+    tool = find(settings, name)
+    live_sha = getattr(tool, "sha", None) if tool else None
+    if tool is None or (sha and live_sha != sha):
+        return {"tool": name, "live": False, "live_sha": live_sha}
+    runs = runs_with_tool(settings, name)
     for run_ in runs:
         threading.Thread(target=_upgrade, args=(run_,), daemon=True).start()
-    return {"tool": name, "sha": body.get("sha"), "runs": [r.id for r in runs]}
+    return {"tool": name, "live": True, "live_sha": live_sha, "runs": [r.id for r in runs]}
 
 
 def _upgrade(run_) -> None:
