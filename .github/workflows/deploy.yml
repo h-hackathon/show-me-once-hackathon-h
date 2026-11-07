@@ -1,0 +1,67 @@
+# À chaque fusion sur main : tests des tools modifiés (filet de sécurité), puis un service Railway par tool.
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      tools:
+        description: "Tools à redéployer, séparés par des espaces (vide = tous)"
+        required: false
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      RAILWAY_CLI_VERSION: "5.2.0"   # 5.3.0 a cassé `railway up` en CI : on épingle
+      RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+      RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+      SMO_WATCHER_URL: ${{ secrets.SMO_WATCHER_URL }}
+      SMO_SERVER_URL: ${{ secrets.SMO_SERVER_URL }}
+      SMO_SERVER_TOKEN: ${{ secrets.SMO_SERVER_TOKEN }}
+      SITE_URL: ${{ secrets.SITE_URL }}
+      SITE_LOGIN: ${{ secrets.SITE_LOGIN }}
+      SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
+      SITE_DOSSIER: ${{ secrets.SITE_DOSSIER }}
+      SITE_ADMIN_TOKEN: ${{ secrets.SITE_ADMIN_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Tools à déployer
+        id: changed
+        env:
+          BEFORE: ${{ github.event.before }}
+          ONLY: ${{ inputs.tools }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            tools=${ONLY:-$(bash scripts/changed_tools.sh "" | xargs)}
+          else
+            tools=$(bash scripts/changed_tools.sh "$BEFORE" | xargs)
+          fi
+          echo "à déployer : ${tools:-aucun}"
+          echo "tools=$tools" >> "$GITHUB_OUTPUT"
+      - uses: astral-sh/setup-uv@v6
+        if: steps.changed.outputs.tools != ''
+      - name: Tests (Devin a pu fusionner en rouge)
+        if: steps.changed.outputs.tools != ''
+        env:
+          TOOLS: ${{ steps.changed.outputs.tools }}
+        run: |
+          uv sync --frozen
+          uv run playwright install --with-deps chromium
+          uv run pytest $(for n in $TOOLS; do printf 'tools/%s ' "$n"; done)
+      - name: CLI Railway
+        if: steps.changed.outputs.tools != ''
+        run: npm install -g "@railway/cli@$RAILWAY_CLI_VERSION"
+      - name: Déploiement
+        if: steps.changed.outputs.tools != ''
+        env:
+          TOOLS: ${{ steps.changed.outputs.tools }}
+        run: for n in $TOOLS; do bash scripts/deploy_tool.sh "$n"; done

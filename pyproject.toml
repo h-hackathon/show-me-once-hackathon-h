@@ -1,0 +1,24 @@
+[project]
+name = "h-tools"
+version = "0.1.0"
+description = "Les tools écrits par Devin pour les agents SMO : un dossier par tool, un conteneur Railway par tool"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "playwright>=1.49",
+    "pydantic>=2.7",
+    "httpx>=0.28",
+    "python-dotenv>=1.0",
+]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.uv]
+package = false   # h_tools s'importe depuis la racine du repo (ou /app dans le conteneur), sans installation
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "tools"]
+pythonpath = ["."]
+addopts = "--import-mode=importlib"   # chaque tool a son test_tool.py : même nom de fichier, dossiers différents
