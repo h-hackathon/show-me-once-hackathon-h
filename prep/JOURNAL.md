@@ -181,3 +181,22 @@ qui donne à notre Odoo une adresse publique temporaire (`https://xxx.trycloudfl
   → C'est exactement pour ça que la Skill doit être **relue et éditable** avant de lancer l'agent (critère UX & contrôle).
   → Phrase pitch : « L'agent apprend votre méthode, et vous gardez la main sur ce qu'il a appris. »
 - Question pour H (Discord) : Holo4 sera-t-il accessible pendant le hackathon avec les crédits fournis ?
+
+## Samedi 7 nov, 10h40 — Pivot : Stripe à la place d'Odoo, cas d'usage finance
+
+**Pourquoi** : Stripe est partenaire du hackathon et présent sur place (aide + jury sensible). Le brief H (doc de Nolwenn)
+pousse la finance/assurance et note surtout le computer use (25 %) et la fiabilité (25 %).
+
+**Cas d'usage proposé** : une personne de l'équipe finance/support montre **une fois** comment traiter une
+**demande de remboursement** dans le Dashboard Stripe (sandbox), en commentant ses règles à voix haute :
+« moins de 30 jours → je rembourse ; plus de 30 jours → je refuse et je préviens ; client avec un litige ouvert → je ne touche à rien ».
+L'agent traite ensuite 10 demandes, s'arrête **avant** chaque remboursement et l'humain valide.
+- Pièges : demande hors délai, montant demandé ≠ montant payé, paiement introuvable, litige (chargeback) en cours.
+- Données de test : créées via l'API Stripe avec la clé sandbox (`sk_test_`) ; l'agent, lui, ne passe que par l'écran.
+
+**Risque n°1 à tester tout de suite** : la connexion de l'agent au Dashboard (code par e-mail sur « nouvel appareil », captcha).
+→ `05_test_stripe_access.py`. Si ça bloque : demander à l'équipe Stripe sur place, sinon Odoo reste le plan B (déjà prêt).
+
+**Question jury attendue** : « Stripe a une API, pourquoi un agent qui clique ? »
+→ Parce que la valeur, ce sont les **règles de la personne**, pas l'appel API ; et la même méthode marche
+sur n'importe quel outil sans API (back-office maison, portail fournisseur…). Stripe n'est que la vitrine.
