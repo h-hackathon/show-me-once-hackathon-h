@@ -41,7 +41,7 @@ def run(run: Run, s: Settings, log: Callable[[str], None], guided: bool = False)
     handle = client.start_session(agent=agent.agent_name, messages=task, timezone="Europe/Paris")
     run.write_json("trial_session.json", {"session_id": handle.id})
     log(f"session H {handle.id} (agent {agent.agent_name})")
-    events = list(handle.stream(tools=tools, until="settled", timeout_seconds=1800))
+    events = list(h.stream_turn(handle, tools=tools, timeout_s=1800))   # session neuve : pas d'ancien « idle »
 
     trace = h.build_trace(client, handle.id, run.file("trace"), s.hai_api_key, events=events)
     run.write_model("trace.json", trace)

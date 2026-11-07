@@ -171,17 +171,24 @@ def is_idle_event(event: Any) -> bool:
     return d.get("type") == "ActiveStateChangeEvent" and (d.get("data") or {}).get("state") == "idle"
 
 
-def drain(handle, events: list, timeout_s: float = 600) -> None:
-    """Lit les événements jusqu'à ce que l'agent attende la consigne suivante ou que la session finisse.
+def stream_turn(handle, *, from_index: int = 0, tools=None, timeout_s: float = 600):
+    """Les événements d'un tour de l'agent, jusqu'à l'événement « idle » (il attend une consigne) ou la fin de session.
 
-    On s'arrête sur l'événement « idle », pas sur le statut de la session : avec un navigateur local, le statut
-    repasse « running » 0,4 s après « idle » sans nouvelle consigne (vu le 7 nov.), et un arrêt sur statut
-    attend alors jusqu'au délai. Le curseur du SDK = nombre d'événements déjà lus, d'où from_index=len(events).
+    On s'arrête sur l'événement, pas sur le statut de la session : avec un navigateur local, le statut repasse
+    « running » 0,4 s après « idle » sans nouvelle consigne (vu le 7 nov.), et un arrêt sur statut attend alors
+    jusqu'au délai. À n'utiliser que sur des événements nouveaux : en relisant une session depuis le début,
+    l'« idle » d'un tour précédent couperait la lecture trop tôt (le worker garde donc l'arrêt sur statut).
     """
-    for event in handle.stream(from_index=len(events), until="terminal", timeout_seconds=timeout_s):
-        events.append(event)
+    for event in handle.stream(from_index=from_index, until="terminal", tools=tools, timeout_seconds=timeout_s):
+        yield event
         if is_idle_event(event):
             return
+
+
+def drain(handle, events: list, timeout_s: float = 600) -> None:
+    """Lit un tour de l'agent. Le curseur du SDK = nombre d'événements déjà lus, d'où from_index=len(events)."""
+    for event in stream_turn(handle, from_index=len(events), timeout_s=timeout_s):
+        events.append(event)
 
 
 def wait_active(handle, timeout_s: float = 30) -> None:

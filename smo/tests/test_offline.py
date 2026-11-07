@@ -173,6 +173,19 @@ def test_tool_registry_and_h_definitions(s):
     assert drifts == [("run_x", "bouton renommé")]
 
 
+def test_turn_stops_on_idle_event_even_if_status_flips_back():
+    class FakeHandle:
+        def stream(self, **kwargs):
+            assert kwargs["until"] == "terminal" and kwargs["from_index"] == 3
+            yield {"type": "AgentEvent", "data": {"kind": "answer_event", "answer": "ok"}}
+            yield {"type": "ActiveStateChangeEvent", "data": {"state": "idle"}}
+            raise AssertionError("lu au-delà de l'événement idle")   # le statut serait repassé « running »
+
+    events = [{}, {}, {}]
+    h.drain(FakeHandle(), events)
+    assert len(events) == 5 and h.is_idle_event(events[-1])
+
+
 def test_localhost_opens_the_browser_on_this_machine():
     assert h.session_agent("h/web-surfer-pro", "https://compta.example") == "h/web-surfer-pro"
     local = h.session_agent("h/web-surfer-pro", "http://127.0.0.1:8042", model="holo4-27b")
