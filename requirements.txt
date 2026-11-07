@@ -1,5 +1,0 @@
-hai-agents[cli]
-pydantic>=2
-python-dotenv
-reportlab  # génération des factures de test
-imageio-ffmpeg  # ffmpeg intégré : extraire le son et les images des vidéos de démo

@@ -2,35 +2,34 @@
 
 > « Vos équipes n'ont pas besoin d'apprendre à automatiser. Elles font la tâche une fois, l'agent fait les 500 suivantes. »
 
-## ⚠️ Règle d'or
-Ce dossier = **préparation** (docs, tests de l'API, choix techniques).
-Le **code du produit** s'écrit pendant le hackathon (à partir du samedi 10h30), dans un **repo neuf**.
-Ne pas arriver avec le projet déjà codé : le jury peut regarder l'historique des commits.
-
 ## Thèse
 Un agent computer-use ne sait pas comment *toi* tu fais ton travail (règles implicites, exceptions).
 Résultat : il hésite, se trompe, consomme des étapes. La solution n'est pas un meilleur prompt :
 c'est de **te regarder faire une fois**.
 
-## MVP
-Cas : **saisie de factures fournisseurs dans un ERP web (Odoo)**.
-1. **Démo** : un humain saisit 1 facture en commentant à voix haute (captures d'écran + voix via Gladia).
-2. **Skill** : Holo4 (Models API) transforme captures + transcription en procédure écrite → **Skill H**, affichée et éditable.
-3. **Exécution** : l'agent traite 10 factures PDF en parallèle (sessions Agents API, navigateurs cloud), s'arrête avant validation.
-4. **Contrôle** : l'humain valide en 1 clic, bouton pause/stop, factures suspectes signalées.
+## Organisation du repo
+Trois projets **indépendants** : chacun a son `pyproject.toml`, son `uv.lock`, son `.venv` et son `.env`
+(modèle dans `.env.example`). On lance les commandes depuis le dossier du projet, et aucun projet n'importe le code d'un autre.
 
-Hors MVP (slide vision) : desktop natif, multi-logiciels, rejouer la Skill comme test de non-régression (angle QA).
+| Dossier | Quoi | Quand |
+|---|---|---|
+| [`prep/`](prep/) | Préparation : tests des API, factures de test, Odoo, docs sponsors, journal | avant le sam. 7 nov 10h30 |
+| [`comptarex/`](comptarex/) | Comptarex, faux logiciel de cabinet comptable (web + desktop) : cible de la démo et du benchmark | hackathon |
+| [`smo/`](smo/) | Le produit : le pipeline Show me once | hackathon |
 
-## Architecture
+Le code du produit (`smo/`, `comptarex/`) s'écrit pendant le hackathon : l'historique des commits le montre au jury.
+
+## Le pipeline (`smo/`)
+Un humain fait la tâche une fois en commentant à voix haute ; SMO en tire un agent custom H, avec sa Skill et un tool déterministe.
 ```
-[Capture]  screenshots + audio ──► Gladia (transcription horodatée)
-     │
-[Skill builder]  Holo4 / Models API ──► procédure (Skill H) ──► UI d'édition
-     │
-[Runner]  Agents API (h/web-surfer-pro) × N sessions ──► answer_schema (Pydantic)
-     │
-[Supervision]  dashboard : progression, pause/stop, validation, logs benchmark
+capture ─► transcribe ─► frames ─► understand ─► enrich ─► skill ─► review ─► replay ─► provision ─► compile ─► upgrade
 ```
+- **Voix et images** : Gladia (transcription horodatée), ffmpeg (une image par phrase)
+- **Compréhension** : Holo relie chaque phrase à l'écran → procédure et règles implicites
+- **Vérification** : Linkup vérifie les règles dites par l'humain
+- **Skill H** : écrite à partir de la procédure, relue et corrigée par l'humain
+- **Replay** : l'agent H refait la tâche, guidé phrase par phrase ; sa trace nourrit la compilation
+- **Compilation** : Devin écrit le tool déterministe (PR) ; l'agent H supervise, vérifie à l'écran et reprend en computer use si l'interface change
 
 ## Grille de jugement (référence : brief H pour Eugenia)
 | Critère | Poids | Notre réponse |
@@ -71,22 +70,3 @@ Slide cible : « A : x/10 → B : y/10, z× moins d'étapes ».
 
 ## Prix visés
 Podium · Best Use of Gladia (1 000 €) · Best Use of Devin (1 000 €) · Best LinkedIn Post (500 €)
-
-## Démarrage pour l'équipe (préparation)
-Tout est dans `prep/`. Le journal `prep/JOURNAL.md` raconte chaque étape et nos découvertes.
-
-1. **Prérequis** : Python 3.10+, Docker Desktop lancé, git.
-2. **Installer** (depuis `prep/`) :
-   ```bash
-   python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-   cp .env.example .env
-   ```
-3. **Tes clés** (gratuites, une par personne, jamais partagées) dans `prep/.env` :
-   H → platform.hcompany.ai/settings/api-keys · Gladia → app.gladia.io > API Keys
-4. **Odoo** : `cd odoo && ./setup_odoo.sh` (5 min) → http://localhost:8069
-5. **Tests** (depuis `prep/`) :
-   ```bash
-   .venv/bin/python 01_test_agents_api.py      # l'agent H navigue sur le web
-   .venv/bin/python 03_test_gladia.py          # transcription d'un audio de démo
-   ```
-   Pour `02_test_odoo_access.py` (l'agent H dans Odoo) : lancer le tunnel d'abord (`docker compose up -d tunnel` dans `odoo/`) et copier l'adresse dans `ODOO_URL`.

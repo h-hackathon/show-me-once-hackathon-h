@@ -36,7 +36,7 @@ On utilise seulement son appli **Facturation**. Une « facture fournisseur » = 
 
 Ouvre la facture à côté de ton navigateur :
 ```bash
-open ~/Desktop/"Hackathon H"/prep/factures/INV-001.pdf
+open factures/INV-001.pdf          # depuis prep/
 ```
 
 **Les clics, dans l'ordre**
@@ -96,6 +96,6 @@ Renomme la vidéo `demo_INV-001.mov`, puis dis-moi que c'est fait.
 
 ## Si Odoo ne répond pas
 ```bash
-cd ~/Desktop/"Hackathon H"/prep/odoo && docker compose up -d db odoo
+cd odoo && docker compose up -d db odoo   # depuis prep/
 ```
 (Docker Desktop doit être ouvert : icône de baleine dans la barre des menus.)

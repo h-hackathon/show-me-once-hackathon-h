@@ -1,11 +1,21 @@
-# Secrets : jamais sur GitHub
+# Règles communes aux trois projets (prep/, comptarex/, smo/).
+# Les règles propres à un projet vont dans son propre .gitignore.
+
+# Secrets : jamais sur GitHub (chaque projet a son .env, modèle dans .env.example)
 .env
-prep/odoo/odoo.conf
+.env.*
+!.env.example
 
 # Environnements et caches
 .venv/
 __pycache__/
+.pytest_cache/
+*.egg-info/
+
+# Système et éditeurs
 .DS_Store
+.idea/
+.vscode/
 
 # Vidéos de démo (trop lourdes pour git : à partager par Drive)
 *.mov
