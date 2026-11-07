@@ -202,6 +202,23 @@ def test_read_sends_one_image_per_call_and_survives_an_unreadable_one(run, s, mo
     assert "Total TTC : 298.8" in prompt and "HT plus TVA égale TTC" in prompt   # phrase sans capture lisible gardée
 
 
+def test_long_demo_keeps_the_last_screens_and_bad_document_is_tolerated(run, s, monkeypatch):
+    from smo.models import Frame, FrameSet, Notes
+    from smo.pipeline import understand
+    assert understand.spread(list(range(100)), 5) == [0, 25, 50, 74, 99]
+    run.write_model("frames.json", FrameSet(frames=[], references=[
+        Frame(utterance_index=None, time_s=None, path="capture/images/illisible.pdf")]))
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("PDF illisible")
+
+    monkeypatch.setattr(understand.holo, "chat_model", broken)
+    understand.read(run, s, log=lambda _: None)
+    notes = run.read_model("notes.json", Notes)
+    assert notes.documents[0].error
+    assert "illisible.pdf" not in understand.synthesis_prompt(run, run.read_model("transcript.json", Transcript), notes)
+
+
 def test_turn_stops_on_idle_event_even_if_status_flips_back():
     class FakeHandle:
         def stream(self, **kwargs):

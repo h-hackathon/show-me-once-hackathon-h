@@ -19,7 +19,7 @@ from ..models import (DocumentNote, DocumentReading, FrameSet, Notes, Procedure,
 from ..runs import Run
 
 
-MAX_SCREENS = 60   # au-delà, on garde les 60 premières phrases (une démo dure quelques minutes)
+MAX_SCREENS = 60   # au-delà, captures prises à intervalles réguliers, dernière comprise (souvent « Enregistrer »)
 WORKERS = 4        # appels Holo en parallèle
 
 SCREEN_PROMPT = """Capture d'écran prise pendant que la personne disait : « {text} »
@@ -72,21 +72,33 @@ def read_screen(run: Run, s: Settings, transcript: Transcript, index: int, shot:
 
 
 def read_document(run: Run, s: Settings, path: str) -> DocumentNote:
-    reading = holo.chat_model(DOCUMENT_PROMPT, DocumentReading, s.hai_api_key, s.holo_model, [run.file(path)])
+    try:
+        reading = holo.chat_model(DOCUMENT_PROMPT, DocumentReading, s.hai_api_key, s.holo_model, [run.file(path)])
+    except Exception as err:   # comme une capture : une pièce illisible n'arrête pas la démo
+        return DocumentNote(path=path, error=f"{type(err).__name__}: {str(err)[:200]}")
     return DocumentNote(path=path, **reading.model_dump())
+
+
+def spread(items: list, n: int) -> list:
+    """n éléments à intervalles réguliers, premier et dernier compris."""
+    if len(items) <= n:
+        return items
+    return [items[round(i * (len(items) - 1) / (n - 1))] for i in range(n)]
 
 
 def read(run: Run, s: Settings, log: Callable[[str], None]) -> None:
     transcript = run.read_model("transcript.json", Transcript)
     frameset = run.read_model("frames.json", FrameSet)
-    shots = [(f.utterance_index, f.path) for f in frameset.frames if f.utterance_index is not None][:MAX_SCREENS]
+    all_shots = [(f.utterance_index, f.path) for f in frameset.frames if f.utterance_index is not None]
+    shots = spread(all_shots, MAX_SCREENS)
     started = time.time()
     with ThreadPoolExecutor(WORKERS) as pool:
         screens = list(pool.map(lambda shot: read_screen(run, s, transcript, *shot), shots))
         documents = list(pool.map(lambda ref: read_document(run, s, ref.path), frameset.references[:3]))
     run.write_model("notes.json", Notes(screens=screens, documents=documents))
-    unreadable = sum(1 for n in screens if n.error)
-    log(f"{len(screens)} captures lues ({unreadable} illisibles), {len(documents)} pièce(s) de référence "
+    unreadable = sum(1 for n in [*screens, *documents] if n.error)
+    skipped = f", {len(all_shots) - len(shots)} ignorées (plus de {MAX_SCREENS})" if len(all_shots) > len(shots) else ""
+    log(f"{len(screens)} captures lues{skipped}, {len(documents)} pièce(s) de référence, {unreadable} illisible(s) "
         f"· {s.holo_model} · {time.time() - started:.0f} s")
 
 
@@ -111,7 +123,7 @@ def synthesis_prompt(run: Run, transcript: Transcript, notes: Notes) -> str:
     documents = "".join(
         f"\nPièce de référence ({Path(d.path).name}) : {d.kind or 'pièce'}\n"
         + "\n".join(f"  - {k} : {v}" for k, v in d.fields.items()) + "\n"
-        for d in notes.documents)
+        for d in notes.documents if not d.error)
     return SYNTH_PROMPT.format(task=meta.task, software=meta.software_name or "web", url=meta.software_url,
                                lines="\n".join(lines), documents=documents, schema=SCHEMA)
 

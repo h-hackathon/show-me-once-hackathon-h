@@ -75,6 +75,7 @@ class DocumentReading(BaseModel):
 
 class DocumentNote(DocumentReading):
     path: str
+    error: str | None = None               # pièce illisible : la synthèse fait sans
 
 
 class Notes(BaseModel):
