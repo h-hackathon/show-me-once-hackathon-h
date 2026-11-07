@@ -287,10 +287,9 @@ class MainWindow(QMainWindow):
         self.p_dossier.setText(f"Dossier {code}" + (" — CONSULTATION" if consultation else ""))
         for a in self.actions_saisie:
             a.setEnabled(not consultation)
-        self.ouvrir_messagerie()
+        self.ouvrir(fenetres.MessagerieWindow(self)).move(16, 14)
         if compta.pieces(self.conn, code):
-            self.ouvrir_pieces()
-        self.mdi.cascadeSubWindows()
+            self.ouvrir(fenetres.PiecesWindow(self)).move(300, 150)
 
     def changer_dossier(self) -> None:
         dlg = DossierDialog(self.conn, self)
@@ -316,7 +315,10 @@ class MainWindow(QMainWindow):
         sw.cle = cle
         sw.setAttribute(Qt.WA_DeleteOnClose)
         sw.setWindowTitle(widget.windowTitle())
-        sw.resize(widget.size())
+        sw.setWindowIcon(theme.icone("balance"))
+        sw.resize(widget.size().width() + 8, widget.size().height() + 28)
+        n = len(self.mdi.subWindowList()) - 1
+        sw.move(24 * (n % 8), 24 * (n % 8))
         sw.show()
         return sw
 
@@ -375,6 +377,7 @@ def main() -> None:
     app = QApplication(sys.argv)
     app.setApplicationName("COMPTAREX Cabinet")
     theme.appliquer(app)
+    app.setWindowIcon(theme.icone("balance"))
     conn = db.connect()
     if LoginDialog().exec() != QDialog.Accepted:
         return

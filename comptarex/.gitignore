@@ -1,0 +1,4 @@
+# Base SQLite : recréée à l'identique au premier lancement (données fictives à graine fixe)
+data/*.db
+data/*.db-wal
+data/*.db-shm

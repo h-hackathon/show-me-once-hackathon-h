@@ -12,15 +12,19 @@ import secrets
 from datetime import date, datetime, timedelta
 from functools import wraps
 
-from flask import (Flask, abort, g, jsonify, redirect, render_template, request, send_from_directory,
-                   session, url_for)
+from flask import (Flask, Response, abort, g, jsonify, redirect, render_template, request,
+                   send_from_directory, session, url_for)
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .. import compta, config, db
 
+config.verifier_production()
 app = Flask(__name__)
 app.secret_key = config.SECRET_KEY
 app.config.update(PERMANENT_SESSION_LIFETIME=timedelta(days=30), SESSION_COOKIE_SAMESITE="Lax",
-                  SESSION_COOKIE_NAME="COMPTAREXSESSID")
+                  SESSION_COOKIE_NAME="COMPTAREXSESSID", SESSION_COOKIE_SECURE=config.PROD)
+if config.PROD:
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)   # HTTPS terminé par Railway
 
 JOURS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
 MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre",
@@ -107,6 +111,11 @@ def paginer(rows: list, par_page: int = PAR_PAGE):
 
 
 # ---------------------------------------------------------------- connexion et dossiers
+
+@app.get("/robots.txt")
+def robots():
+    return Response("User-agent: *\nDisallow: /\n", mimetype="text/plain")
+
 
 @app.get("/")
 def accueil():

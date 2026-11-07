@@ -1,0 +1,176 @@
+{
+  "2026-09-30": {
+    "date": "2026-09-30",
+    "brouillard_inclus": false,
+    "soldes_intermediaires": {
+      "Chiffre d'affaires (70)": 363588.33,
+      "Achats consommés (60)": -120604.99,
+      "MARGE GLOBALE": 242983.34,
+      "Charges externes (61/62)": -58569.73,
+      "Impôts et taxes (63)": -6845.0,
+      "Charges de personnel (64)": -136260.0,
+      "EXCEDENT BRUT D'EXPLOITATION": 41308.61,
+      "Dotations aux amortissements (681)": -8865.0,
+      "RESULTAT D'EXPLOITATION": 32443.61,
+      "Résultat financier (66/76)": -1001.28,
+      "Résultat exceptionnel (67/77)": 420.0,
+      "RESULTAT NET PROVISOIRE (avant IS)": 31862.33
+    },
+    "resultat_net_provisoire": 31862.33,
+    "tresorerie": {
+      "512100": 36660.23,
+      "512200": 11990.1,
+      "530000": 312.5
+    },
+    "tresorerie_total": 48962.83,
+    "clients_411": 61760.0,
+    "clients_echus_plus_60j": 8900.0,
+    "fournisseurs_401": 19498.09,
+    "tva_a_decaisser_44551": 0.0
+  },
+  "2026-09-30+brouillard": {
+    "date": "2026-09-30",
+    "brouillard_inclus": true,
+    "soldes_intermediaires": {
+      "Chiffre d'affaires (70)": 363588.33,
+      "Achats consommés (60)": -120604.99,
+      "MARGE GLOBALE": 242983.34,
+      "Charges externes (61/62)": -58569.73,
+      "Impôts et taxes (63)": -6845.0,
+      "Charges de personnel (64)": -136260.0,
+      "EXCEDENT BRUT D'EXPLOITATION": 41308.61,
+      "Dotations aux amortissements (681)": -8865.0,
+      "RESULTAT D'EXPLOITATION": 32443.61,
+      "Résultat financier (66/76)": -1001.28,
+      "Résultat exceptionnel (67/77)": 420.0,
+      "RESULTAT NET PROVISOIRE (avant IS)": 31862.33
+    },
+    "resultat_net_provisoire": 31862.33,
+    "tresorerie": {
+      "512100": 36660.23,
+      "512200": 11990.1,
+      "530000": 312.5
+    },
+    "tresorerie_total": 48962.83,
+    "clients_411": 61760.0,
+    "clients_echus_plus_60j": 8900.0,
+    "fournisseurs_401": 19498.09,
+    "tva_a_decaisser_44551": 0.0
+  },
+  "2026-10-31": {
+    "date": "2026-10-31",
+    "brouillard_inclus": false,
+    "soldes_intermediaires": {
+      "Chiffre d'affaires (70)": 412380.0,
+      "Achats consommés (60)": -138920.45,
+      "MARGE GLOBALE": 273459.55,
+      "Charges externes (61/62)": -64210.3,
+      "Impôts et taxes (63)": -6845.0,
+      "Charges de personnel (64)": -151400.0,
+      "EXCEDENT BRUT D'EXPLOITATION": 51004.25,
+      "Dotations aux amortissements (681)": -9850.0,
+      "RESULTAT D'EXPLOITATION": 41154.25,
+      "Résultat financier (66/76)": -1236.4,
+      "Résultat exceptionnel (67/77)": 420.0,
+      "RESULTAT NET PROVISOIRE (avant IS)": 40337.85
+    },
+    "resultat_net_provisoire": 40337.85,
+    "tresorerie": {
+      "512100": 48213.77,
+      "512200": 12040.1,
+      "530000": 312.5
+    },
+    "tresorerie_total": 60566.37,
+    "clients_411": 67450.0,
+    "clients_echus_plus_60j": 8900.0,
+    "fournisseurs_401": 23118.56,
+    "tva_a_decaisser_44551": 5494.5
+  },
+  "2026-10-31+brouillard": {
+    "date": "2026-10-31",
+    "brouillard_inclus": true,
+    "soldes_intermediaires": {
+      "Chiffre d'affaires (70)": 412380.0,
+      "Achats consommés (60)": -138984.65,
+      "MARGE GLOBALE": 273395.35,
+      "Charges externes (61/62)": -64523.35,
+      "Impôts et taxes (63)": -6845.0,
+      "Charges de personnel (64)": -151400.0,
+      "EXCEDENT BRUT D'EXPLOITATION": 50627.0,
+      "Dotations aux amortissements (681)": -9850.0,
+      "RESULTAT D'EXPLOITATION": 40777.0,
+      "Résultat financier (66/76)": -1236.4,
+      "Résultat exceptionnel (67/77)": 420.0,
+      "RESULTAT NET PROVISOIRE (avant IS)": 39960.6
+    },
+    "resultat_net_provisoire": 39960.6,
+    "tresorerie": {
+      "512100": 57873.23,
+      "512200": 12040.1,
+      "530000": 312.5
+    },
+    "tresorerie_total": 70225.83,
+    "clients_411": 67450.0,
+    "clients_echus_plus_60j": 8900.0,
+    "fournisseurs_401": 23118.56,
+    "tva_a_decaisser_44551": 5494.5
+  },
+  "2026-11-04": {
+    "date": "2026-11-04",
+    "brouillard_inclus": false,
+    "soldes_intermediaires": {
+      "Chiffre d'affaires (70)": 412380.0,
+      "Achats consommés (60)": -142441.25,
+      "MARGE GLOBALE": 269938.75,
+      "Charges externes (61/62)": -67010.3,
+      "Impôts et taxes (63)": -6845.0,
+      "Charges de personnel (64)": -151400.0,
+      "EXCEDENT BRUT D'EXPLOITATION": 44683.45,
+      "Dotations aux amortissements (681)": -9850.0,
+      "RESULTAT D'EXPLOITATION": 34833.45,
+      "Résultat financier (66/76)": -1236.4,
+      "Résultat exceptionnel (67/77)": 420.0,
+      "RESULTAT NET PROVISOIRE (avant IS)": 34017.05
+    },
+    "resultat_net_provisoire": 34017.05,
+    "tresorerie": {
+      "512100": 72897.77,
+      "512200": 12040.1,
+      "530000": 312.5
+    },
+    "tresorerie_total": 85250.37,
+    "clients_411": 42766.0,
+    "clients_echus_plus_60j": 8900.0,
+    "fournisseurs_401": 30703.52,
+    "tva_a_decaisser_44551": 5494.5
+  },
+  "2026-11-04+brouillard": {
+    "date": "2026-11-04",
+    "brouillard_inclus": true,
+    "soldes_intermediaires": {
+      "Chiffre d'affaires (70)": 412380.0,
+      "Achats consommés (60)": -142561.75,
+      "MARGE GLOBALE": 269818.25,
+      "Charges externes (61/62)": -67465.45,
+      "Impôts et taxes (63)": -6845.0,
+      "Charges de personnel (64)": -151400.0,
+      "EXCEDENT BRUT D'EXPLOITATION": 44107.8,
+      "Dotations aux amortissements (681)": -9850.0,
+      "RESULTAT D'EXPLOITATION": 34257.8,
+      "Résultat financier (66/76)": -1236.4,
+      "Résultat exceptionnel (67/77)": 420.0,
+      "RESULTAT NET PROVISOIRE (avant IS)": 33441.4
+    },
+    "resultat_net_provisoire": 33441.4,
+    "tresorerie": {
+      "512100": 79322.03,
+      "512200": 12040.1,
+      "530000": 312.5
+    },
+    "tresorerie_total": 91674.63,
+    "clients_411": 42766.0,
+    "clients_echus_plus_60j": 8900.0,
+    "fournisseurs_401": 30703.52,
+    "tva_a_decaisser_44551": 5494.5
+  }
+}
