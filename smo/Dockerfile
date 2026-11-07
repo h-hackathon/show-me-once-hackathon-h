@@ -1,6 +1,6 @@
 # Serveur SMO (Railway) : worker des custom tools H + tools compilés (Playwright/Chromium).
 FROM python:3.12-slim
-COPY --from=ghcr.io/astral-sh/uv:0.13.1 /uv /usr/local/bin/uv
+RUN pip install --no-cache-dir uv==0.13.1   # via PyPI : ghcr.io est parfois injoignable depuis Railway
 WORKDIR /app
 # evdev (dépendance Linux de l'extra « desktop » de hai-agents) n'existe qu'en sources : il faut un compilateur C.
 RUN apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev linux-libc-dev \
