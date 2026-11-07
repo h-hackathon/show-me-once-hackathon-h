@@ -93,6 +93,8 @@ def champ(grille: QGridLayout, ligne: int, libelle: str, widget: QWidget, colonn
     etiquette = QLabel(libelle)
     etiquette.setBuddy(widget)
     widget.setAccessibleName(libelle.rstrip(" :*").strip())
+    # sous macOS, Qt donne à une liste déroulante sa valeur comme nom : le libellé passe aussi en description
+    widget.setAccessibleDescription(libelle.rstrip(" :*").strip())
     grille.addWidget(etiquette, ligne, colonne)
     grille.addWidget(widget, ligne, colonne + 1)
     if aide:
