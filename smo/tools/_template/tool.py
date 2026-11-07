@@ -31,7 +31,7 @@ def run(page, params: Params, cfg) -> dict:
 
     # 3. Saisie, élément par élément, par libellé :
     login(page, cfg)
-    # page.goto(f"{cfg.site_url}/invoices/new")
+    # page.goto(f"{cfg.site_url}/factures/nouvelle")
     # locate(page, {"label": "Référence fournisseur"}).fill(params.reference)
 
     # 4. Enregistrer en brouillon ; ne jamais cliquer sur « Valider ».

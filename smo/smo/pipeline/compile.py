@@ -64,7 +64,7 @@ def run(run: Run, s: Settings, log: Callable[[str], None], wait: bool = True) ->
             trace=trace_text(trace), checks=checks_text(context))
         run.write_text("devin_prompt.md", prompt)
         shots = sorted(run.file("trace").glob("step-*.png"))
-        urls = _attachments(api, [run.file("trace.json"), *shots[:MAX_ATTACHMENTS - 1]])
+        urls = _attachments(api, [run.file("trace.json"), run.file("trial.json"), *shots[:MAX_ATTACHMENTS - 2]])
         session = api.create_session(prompt, tags=["smo", run.id], max_acu=s.devin_max_acu, attachment_urls=urls)
         result = CompileResult(tool_name=name, devin_id=devin_api.session_id(session), url=session.get("url"))
         run.write_model("compile.json", result)
@@ -89,15 +89,18 @@ def run(run: Run, s: Settings, log: Callable[[str], None], wait: bool = True) ->
 
 
 def repair(tool: str, session_id: str, details: str, s: Settings, log: Callable[[str], None] = print) -> CompileResult:
-    """Interface changée : la session où l'agent H a fini à la main devient la nouvelle démo pour Devin."""
+    """Le tool a échoué et l'agent a repris en computer use : sa session devient la nouvelle démo pour Devin,
+    qui corrige le tool et la Skill dans une même PR."""
     s.require("hai_api_key", "devin_api_key", "devin_org_id")
     out = s.runs_dir / "_repairs" / f"{datetime.now():%Y%m%d-%H%M%S}-{tool}"
     trace = h.build_trace(h.client(s.hai_api_key), session_id, out / "trace", s.hai_api_key)
     (out / "trace.json").write_text(trace.model_dump_json(indent=2), encoding="utf-8")
-    contract = s.tools_dir / tool / "ui_contract.json"
+    contract, skill_md = s.tools_dir / tool / "ui_contract.json", s.tools_dir / tool / "skill.md"
     prompt = Template((ROOT / "docs" / "DEVIN_REPAIR.md").read_text(encoding="utf-8")).substitute(
         tool_name=tool, repo=s.devin_repo or "ce repo", url=s.site_url or "le logiciel", details=details,
-        contract=contract.read_text(encoding="utf-8") if contract.exists() else "{}", trace=trace_text(trace))
+        contract=contract.read_text(encoding="utf-8") if contract.exists() else "{}",
+        skill=skill_md.read_text(encoding="utf-8") if skill_md.exists() else "(pas encore de skill.md : crée-la)",
+        trace=trace_text(trace))
     (out / "devin_prompt.md").write_text(prompt, encoding="utf-8")
     api = devin_api.Devin(s.devin_api_key, s.devin_org_id)
     session = api.create_session(prompt, tags=["smo", "repair", tool], max_acu=s.devin_max_acu,

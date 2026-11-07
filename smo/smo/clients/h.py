@@ -3,12 +3,13 @@ from __future__ import annotations
 
 import base64
 import json
+import subprocess
 import time
 from pathlib import Path
 from typing import Any
 
 import httpx
-from hai_agents import Client, ConflictError
+from hai_agents import Agent, Client, ConflictError, Environment_Web
 
 from ..models import Trace, TraceStep
 
@@ -17,9 +18,59 @@ def client(api_key: str) -> Client:
     return Client(api_key=api_key)
 
 
-def web_environment(start_url: str, host: str = "cloud") -> dict:
-    """Navigateur cloud H (site en ligne), ou navigateur sur ta machine (host="user_device", site en localhost)."""
-    return {"kind": "web", "id": "web", "host": host, "start_url": start_url}
+def is_local(url: str) -> bool:
+    return "localhost" in url or "127.0.0.1" in url
+
+
+def web_environment(start_url: str) -> Environment_Web:
+    """Site en ligne → navigateur cloud H ; localhost → Chrome sur cette machine (le cloud H ne voit pas localhost)."""
+    return Environment_Web(id="web", host="user_device" if is_local(start_url) else "cloud", start_url=start_url)
+
+
+CHROME_DEBUG_PORT = 9222   # le port où le SDK H cherche un Chrome local
+CHROME_PROFILE = Path.home() / ".smo" / "chrome-profile"
+GOOGLE_CHROME = Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
+
+
+def _debugger_listening(port: int) -> bool:
+    try:
+        return httpx.get(f"http://127.0.0.1:{port}/json/version", timeout=2, trust_env=False).status_code == 200
+    except httpx.HTTPError:
+        return False
+
+
+def prepare_local_browser(url: str) -> None:
+    """Site en localhost : le SDK H pilote un Chrome local par son port de débogage, et lance Google Chrome
+    s'il le trouve. Sans Google Chrome, on démarre le Chromium de Playwright (installé pour les tools) sur ce port."""
+    if not is_local(url) or GOOGLE_CHROME.exists() or _debugger_listening(CHROME_DEBUG_PORT):
+        return
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as p:
+        binary = p.chromium.executable_path
+    CHROME_PROFILE.mkdir(parents=True, exist_ok=True)
+    subprocess.Popen([binary, f"--remote-debugging-port={CHROME_DEBUG_PORT}", f"--user-data-dir={CHROME_PROFILE}",
+                      "--no-first-run", "--no-default-browser-check", url],
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                     start_new_session=True)
+    deadline = time.monotonic() + 20
+    while not _debugger_listening(CHROME_DEBUG_PORT):
+        if time.monotonic() > deadline:
+            raise RuntimeError(f"Chromium n'a pas ouvert le port {CHROME_DEBUG_PORT} en 20 s")
+        time.sleep(0.25)
+
+
+def session_agent(agent: str, url: str, model: str | None = None) -> str | Agent:
+    """L'agent à lancer pour travailler sur `url`.
+
+    En ligne : l'agent du catalogue tel quel (ex. h/web-surfer-pro). En localhost : un agent inline dont le
+    navigateur est déclaré user_device. Le SDK ne lance le Chrome local que s'il lit user_device dans la spec
+    de l'agent : un `overrides` sur l'hôte est ignoré (et la session attend un navigateur qui ne vient jamais).
+    """
+    if not is_local(url):
+        return agent
+    spec = Agent(name="smo-local-web", description="Agent web SMO sur un site en localhost.",
+                 environments=[web_environment(url)])
+    return spec.model_copy(update={"model": model}) if model else spec
 
 
 def as_dict(event: Any) -> dict:
@@ -115,12 +166,28 @@ def build_trace(h: Client, session_id: str, out_dir: Path, api_key: str, events:
                  steps=steps, answer=answer, agent_view_url=session.agent_view_url)
 
 
-def drain(handle, events: list, timeout_s: float = 600) -> None:
-    """Lit les événements jusqu'à ce que l'agent attende la consigne suivante (idle) ou ait fini.
+def is_idle_event(event: Any) -> bool:
+    d = as_dict(event)
+    return d.get("type") == "ActiveStateChangeEvent" and (d.get("data") or {}).get("state") == "idle"
 
-    Le curseur du SDK = nombre d'événements déjà lus, d'où from_index=len(events).
+
+def stream_turn(handle, *, from_index: int = 0, tools=None, timeout_s: float = 600):
+    """Les événements d'un tour de l'agent, jusqu'à l'événement « idle » (il attend une consigne) ou la fin de session.
+
+    On s'arrête sur l'événement, pas sur le statut de la session : avec un navigateur local, le statut repasse
+    « running » 0,4 s après « idle » sans nouvelle consigne (vu le 7 nov.), et un arrêt sur statut attend alors
+    jusqu'au délai. À n'utiliser que sur des événements nouveaux : en relisant une session depuis le début,
+    l'« idle » d'un tour précédent couperait la lecture trop tôt (le worker garde donc l'arrêt sur statut).
     """
-    for event in handle.stream(from_index=len(events), until="settled", timeout_seconds=timeout_s):
+    for event in handle.stream(from_index=from_index, until="terminal", tools=tools, timeout_seconds=timeout_s):
+        yield event
+        if is_idle_event(event):
+            return
+
+
+def drain(handle, events: list, timeout_s: float = 600) -> None:
+    """Lit un tour de l'agent. Le curseur du SDK = nombre d'événements déjà lus, d'où from_index=len(events)."""
+    for event in stream_turn(handle, from_index=len(events), timeout_s=timeout_s):
         events.append(event)
 
 

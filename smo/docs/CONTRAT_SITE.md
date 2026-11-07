@@ -1,47 +1,64 @@
 # Contrat site compta ↔ SMO
 
-Le site compta (`logiciel-test/`) est le logiciel cible des démos. SMO en a besoin de trois choses : un parcours réaliste, des libellés stables, et une API technique pour vérifier ce qui est vraiment enregistré.
-Ce contrat a été envoyé à la session qui construit le site le 7 nov., et elle l'a intégré.
+Le logiciel cible des démos est **Comptarex** (`comptarex/` du repo, « COMPTAREX Cabinet 6.2 », un faux logiciel de cabinet de 2004). Il existe en deux versions sur la même base SQLite :
+- un site web : `uv run comptarex-web` → http://127.0.0.1:8042 ;
+- une application de bureau Qt : `uv run --extra desktop comptarex-desktop`.
+
+SMO a besoin de trois choses : un parcours réaliste, des libellés stables, et une API technique pour vérifier ce qui est vraiment enregistré. Le détail du site est dans `comptarex/README.md`.
 
 ## Où il tourne
 
-- **En ligne** (HTTPS, public) : il est vu par les navigateurs cloud H et par le serveur SMO (Railway).
-- **En localhost** sur le PC de Thomas : c'est le cas desktop. L'agent utilise un navigateur `host: "user_device"`, qui voit le localhost.
+- **Localhost** (aujourd'hui) : le navigateur cloud H ne le voit pas. SMO ouvre alors le navigateur de l'agent sur cette machine (`host: "user_device"`, extra `hai-agents[browser]`). C'est aussi le cas desktop.
+- **En ligne** (pas encore fait, à décider) : tunnel `cloudflared tunnel --url http://127.0.0.1:8042`, ou Railway (dossier racine `comptarex/`, la base est recréée à chaque déploiement).
 
-## Parcours métier
+## Parcours « saisir une facture fournisseur » (vérifié en vrai navigateur par la session du site)
 
-- **Connexion `/login`** : libellés « E-mail » et « Mot de passe », bouton « Se connecter ». Pas de captcha ni de 2FA, cookie persistant.
-- **Choix du dossier** : le cabinet gère 14 sociétés ; il faut ouvrir `SITE_DOSSIER` (ex. « 00417 ATELIER DORN SAS »). `smo.runtime.ui.login` sait passer cet écran.
-- **« Factures à traiter »** (boîte de réception) : INV-001 à INV-010 depuis `prep/factures/`, chaque PDF à `/inbox/INV-00X.pdf`. Deux pièges :
-  - INV-007 : fournisseur allemand → taxe « 20 % autoliquidation UE » ;
-  - INV-009 : TTC imprimé faux de +100 €.
-- **« Factures fournisseurs » → « Nouvelle facture »** :
-  - champs : Fournisseur (autocomplétion + création à la volée), Référence fournisseur, Date de facture ;
-  - lignes : Libellé, Quantité, Prix unitaire HT, Taxe (20 %, 10 %, 5,5 %, 0 %, 20 % autoliquidation UE) ;
-  - totaux HT / TVA / TTC.
-- **Deux états** : « Enregistrer le brouillon » et « Valider ». L'agent ne valide jamais.
-- **2e parcours** : édition d'une situation comptable à date, avec un piège (« Destination = Imprimante » par défaut).
+- **Connexion `/login`** : « E-mail », « Mot de passe », bouton « Se connecter ». Le formulaire s'affiche même si une session est déjà ouverte.
+- **Choix du dossier `/dossiers`** : on clique sur le texte `SITE_DOSSIER` (« 00417 ATELIER DORN SAS »), ce qui mène au bureau. `smo.runtime.ui.login` le fait déjà.
+- **Boîte de réception `/inbox`** (« Factures à traiter ») : chaque PDF est à `/inbox/INV-00X.pdf`, avec le bouton « Saisir ».
+- **Nouvelle facture `/factures/nouvelle`**. On y arrive aussi par le menu Saisie → Factures fournisseurs → Nouvelle facture.
+  - **Champs** (libellés exacts) : « Fournisseur », « Référence fournisseur », « Date de facture » (JJ/MM/AAAA, sinon « Erreur 0x2F »).
+  - **Fournisseur** : en autocomplétion, `role=option`, ex. « PAPETERIE MARTIN SARL — 401PAPMA ». Taper le nom exact suffit, sans tenir compte de la casse ni des accents.
+  - **Fournisseurs absents** : on les crée avec « + Créer le fournisseur » (champs « Raison sociale », « Pays », « N° TVA intracommunautaire », bouton « Créer »). Deux sont à créer : BÜROTECHNIK WEBER (INV-007) et FORMATION PLUS (INV-008).
+  - **Lignes** : « Libellé », « Quantité », « Prix unitaire HT », « Taxe » (`aria-labelledby`, à viser avec `.nth(i)`). Trois lignes vides par défaut ; « Ajouter une ligne » recharge la page.
+  - **Taxes** : « 20 % », « 10 % », « 5,5 % », « 0 % », « 20 % autoliquidation UE ».
+- **Boutons** : « Enregistrer le brouillon », « Valider » (fenêtre Oui/Non avant), « Annuler ». Les fenêtres sont du HTML (`role=alertdialog`), pas des `confirm()` natifs.
+- **Succès** : le message « Brouillon enregistré sous le n° FA-2026-000X ».
+- **Doublon** (même fournisseur + même référence) : refusé par le message « Doublon : … ».
 
-## Accessibilité
-
-Chaque champ a un `<label>` visible relié à son input, chaque bouton a un texte. **Pas de `data-testid`** : les scripts compilés visent les rôles et les libellés, comme sur un vrai logiciel.
-
-## API technique (JSON, header `X-Admin-Token: $SITE_ADMIN_TOKEN`)
+## API technique (header `X-Admin-Token: $SITE_ADMIN_TOKEN`, sauf `/api/health`)
 
 | Méthode | Chemin | Usage |
 |---|---|---|
-| GET | `/api/health` (publique) | `{"ok": true, "ui_version": "v1"}` |
-| GET | `/api/invoices[?reference=...]` | `[{id, supplier, reference, date, lines:[{label, quantity, unit_price, tax}], total_ht, total_tva, total_ttc, status: "draft"\|"validated", created_at}]` |
-| POST | `/api/admin/reset` | vide les factures saisies (garde la boîte de réception), pour le benchmark |
-| GET / POST | `/api/admin/ui-version` | `{"version": "v1"\|"v2"}`, bascule à chaud |
+| GET | `/api/health` | `{"ok": true, "ui_version": "v1"}` |
+| GET | `/api/invoices[?reference=...]` | factures saisies (format ci-dessous) |
+| POST | `/api/admin/reset` | vide les factures, les fournisseurs créés, les messages, les éditions et la destination mémorisée ; garde la boîte de réception. **À faire entre deux runs du benchmark.** |
+| GET / POST | `/api/admin/ui-version` | `{"version": "v1"\|"v2", "confirm": false}`, bascule à chaud |
+
+Format d'une facture : `id, numero, dossier, supplier, supplier_code, reference, date, lines[{label, quantity, unit_price, tax}], total_ht, total_tva, total_ttc, status ("draft"|"validated"), category, piece, created_at, updated_at`.
+
+- `date` est en ISO `AAAA-MM-JJ` (l'écran, lui, attend JJ/MM/AAAA).
+- `supplier` est en **MAJUSCULES SANS ACCENTS** (« BUROTECHNIK WEBER GMBH ») : on compare sans la casse ni les accents.
+- `tax` est le libellé affiché (« 20 % autoliquidation UE »), `quantity` un nombre, `unit_price` en euros.
+- **INV-007 attendue** : taxe « 20 % autoliquidation UE », `total_tva` 0, `total_ttc` 1240.
 
 ## Interface v2 (démo du precheck et de la réparation)
 
 - « Enregistrer le brouillon » devient « Sauvegarder ».
-- « Référence fournisseur » passe dans un onglet « Détails ».
-- Nouveau champ obligatoire : « Catégorie de dépense ».
-- En option : une fenêtre de confirmation avant l'enregistrement.
+- « Référence fournisseur » passe dans l'onglet (`role=tab`) « Détails ».
+- « Catégorie de dépense » devient obligatoire.
+- Le titre passe à « Cabinet 6.3 ».
+- Avec `"confirm": true`, la fenêtre « Confirmer l'enregistrement ? » s'affiche avant « Sauvegarder ».
 
-## Variables à mettre dans `smo/.env`
+**Vérifié le 7 nov.** (`tests/test_site_live.py`) :
+- le precheck passe en v1 (0,9 s) ;
+- en v2 (6,4 s), il détecte « Référence fournisseur » et « Enregistrer le brouillon » manquants ;
+- le nouveau champ obligatoire n'est pas détecté par le precheck (il ne vérifie que la présence des éléments attendus). C'est `run` qui échoue à l'enregistrement, et l'agent reprend à l'écran.
 
-`SITE_URL`, `SITE_LOGIN`, `SITE_PASSWORD`, `SITE_DOSSIER`, `SITE_ADMIN_TOKEN`.
+## Autre parcours : la situation comptable
+
+Bureau → Editions → Etats de synthèse → Situation intermédiaire → date → onglet Destination = Ecran → Lancer l'édition. Piège : la destination par défaut est « Imprimante ». Les chiffres attendus sont dans `comptarex/data/verite_terrain_situation.json`.
+
+## Variables dans `smo/.env`
+
+`SITE_URL`, `SITE_LOGIN`, `SITE_PASSWORD`, `SITE_ADMIN_TOKEN` (les trois derniers recopiés de `comptarex/.env`), `SITE_DOSSIER`.

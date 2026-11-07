@@ -64,8 +64,21 @@ def checks(s: Settings) -> list[Check]:
         return Check("Linkup", "ok", f"{len(r.get('results', []))} résultats (≈0,005 $)")
 
     def devin_key() -> Check:
-        r = devin.Devin(s.devin_api_key, s.devin_org_id).list_sessions()
-        return Check("Devin API", "ok" if r.status_code < 300 else "fail", f"HTTP {r.status_code} {r.text[:120]}")
+        if s.devin_api_key.startswith("apk_"):
+            return Check("Devin API", "fail", "clé legacy apk_ refusée par l'API v3 : crée un service user "
+                         "(Settings > Devin API > Service users, rôles ViewOrgSessions + UseDevinSessions) → token cog_…")
+        api = devin.Devin(s.devin_api_key, s.devin_org_id)
+        me = api.whoami()
+        if me.status_code >= 300:
+            return Check("Devin API", "fail", f"/v3/self HTTP {me.status_code} : token invalide")
+        org = me.json().get("org_id") or me.json().get("devin_sessions_org_id")
+        if org and org != s.devin_org_id:
+            return Check("Devin API", "fail", f"token de l'org {org}, DEVIN_ORG_ID = {s.devin_org_id}")
+        listed = api.list_sessions()
+        if listed.status_code == 403:
+            return Check("Devin API", "warn", "token OK, mais il manque la permission ViewOrgSessions (liste des sessions)")
+        return Check("Devin API", "ok" if listed.status_code < 300 else "fail",
+                     f"{me.json().get('principal_type')} · sessions HTTP {listed.status_code}")
 
     def site() -> Check:
         api = Site(s.site_url, s.site_admin_token)
@@ -106,13 +119,14 @@ def probe_guided(s: Settings, log) -> Check:
     """Agent H guidé : envoyer des consignes pendant la session, et voir ce que contient une action."""
     client = h.client(s.hai_api_key)
     url = s.site_url or "https://example.com"
-    handle = client.start_session(agent=s.replay_agent, idle_timeout_s=300,
+    h.prepare_local_browser(url)
+    handle = client.start_session(agent=h.session_agent(s.replay_agent, url, s.agent_model), idle_timeout_s=300,
                                   messages=f"Va sur {url}, décris la page en une phrase, puis attends ma consigne.")
     events: list = []
-    h.drain(handle, events)
+    h.drain(handle, events, timeout_s=240)
     handle.send_message("Clique sur le premier lien ou bouton visible, puis décris ce qui a changé. Ne remplis rien.")
     h.wait_active(handle)
-    h.drain(handle, events)
+    h.drain(handle, events, timeout_s=240)
     handle.cancel()
     out = s.runs_dir / "_probes" / f"guided-{datetime.now():%Y%m%d-%H%M%S}"
     trace = h.build_trace(client, handle.id, out, s.hai_api_key, events=events)
@@ -121,8 +135,10 @@ def probe_guided(s: Settings, log) -> Check:
     names = sorted({a["tool_name"] for a in actions if a.get("tool_name")})
     sample = json.dumps(actions[0], ensure_ascii=False)[:200] if actions else "—"
     log(f"  trace : {out}")
-    state = "ok" if actions and any(st.url for st in trace.steps) else "warn"
-    return Check("probe guided", state, f"{len(trace.steps)} étapes · actions {names} · ex. {sample}")
+    reached = any((st.url or "").startswith(url.rstrip("/")) for st in trace.steps)
+    state = "ok" if actions and reached else "warn" if actions else "fail"
+    where = "site atteint" if reached else f"site NON atteint ({trace.steps[-1].url if trace.steps else '—'})"
+    return Check("probe guided", state, f"{len(trace.steps)} étapes · {where} · actions {names} · ex. {sample}")
 
 
 def probe_tool(s: Settings, log) -> Check:

@@ -1,13 +1,13 @@
 """Étape 8 : l'agent custom est créé dans H, avec sa Skill, ses tools et la reprise en computer use.
 
-Il est créé dès que la Skill est prête (il travaille alors à l'écran), puis mis à jour quand le tool
-compilé par Devin est fusionné : le même agent devient rapide et déterministe.
+Il est créé dès que la Skill est prête (il travaille alors à l'écran, c'est lui que « trial » teste), puis mis
+à jour quand le tool compilé par Devin est fusionné : le même agent devient rapide et déterministe.
+Une fois le tool là, la Skill de référence est celle du repo (tools/<nom>/skill.md), que Devin fait évoluer.
 """
 from __future__ import annotations
 
 from typing import Callable
 
-from hai_agents import Environment_Web
 from hai_agents.types.tool_definition import ToolDefinition
 
 from ..clients import h
@@ -42,10 +42,10 @@ def agent_name(run: Run, s: Settings) -> str:
     return f"{s.agent_prefix}{slug(meta.owner, max_len=12)}-{slug(meta.task, max_len=40)}"
 
 
-def environment(url: str) -> Environment_Web:
-    """Site en ligne → navigateur cloud H ; localhost → navigateur sur la machine qui fait tourner SMO."""
-    local = "localhost" in url or "127.0.0.1" in url
-    return Environment_Web(id="web", host="user_device" if local else "cloud", start_url=url)
+def skill_body(run: Run, s: Settings) -> str:
+    """La Skill du repo si Devin l'a écrite ou corrigée, sinon celle relue par l'humain."""
+    in_repo = s.tools_dir / tool_name(run) / "skill.md"
+    return (in_repo if in_repo.exists() else run.file("skill.md")).read_text(encoding="utf-8")
 
 
 def create(run: Run, s: Settings, log: Callable[[str], None]) -> None:
@@ -56,8 +56,8 @@ def create(run: Run, s: Settings, log: Callable[[str], None]) -> None:
 
     client = h.client(s.hai_api_key)
     h.upsert_skill(client, sname, description=f"À utiliser pour : {meta.task} dans {meta.software_url}.",
-                   body=run.file("skill.md").read_text(encoding="utf-8"))
-    env = environment(meta.software_url)
+                   body=skill_body(run, s))
+    env = h.web_environment(meta.software_url)   # localhost : Chrome de cette machine (user_device)
     spec = dict(
         description=f"{meta.task}, appris d'une démonstration de {meta.owner}.",
         environments=[env],
@@ -77,7 +77,8 @@ def create(run: Run, s: Settings, log: Callable[[str], None]) -> None:
 
 
 def upgrade(run: Run, s: Settings, log: Callable[[str], None]) -> str | None:
-    """Une fois la PR de Devin fusionnée (et `git pull` fait), l'agent reçoit son tool."""
+    """Une fois la PR de Devin fusionnée (et `git pull` fait), l'agent reçoit son tool et la Skill du repo.
+    Après une réparation : `smo run <id> --only upgrade --force` repousse tool et Skill dans H."""
     if tool_name(run) not in load_tools(s.tools_dir):
         pr = run.read_model("compile.json", CompileResult).pr_url if run.has("compile.json") else None
         log(f"tool pas encore là : fusionne la PR {pr or '(voir compile.json)'}, git pull, puis `smo run {run.id}`")

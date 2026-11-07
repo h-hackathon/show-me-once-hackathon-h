@@ -1,6 +1,15 @@
 # SMO : Show me once
 
-Une capture vidéo + voix d'une tâche faite une fois devient un **agent custom H** : sa Skill, un tool déterministe écrit par Devin, et la reprise en computer use quand l'interface change.
+Capturer, automatiser et maintenir des agents H pour des tâches répétitives. Le principe :
+- une capture vidéo + voix d'une tâche faite une fois devient un **agent custom H** ;
+- cet agent a sa Skill, un tool déterministe écrit par Devin, et reprend en computer use quand le tool échoue ;
+- la trace de chaque reprise renvoie Devin corriger le tool et la Skill.
+
+```
+capture → transcribe → frames → understand → enrich → skill → review → provision → trial → compile → upgrade
+          Gladia       ffmpeg   Holo (LLM)   Linkup            humain   agent H     agent H  Devin     agent H + tool
+```
+
 Le plan complet et l'état des API sont dans [`PLAN.md`](PLAN.md).
 
 ## Installer
@@ -30,7 +39,8 @@ uv run smo status <run_id>
 uv run smo new capture.mov --task "..." --owner catherine --go --auto
 ```
 
-Chaque étape écrit son fichier dans `runs/<run_id>/` : `transcript.json`, `frames/`, `procedure.json`, `context.json`, `skill.md`, `trace.json` (+ `trace/`), `agent.json`, `compile.json`.
+Chaque étape écrit son fichier dans `runs/<run_id>/` : `transcript.json`, `frames/`, `procedure.json`, `context.json`, `skill.md`, `agent.json`, `trace.json` (+ `trace/`), `trial.json`, `compile.json`.
+Option `--guided` : à l'étape trial, l'agent est guidé phrase par phrase au lieu de suivre seul sa Skill.
 On peut refaire une étape : `uv run smo run <id> --only understand --force`.
 
 ## Serveur (Railway)

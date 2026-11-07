@@ -3,7 +3,7 @@
   "screens": [
     {
       "name": "Nouvelle facture",
-      "path": "/invoices/new",
+      "path": "/factures/nouvelle",
       "anchors": [
         {"label": "Fournisseur"},
         {"label": "Référence fournisseur"},

@@ -1,9 +1,12 @@
 """Le driver : enchaîne les étapes d'un run, saute ce qui est déjà fait, s'arrête proprement sinon.
 
-capture ─► transcribe ─► frames ─► understand ─► enrich ─► skill ─► review ─► replay ─► provision ─► compile ─► upgrade
-           Gladia        ffmpeg     Holo          Linkup              humain     agent H   agent H      Devin      agent H + tool
+capture ─► transcribe ─► frames ─► understand ─► enrich ─► skill ─► review ─► provision ─► trial ─► compile ─► upgrade
+           Gladia        ffmpeg     Holo (LLM)    Linkup    .md      humain     agent H     agent H   Devin      agent H
+                                    info digeste  (option)                      + Skill     CU→trace  tool       + tool
 
-L'agent existe dans H dès « provision » (il travaille à l'écran) ; « upgrade » lui donne le tool de Devin.
+L'agent existe dans H dès « provision » ; « trial » le fait travailler une fois à l'écran avec sa Skill, et sa trace
+part chez Devin ; « upgrade » lui donne le tool. En exploitation, si le tool échoue, l'agent reprend en computer use
+et sa nouvelle trace repart chez Devin (pipeline/compile.repair) pour corriger tool et Skill.
 Chaque étape écrit un fichier dans runs/<id>/ : on peut relancer, reprendre, ou forcer une étape.
 """
 from __future__ import annotations
@@ -14,7 +17,7 @@ from typing import Callable
 
 from ..config import ENV, Settings
 from ..runs import Run
-from . import capture, compile, enrich, provision, replay, skill, understand
+from . import capture, compile, enrich, provision, skill, trial, understand
 
 
 @dataclass(frozen=True)
@@ -33,8 +36,8 @@ STAGES = [
     Stage("enrich", enrich.run, ("linkup_api_key",), lambda r: r.has("context.json"), optional=True),
     Stage("skill", skill.run, (), lambda r: r.has("skill.md")),
     Stage("review", skill.review, (), lambda r: r.has("skill.approved")),
-    Stage("replay", replay.run, ("hai_api_key", "site_login", "site_password"), lambda r: r.has("trace.json")),
     Stage("provision", provision.create, ("hai_api_key",), lambda r: r.has("agent.json")),
+    Stage("trial", trial.run, ("hai_api_key", "site_login", "site_password"), lambda r: r.has("trace.json")),
     Stage("compile", compile.run, ("devin_api_key", "devin_org_id"), compile.is_done),
     Stage("upgrade", provision.upgrade, ("hai_api_key",), provision.tool_ready),
 ]
@@ -43,7 +46,7 @@ NAMES = [st.name for st in STAGES]
 
 def run_pipeline(run: Run, s: Settings, *, start: str | None = None, stop: str | None = None,
                  only: list[str] | None = None, force: bool = False, auto: bool = False, wait: bool = True,
-                 log: Callable[[str], None] = print) -> str:
+                 guided: bool = False, log: Callable[[str], None] = print) -> str:
     """Renvoie "done", "waiting" (Devin ou relecture humaine), "blocked" (réglage manquant) ou "failed"."""
     first = NAMES.index(start) if start else 0
     last = NAMES.index(stop) + 1 if stop else len(STAGES)
@@ -66,7 +69,7 @@ def run_pipeline(run: Run, s: Settings, *, start: str | None = None, stop: str |
         run.set_status(stage.name, "running")
         log(f"▶ {stage.name}")
         started = time.time()
-        extra = {"auto": auto} if stage.name == "review" else {"wait": wait} if stage.name == "compile" else {}
+        extra = {"review": {"auto": auto}, "compile": {"wait": wait}, "trial": {"guided": guided}}.get(stage.name, {})
         try:
             state = stage.fn(run, s, lambda msg: log(f"  {msg}"), **extra)
         except Exception as err:

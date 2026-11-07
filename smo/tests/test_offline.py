@@ -100,7 +100,23 @@ def test_real_stages_wait_for_review_then_block_on_keys(run, s):
     assert run.has("skill.md") and run.status()["enrich"]["state"] == "skipped"
     run.write_text("skill.approved", "ok\n")
     assert orchestrator.run_pipeline(run, s, log=lambda _: None) == "blocked"
-    assert run.status()["replay"]["missing"] == ["HAI_API_KEY", "SITE_LOGIN", "SITE_PASSWORD"]
+    assert run.status()["provision"]["missing"] == ["HAI_API_KEY"]
+    assert orchestrator.NAMES[-4:] == ["provision", "trial", "compile", "upgrade"]
+
+
+def test_skill_from_repo_wins_once_devin_wrote_it(run, s):
+    run.write_text("skill.md", "# relue par l'humain\n")
+    assert provision.skill_body(run, s).startswith("# relue")
+    folder = s.tools_dir / skill.tool_name(run)
+    folder.mkdir(parents=True)
+    (folder / "skill.md").write_text("# corrigée par Devin\n")
+    assert provision.skill_body(run, s).startswith("# corrigée")
+
+
+def test_repair_brief_has_every_field():
+    from string import Template
+    Template((config.ROOT / "docs" / "DEVIN_REPAIR.md").read_text()).substitute(
+        tool_name="x", repo="r", url="u", details="d", contract="{}", skill="k", trace="t")
 
 
 def test_pipeline_blocks_on_missing_key(s):
@@ -157,10 +173,29 @@ def test_tool_registry_and_h_definitions(s):
     assert drifts == [("run_x", "bouton renommé")]
 
 
+def test_turn_stops_on_idle_event_even_if_status_flips_back():
+    class FakeHandle:
+        def stream(self, **kwargs):
+            assert kwargs["until"] == "terminal" and kwargs["from_index"] == 3
+            yield {"type": "AgentEvent", "data": {"kind": "answer_event", "answer": "ok"}}
+            yield {"type": "ActiveStateChangeEvent", "data": {"state": "idle"}}
+            raise AssertionError("lu au-delà de l'événement idle")   # le statut serait repassé « running »
+
+    events = [{}, {}, {}]
+    h.drain(FakeHandle(), events)
+    assert len(events) == 5 and h.is_idle_event(events[-1])
+
+
+def test_localhost_opens_the_browser_on_this_machine():
+    assert h.session_agent("h/web-surfer-pro", "https://compta.example") == "h/web-surfer-pro"
+    local = h.session_agent("h/web-surfer-pro", "http://127.0.0.1:8042", model="holo4-27b")
+    assert local.environments[0].host == "user_device" and local.model == "holo4-27b"
+
+
 def test_provision_environment_and_definitions():
     from hai_agents.types.tool_definition import ToolDefinition
-    assert provision.environment("http://localhost:3000").host == "user_device"
-    assert provision.environment("https://compta.example").host == "cloud"
+    assert h.web_environment("http://localhost:3000").host == "user_device"
+    assert h.web_environment("https://compta.example").host == "cloud"
     defs = runtime_tools.definitions(runtime_tools.h_tools({}, config.load(), on_drift=lambda *_: None))
     assert [ToolDefinition(**d).name for d in defs] == ["report_drift", "check_supplier", "verify_entry"]
 
