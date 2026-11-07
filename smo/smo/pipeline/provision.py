@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from typing import Callable
 
-from hai_agents import Environment_Web
 from hai_agents.types.tool_definition import ToolDefinition
 
 from ..clients import h
@@ -43,11 +42,6 @@ def agent_name(run: Run, s: Settings) -> str:
     return f"{s.agent_prefix}{slug(meta.owner, max_len=12)}-{slug(meta.task, max_len=40)}"
 
 
-def environment(url: str) -> Environment_Web:
-    """Site en ligne → navigateur cloud H ; localhost → navigateur sur la machine qui fait tourner SMO."""
-    return Environment_Web(id="web", host="user_device" if h.is_local(url) else "cloud", start_url=url)
-
-
 def skill_body(run: Run, s: Settings) -> str:
     """La Skill du repo si Devin l'a écrite ou corrigée, sinon celle relue par l'humain."""
     in_repo = s.tools_dir / tool_name(run) / "skill.md"
@@ -63,7 +57,7 @@ def create(run: Run, s: Settings, log: Callable[[str], None]) -> None:
     client = h.client(s.hai_api_key)
     h.upsert_skill(client, sname, description=f"À utiliser pour : {meta.task} dans {meta.software_url}.",
                    body=skill_body(run, s))
-    env = environment(meta.software_url)
+    env = h.web_environment(meta.software_url)   # localhost : Chrome de cette machine (user_device)
     spec = dict(
         description=f"{meta.task}, appris d'une démonstration de {meta.owner}.",
         environments=[env],

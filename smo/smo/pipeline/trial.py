@@ -37,6 +37,7 @@ def run(run: Run, s: Settings, log: Callable[[str], None], guided: bool = False)
     tools = h_tools({tname: compiled[tname]} if agent.tool_ready else {}, s, on_drift=lambda *d: drifts.append(d))
 
     client = h.client(s.hai_api_key)
+    h.prepare_local_browser(meta.software_url)
     handle = client.start_session(agent=agent.agent_name, messages=task, timezone="Europe/Paris")
     run.write_json("trial_session.json", {"session_id": handle.id})
     log(f"session H {handle.id} (agent {agent.agent_name})")

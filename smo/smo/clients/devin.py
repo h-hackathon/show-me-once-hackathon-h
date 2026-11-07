@@ -53,6 +53,10 @@ class Devin:
     def list_sessions(self, limit: int = 1) -> httpx.Response:
         return self.http.get("/sessions", params={"limit": limit})
 
+    def whoami(self) -> httpx.Response:
+        """Identité du token (service user ou token personnel) et son org ; ne demande aucune permission."""
+        return self.http.get(f"{API}/self")
+
     def wait(self, devin_id: str, timeout_s: float = 2700, poll_s: float = 30,
              on_update: Callable[[dict], None] | None = None) -> dict:
         deadline = time.monotonic() + timeout_s

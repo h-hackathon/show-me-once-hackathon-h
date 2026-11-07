@@ -174,15 +174,15 @@ def test_tool_registry_and_h_definitions(s):
 
 
 def test_localhost_opens_the_browser_on_this_machine():
-    assert h.browser_overrides("https://compta.example") == {}
-    overrides = h.browser_overrides("http://127.0.0.1:8042")["overrides"]
-    assert overrides["agent.environments[kind=web].host"] == "user_device"
+    assert h.session_agent("h/web-surfer-pro", "https://compta.example") == "h/web-surfer-pro"
+    local = h.session_agent("h/web-surfer-pro", "http://127.0.0.1:8042", model="holo4-27b")
+    assert local.environments[0].host == "user_device" and local.model == "holo4-27b"
 
 
 def test_provision_environment_and_definitions():
     from hai_agents.types.tool_definition import ToolDefinition
-    assert provision.environment("http://localhost:3000").host == "user_device"
-    assert provision.environment("https://compta.example").host == "cloud"
+    assert h.web_environment("http://localhost:3000").host == "user_device"
+    assert h.web_environment("https://compta.example").host == "cloud"
     defs = runtime_tools.definitions(runtime_tools.h_tools({}, config.load(), on_drift=lambda *_: None))
     assert [ToolDefinition(**d).name for d in defs] == ["report_drift", "check_supplier", "verify_entry"]
 

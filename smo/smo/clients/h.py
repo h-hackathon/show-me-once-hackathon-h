@@ -3,12 +3,13 @@ from __future__ import annotations
 
 import base64
 import json
+import subprocess
 import time
 from pathlib import Path
 from typing import Any
 
 import httpx
-from hai_agents import Client, ConflictError
+from hai_agents import Agent, Client, ConflictError, Environment_Web
 
 from ..models import Trace, TraceStep
 
@@ -17,22 +18,59 @@ def client(api_key: str) -> Client:
     return Client(api_key=api_key)
 
 
-def web_environment(start_url: str, host: str = "cloud") -> dict:
-    """Navigateur cloud H (site en ligne), ou navigateur sur ta machine (host="user_device", site en localhost)."""
-    return {"kind": "web", "id": "web", "host": host, "start_url": start_url}
-
-
 def is_local(url: str) -> bool:
     return "localhost" in url or "127.0.0.1" in url
 
 
-def browser_overrides(url: str) -> dict:
-    """Garde l'agent H tel quel, mais ouvre son navigateur sur cette machine si le site est en localhost
-    (le navigateur cloud de H ne voit pas localhost). Syntaxe : SessionRequest.overrides."""
+def web_environment(start_url: str) -> Environment_Web:
+    """Site en ligne → navigateur cloud H ; localhost → Chrome sur cette machine (le cloud H ne voit pas localhost)."""
+    return Environment_Web(id="web", host="user_device" if is_local(start_url) else "cloud", start_url=start_url)
+
+
+CHROME_DEBUG_PORT = 9222   # le port où le SDK H cherche un Chrome local
+CHROME_PROFILE = Path.home() / ".smo" / "chrome-profile"
+GOOGLE_CHROME = Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
+
+
+def _debugger_listening(port: int) -> bool:
+    try:
+        return httpx.get(f"http://127.0.0.1:{port}/json/version", timeout=2, trust_env=False).status_code == 200
+    except httpx.HTTPError:
+        return False
+
+
+def prepare_local_browser(url: str) -> None:
+    """Site en localhost : le SDK H pilote un Chrome local par son port de débogage, et lance Google Chrome
+    s'il le trouve. Sans Google Chrome, on démarre le Chromium de Playwright (installé pour les tools) sur ce port."""
+    if not is_local(url) or GOOGLE_CHROME.exists() or _debugger_listening(CHROME_DEBUG_PORT):
+        return
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as p:
+        binary = p.chromium.executable_path
+    CHROME_PROFILE.mkdir(parents=True, exist_ok=True)
+    subprocess.Popen([binary, f"--remote-debugging-port={CHROME_DEBUG_PORT}", f"--user-data-dir={CHROME_PROFILE}",
+                      "--no-first-run", "--no-default-browser-check", url],
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                     start_new_session=True)
+    deadline = time.monotonic() + 20
+    while not _debugger_listening(CHROME_DEBUG_PORT):
+        if time.monotonic() > deadline:
+            raise RuntimeError(f"Chromium n'a pas ouvert le port {CHROME_DEBUG_PORT} en 20 s")
+        time.sleep(0.25)
+
+
+def session_agent(agent: str, url: str, model: str | None = None) -> str | Agent:
+    """L'agent à lancer pour travailler sur `url`.
+
+    En ligne : l'agent du catalogue tel quel (ex. h/web-surfer-pro). En localhost : un agent inline dont le
+    navigateur est déclaré user_device. Le SDK ne lance le Chrome local que s'il lit user_device dans la spec
+    de l'agent : un `overrides` sur l'hôte est ignoré (et la session attend un navigateur qui ne vient jamais).
+    """
     if not is_local(url):
-        return {}
-    return {"overrides": {"agent.environments[kind=web].host": "user_device",
-                          "agent.environments[kind=web].start_url": url}}
+        return agent
+    spec = Agent(name="smo-local-web", description="Agent web SMO sur un site en localhost.",
+                 environments=[web_environment(url)])
+    return spec.model_copy(update={"model": model}) if model else spec
 
 
 def as_dict(event: Any) -> dict:

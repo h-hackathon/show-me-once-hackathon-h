@@ -6,6 +6,58 @@
 
 ## Le parcours (vision validée le 7 nov.)
 
+```mermaid
+flowchart TD
+    subgraph A["Apprendre, une fois"]
+        CAP["Capture<br/>vidéo + voix"] --> GL["Gladia<br/>transcription horodatée"]
+        CAP --> FR["ffmpeg<br/>une capture d'écran par phrase"]
+        GL --> UND["Holo, Models API<br/>info digeste + skill.md"]
+        FR --> UND
+        LK["Linkup, en option<br/>vérifie les règles dites"] -.-> UND
+        UND --> REV{"Relecture humaine<br/>ou --auto"}
+    end
+    subgraph B["Tester"]
+        REV --> PROV["Agent custom créé dans H<br/>avec la Skill, sans tool"]
+        PROV --> TRIAL["L'agent fait la tâche<br/>en computer use"]
+        TRIAL --> TRACE[("Trace : écrans, actions,<br/>ce qui est enregistré")]
+    end
+    subgraph C["Compiler"]
+        TRACE --> DEVIN["Devin<br/>tool + contrat d'interface<br/>+ tests + skill.md"]
+        DEVIN --> PR["PR GitHub<br/>relue puis fusionnée"]
+        PR --> UP["Agent mis à jour<br/>Skill + custom tool"]
+    end
+    subgraph D["Exploiter, à chaque run"]
+        UP --> RUN["Run de l'agent"]
+        RUN --> PRE{"precheck :<br/>interface inchangée ?"}
+        PRE -- oui --> TOOL["run_tool<br/>script déterministe"]
+        PRE -- non --> CU["Reprise en computer use<br/>avec la Skill"]
+        TOOL -- échec --> CU
+        TOOL -- OK --> VER["verify_entry<br/>état réel dans le logiciel"]
+        CU --> VER
+        VER --> DONE(["Brouillon prêt<br/>validation humaine"])
+    end
+    CU -- "report_drift + nouvelle trace" --> DEVIN
+```
+
+Qui exécute le tool quand Catherine lance son agent depuis H :
+
+```mermaid
+sequenceDiagram
+    actor C as Catherine
+    participant H as Agent custom (H)
+    participant S as Serveur SMO
+    participant L as Logiciel (Comptarex)
+    C->>H: lance l'agent depuis son interface H
+    H->>S: demande un tool (webhook, le serveur se rattache)
+    S->>L: precheck puis run_tool (Playwright)
+    L-->>S: brouillon enregistré
+    S-->>H: résultat du tool
+    H->>L: vérifie à l'écran
+    H-->>C: rapport : fait, signalé ou échec
+```
+
+Les mêmes étapes, telles que les enchaîne `uv run smo` :
+
 ```
 1. Capture          vidéo + voix (1 fois)
 2. Mise en forme    transcribe (Gladia) · frames (ffmpeg) · understand (LLM : Holo, Models API) · enrich (Linkup, option)
