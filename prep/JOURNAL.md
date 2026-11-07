@@ -200,3 +200,12 @@ L'agent traite ensuite 10 demandes, s'arrête **avant** chaque remboursement et 
 **Question jury attendue** : « Stripe a une API, pourquoi un agent qui clique ? »
 → Parce que la valeur, ce sont les **règles de la personne**, pas l'appel API ; et la même méthode marche
 sur n'importe quel outil sans API (back-office maison, portail fournisseur…). Stripe n'est que la vitrine.
+
+## Samedi 7 nov, 11h — Ce que disent les ressources sponsors (poussées par Thomas)
+
+- **Aucune track ni grille de jugement** dans les ressources. Prix (page Luma) : podium 5 000 / 3 000 / 2 000 €,
+  Best Use of Gladia 1 000 €, Best Use of Devin 1 000 €. **Pas de prix Stripe** : Stripe offre seulement 250 $ de crédits par participant.
+- **Nouveau sponsor : Linkup** (API de recherche web) → utile pour vérifier un fournisseur ou un client sur le web.
+- **Plateforme H** : « browser profiles » et « vaults » → l'agent peut garder une session connectée
+  et des identifiants sans les écrire dans la consigne (règle le risque de connexion Stripe/Odoo).
+- **H a ses propres « Skills »** (hub.hcompany.ai/agents-api/skills/overview) → notre Skill doit être une vraie Skill H.
