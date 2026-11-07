@@ -14,6 +14,10 @@ name=$1
 service="tool-${name//_/-}"            # nom DNS du réseau privé (tool-<nom>.railway.internal) : pas de _
 sha=${GITHUB_SHA:-$(git rev-parse HEAD)}
 [ -f "tools/$name/tool.py" ] || { echo "tools/$name/tool.py introuvable" >&2; exit 1; }
+if grep -qE '^KIND *= *"desktop"' "tools/$name/tool.py"; then
+  echo "$name : tool de bureau (accessibilité macOS), il tourne sur le Mac, pas sur Railway"
+  exit 0
+fi
 
 # 1. Le contexte de build : le runtime commun et ce tool seul, copié en tool/
 build=$(mktemp -d)

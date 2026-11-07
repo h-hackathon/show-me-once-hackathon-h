@@ -28,10 +28,9 @@ jobs:
       SITE_URL: ${{ secrets.SITE_URL }}
       SITE_LOGIN: ${{ secrets.SITE_LOGIN }}
       SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
-      SITE_DOSSIER: ${{ secrets.SITE_DOSSIER }}
       SITE_ADMIN_TOKEN: ${{ secrets.SITE_ADMIN_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Tools à déployer

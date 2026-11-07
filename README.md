@@ -33,6 +33,8 @@ Le nom du dossier est `NAME` : lettres minuscules, chiffres et `_`.
   - il s'arrête toujours avant l'action finale (brouillon, réponse préparée) : jamais « Valider », jamais « Soumettre ».
 - **Statuts renvoyés par `run`** : `draft_saved`, `duplicate`, `flagged` ou `error`, plus les valeurs saisies.
 - **`cfg`** lit les variables d'environnement en attributs : `cfg.site_url` → `SITE_URL`, et `None` si elle est absente.
+- **Dossier** : aucun n'est imposé. S'il faut en choisir un, c'est un champ de `Params` (le client indiqué sur la pièce), passé à `login(page, cfg, dossier)`.
+- **Appli de bureau** : avec `KIND = "desktop"`, on écrit `precheck(cfg)` et `run(params, cfg)` sans page, en passant par l'accessibilité macOS. Ces tools tournent sur le Mac : le déploiement Railway les saute.
 - **Le Docker est déjà écrit** : il est commun à tous les tools, donc ne pas écrire de Dockerfile.
 - Ne modifier que `tools/<nom>/`. Le runtime `h_tools/` est commun : y toucher redéploie tous les tools.
 
@@ -77,14 +79,14 @@ Redéployer à la main : Actions → deploy → « Run workflow » (tools sépar
 ### Mise en place (une fois)
 
 - **Projet Railway** dédié aux tools. Il contient le watcher SMO et les services `tool-*`.
-- **Variables partagées** du projet : `SITE_URL`, `SITE_LOGIN`, `SITE_PASSWORD`, `SITE_DOSSIER`, `SITE_ADMIN_TOKEN`.
+- **Variables partagées** du projet : `SITE_URL`, `SITE_LOGIN`, `SITE_PASSWORD`, `SITE_ADMIN_TOKEN`.
 - **Secrets GitHub** du repo (`gh secret set NOM -R Tomoroshimaru/h-tools`) :
 
 | Secret | Rôle |
 |---|---|
 | `RAILWAY_API_TOKEN` | token de **compte** Railway (un token de projet ne peut pas créer de service) |
 | `RAILWAY_PROJECT_ID` | le projet Railway des tools |
-| `SITE_URL`, `SITE_LOGIN`, `SITE_PASSWORD`, `SITE_DOSSIER`, `SITE_ADMIN_TOKEN` | les tests, contre le logiciel en ligne |
+| `SITE_URL`, `SITE_LOGIN`, `SITE_PASSWORD`, `SITE_ADMIN_TOKEN` | les tests, contre le logiciel en ligne |
 | `SMO_WATCHER_URL`, `SMO_SERVER_TOKEN` | attendre que le watcher voie le nouveau commit (optionnel) |
 | `SMO_SERVER_URL` | prévenir SMO pour qu'il mette l'agent H à jour (optionnel) |
 

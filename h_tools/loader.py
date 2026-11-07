@@ -19,6 +19,7 @@ class Tool:
     params: type[BaseModel]
     module: ModuleType
     path: Path
+    kind: str = "web"   # web : precheck(page, cfg) / run(page, params, cfg) ; desktop : sans page, sur le Mac (pas de Railway)
 
     @property
     def contract(self) -> dict:
@@ -36,6 +37,8 @@ class Tool:
                 "skill": self.skill}
 
     def precheck(self, cfg) -> dict:
+        if self.kind == "desktop":
+            return guarded(lambda _: self.module.precheck(cfg), None)
         return with_page(lambda page: self.module.precheck(page, cfg))
 
     def run(self, cfg, **values: Any) -> dict:
@@ -43,6 +46,8 @@ class Tool:
             params = self.params(**values)
         except ValidationError as err:
             return {"ok": False, "status": "error", "error": f"paramètres invalides : {err}"}
+        if self.kind == "desktop":
+            return guarded(lambda _: self.module.run(params, cfg), None)
         return with_page(lambda page: self.module.run(page, params, cfg))
 
 
@@ -70,7 +75,8 @@ def load_tool(folder: Path) -> Tool:
     spec = importlib.util.spec_from_file_location(f"h_tools_loaded.{folder.name}", folder / "tool.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return Tool(name=module.NAME, description=module.DESCRIPTION, params=module.Params, module=module, path=folder)
+    return Tool(name=module.NAME, description=module.DESCRIPTION, params=module.Params, module=module, path=folder,
+                kind=getattr(module, "KIND", "web"))
 
 
 def input_schema(model: type[BaseModel]) -> dict:

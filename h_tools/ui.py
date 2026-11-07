@@ -24,16 +24,18 @@ def locate(page: Page, anchor: dict) -> Locator:
     raise ValueError(f"Ancre invalide : {anchor}")
 
 
-def login(page: Page, cfg, *, path: str = "/login", email: str = "E-mail", password: str = "Mot de passe",
-          submit: str = "Se connecter") -> None:
-    """Connexion par les libellés visibles (ceux du logiciel cible : à adapter), puis ouverture de SITE_DOSSIER s'il y en a un."""
+def login(page: Page, cfg, dossier: str | None = None, *, path: str = "/login", email: str = "E-mail",
+          password: str = "Mot de passe", submit: str = "Se connecter") -> None:
+    """Connexion par les libellés visibles (ceux du logiciel cible : à adapter), puis ouverture du dossier de la pièce.
+
+    Aucun dossier n'est imposé : le tool le reçoit en paramètre (le client indiqué sur la pièce)."""
     page.goto(f"{cfg.site_url}{path}")
     page.get_by_label(email).fill(cfg.site_login)
     page.get_by_label(password).fill(cfg.site_password)
     page.get_by_role("button", name=submit).click()
     page.wait_for_load_state()
-    if cfg.site_dossier:
-        page.get_by_text(cfg.site_dossier, exact=False).first.click()
+    if dossier:
+        page.get_by_text(dossier, exact=False).first.click()
         page.wait_for_load_state()
 
 
