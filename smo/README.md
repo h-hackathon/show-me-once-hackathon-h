@@ -72,16 +72,16 @@ On peut refaire une étape : `uv run smo run <id> --only understand --force`.
 
 `uv run smo serve` lance un seul programme qui fait trois choses :
 1. **La page d'enregistrement** (`/`) et son API (`/api/...`) : reçoit la vidéo, fait tourner le pipeline, montre l'avancement.
-2. **Le worker des tools** : quand un agent `smo-*` appelle un tool, sa session H attend. Le serveur l'apprend par le webhook H (`/webhooks/h`), ou en interrogeant H toutes les 5 s. Il se rattache alors à la session et exécute le tool (`precheck_*`, `run_*`, `report_drift`, `check_supplier`…), même si la session a été lancée depuis l'interface H.
-3. **Les tools compilés par Devin** (`tools/<nom>/`), chargés au démarrage. Une PR fusionnée déclenche un redéploiement, puis `smo run <id> --only upgrade --force` pousse le tool dans l'agent H.
+2. **Le worker des tools** : quand un agent `smo-*` appelle un tool, sa session H attend. Le serveur le voit en interrogeant H toutes les 5 s, se rattache à la session et exécute le tool (`precheck_*`, `run_*`, `report_drift`, `check_supplier`…), même si la session a été lancée depuis l'interface H. Le webhook H (`/webhooks/h`) est facultatif : plus rapide, mais il demande une adresse publique et un secret.
+3. **Le relais vers h-tools** : les tools écrits par Devin vivent dans le repo h-tools, et chacun tourne dans son propre service Railway. SMO les appelle sur le réseau privé du projet (`http://tool-<nom>.railway.internal:8080`, `/describe`, `/precheck`, `/run`). Après chaque déploiement, h-tools vérifie `GET /tools/<nom>` puis appelle `POST /hooks/tool-deployed` : SMO remet à jour les agents H qui attendent ce tool, avec la Skill du repo et le bloc commun.
 
-Où il tourne :
-- **En ligne sur Railway**, pour l'agent web : la page en HTTPS, les webhooks H, le navigateur cloud de H sur le site en ligne.
-- **Sur le Mac**, pour l'agent bureau : l'environnement desktop de H pilote la souris et l'écran de la machine où tourne `smo serve`. Railway n'a pas de bureau.
+Où il tourne, et quels agents il sert (`SMO_WORKER_KINDS`, réglé tout seul) :
+- **En ligne sur Railway** : l'agent **web**. La page en HTTPS, le navigateur cloud de H sur le site en ligne, les tools d'h-tools.
+- **Sur le Mac** : l'agent **bureau**. L'environnement desktop de H pilote la souris et l'écran de la machine où tourne `smo serve`, et les tools de bureau tournent là aussi, chargés depuis un clone d'h-tools (`H_TOOLS_DIR`). Une appli de bureau se capture donc depuis http://localhost:8000. Si `SMO_SERVER_URL` est défini (un serveur en ligne existe), le Mac ne sert que le bureau, pour qu'aucun appel ne soit servi deux fois.
 
 ## Déployer sur Railway
 
-1. **Service** : dans le projet Railway (là où tourne Comptarex), New › GitHub Repo › `show-me-once-prep`.
+1. **Service**, dans **le projet Railway d'h-tools** : c'est là que tournent les services `tool-*`, et seul un service du même projet les joint sur le réseau privé. New › GitHub Repo › `show-me-once-prep`.
    - Settings › Source : **Root Directory = `smo`** ; branche `main` une fois la PR fusionnée, ou `feat/smo` pour tester avant.
    - Le reste vient de `railway.toml` : construction par le `Dockerfile`, vérification de santé sur `/health`, redémarrage en cas d'échec.
 2. **Volume** : clic droit sur le service › Attach Volume, monté sur **`/data`**. Sans lui, les runs et les cartes sont effacés à chaque redéploiement.
@@ -89,10 +89,12 @@ Où il tourne :
    - toutes les clés et les `SITE_*` du `.env` ;
    - **`SMO_RUNS_DIR=/data/runs`** ;
    - **`SMO_SERVER_TOKEN`** : 16 caractères minimum, par exemple `openssl rand -hex 24`. Sans lui, le serveur refuse de démarrer en ligne.
-   - Les `DESKTOP_*` sont inutiles sur Railway.
-4. **Adresse** : Settings › Networking › Generate Domain. La mettre dans `SMO_SERVER_URL`, sur Railway et dans le `.env` local.
-5. **Webhook H**, depuis le Mac, une fois le service en ligne : `uv run smo webhook`. Il affiche `H_WEBHOOK_SECRET` une seule fois : à ajouter aux variables Railway (cela redéploie).
+   - inutiles sur Railway : `DESKTOP_*`, `H_TOOLS_DIR`.
+4. **Adresse** : Settings › Networking › Generate Domain. La mettre dans `SMO_SERVER_URL`, sur Railway et dans le `.env` du Mac.
+5. **h-tools** : dans les secrets GitHub du repo h-tools, `SMO_SERVER_URL` et `SMO_WATCHER_URL` = cette adresse, `SMO_SERVER_TOKEN` = le même jeton. Le déploiement d'un tool attend alors que SMO voie le nouveau commit, puis le prévient.
 6. **Vérifier** : `uv run smo doctor` (ligne « Serveur SMO »), puis ouvrir l'adresse dans Chrome ; la page demande le jeton.
+
+Sur le Mac, pour l'agent bureau : `gh repo clone Tomoroshimaru/h-tools ~/h-tools`, puis `H_TOOLS_DIR=~/h-tools` dans le `.env`, et `uv run smo serve`.
 
 ## Autres commandes
 

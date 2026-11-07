@@ -36,6 +36,9 @@ ENV = {
     "h_webhook_secret": "H_WEBHOOK_SECRET",
     "auto_repair": "SMO_AUTO_REPAIR",
     "runs_dir": "SMO_RUNS_DIR",
+    "h_tools_dir": "H_TOOLS_DIR",
+    "tool_url": "SMO_TOOL_URL",
+    "worker_kinds": "SMO_WORKER_KINDS",
 }
 
 DEFAULTS = {
@@ -77,7 +80,9 @@ class Settings:
     h_webhook_secret: str | None
     auto_repair: bool              # interface changée → Devin relancé tout seul
     runs_dir: Path
-    tools_dir: Path
+    tools_dir: Path                # les tools d'h-tools : <H_TOOLS_DIR>/tools si un clone local existe
+    tool_url: str | None           # adresse des tools déployés (défaut : réseau privé Railway du projet)
+    worker_kinds: tuple[str, ...]  # agents servis par ce serveur : web, desktop, ou les deux
 
     def require(self, *names: str) -> None:
         missing = [ENV[n] for n in names if not getattr(self, n)]
@@ -123,5 +128,16 @@ def load() -> Settings:
         h_webhook_secret=env("h_webhook_secret"),
         auto_repair=env("auto_repair") == "1",
         runs_dir=Path(env("runs_dir")),
-        tools_dir=ROOT / "tools",
+        tools_dir=Path(env("h_tools_dir")) / "tools" if env("h_tools_dir") else ROOT / "tools",
+        tool_url=env("tool_url"),
+        worker_kinds=worker_kinds(env("worker_kinds"), env("server_url")),
     )
+
+
+def worker_kinds(value: str | None, server_url: str | None) -> tuple[str, ...]:
+    """Railway sert l'agent web ; le Mac sert l'agent bureau (et aussi le web s'il n'y a pas de serveur en ligne)."""
+    if value:
+        return tuple(k.strip() for k in value.split(",") if k.strip())
+    if os.environ.get("RAILWAY_ENVIRONMENT"):
+        return ("web",)
+    return ("desktop",) if server_url else ("web", "desktop")

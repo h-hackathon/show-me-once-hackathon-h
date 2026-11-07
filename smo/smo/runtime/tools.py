@@ -1,11 +1,15 @@
-"""Les tools compilés par Devin (tools/<nom>/tool.py), exposés à l'agent H comme custom tools.
+"""Les tools écrits par Devin dans h-tools, exposés à l'agent H comme custom tools.
 
 Côté H, un custom tool est exécuté par le programme qui suit la session : ici le worker SMO.
 Chaque tool donne deux custom tools : precheck_<nom> (l'interface a-t-elle changé ?) et run_<nom>.
+Où on le trouve (find) : dans un clone local d'h-tools (H_TOOLS_DIR, obligatoire pour les tools de bureau, qui
+tournent sur le Mac), sinon déployé par h-tools sur Railway (remote.py, réseau privé du projet).
 """
 from __future__ import annotations
 
 import importlib.util
+import os
+import sys
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
@@ -16,6 +20,7 @@ from hai_agents import Tool
 from pydantic import BaseModel
 
 from . import builtins
+from .remote import RemoteTool
 from .ui import contract_of
 
 
@@ -31,6 +36,16 @@ class CompiledTool:
     @property
     def contract(self) -> dict:
         return getattr(self.module, "CONTRACT", None) or contract_of(str(self.path / "tool.py"))
+
+    @property
+    def schema(self) -> dict:
+        return input_schema(self.params)
+
+    @property
+    def skill(self) -> str | None:
+        """La Skill du repo d'h-tools (tools/<nom>/skill.md), que Devin fait évoluer."""
+        path = self.path / "skill.md"
+        return path.read_text(encoding="utf-8") if path.exists() else None
 
     def precheck(self, cfg) -> dict:
         if self.kind == "desktop":
@@ -66,6 +81,9 @@ def with_page(fn: Callable) -> dict:
 
 
 def load_tool(folder: Path) -> CompiledTool:
+    repo = str(folder.resolve().parent.parent)   # les tools d'h-tools importent h_tools.ui : la racine du clone
+    if repo not in sys.path:
+        sys.path.insert(0, repo)
     spec = importlib.util.spec_from_file_location(f"smo_tools.{folder.name}", folder / "tool.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -80,21 +98,36 @@ def load_tools(tools_dir: Path) -> dict[str, CompiledTool]:
     return {t.name: t for t in map(load_tool, folders)}
 
 
+def kind_of(name: str) -> str:
+    return "desktop" if name.endswith("_desktop") else "web"
+
+
+def find(s, name: str):
+    """Le tool `name`, s'il existe : clone local d'h-tools d'abord, sinon le service déployé (outils web, en ligne)."""
+    folder = s.tools_dir / name
+    if (folder / "tool.py").exists():
+        return load_tool(folder)
+    if kind_of(name) == "web" and (os.environ.get("RAILWAY_ENVIRONMENT") or s.tool_url):
+        return RemoteTool.fetch(name, s.tool_url)
+    return None
+
+
 def input_schema(model: type[BaseModel]) -> dict:
     schema = model.model_json_schema()
     schema.pop("title", None)
     return schema
 
 
-def _precheck(tool: CompiledTool, cfg) -> dict:
+def _precheck(tool, cfg) -> dict:
     return tool.precheck(cfg)
 
 
-def _run(tool: CompiledTool, cfg, **values: Any) -> dict:
+def _run(tool, cfg, **values: Any) -> dict:
     return tool.run(cfg, **values)
 
 
-def h_tools(compiled: dict[str, CompiledTool], cfg, on_drift: Callable[[str, str], None]) -> list[Tool]:
+def h_tools(compiled: dict, cfg, on_drift: Callable[[str, str], None]) -> list[Tool]:
+    """compiled : {nom: CompiledTool (local) ou RemoteTool (déployé)} ; tous ont name, description, schema."""
     out: list[Tool] = []
     for t in compiled.values():
         out.append(Tool(
@@ -106,7 +139,7 @@ def h_tools(compiled: dict[str, CompiledTool], cfg, on_drift: Callable[[str, str
             name=f"run_{t.name}",
             description=f"{t.description} Saisie automatique et déterministe, qui s'arrête en brouillon. "
                         "Renvoie status = draft_saved | duplicate | flagged | error.",
-            input_schema=input_schema(t.params), fn=partial(_run, t, cfg)))
+            input_schema=t.schema, fn=partial(_run, t, cfg)))
     return out + builtins.tools(cfg, on_drift)
 
 

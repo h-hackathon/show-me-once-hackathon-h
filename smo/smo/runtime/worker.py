@@ -1,7 +1,10 @@
 """Le worker répond aux custom tools des agents SMO, même quand la session est lancée depuis l'interface H.
 
-Catherine lance son agent dans H → la session passe en « awaiting_tool_results » → H prévient le serveur
-(webhook) ou le worker le voit en interrogeant H → le worker se rattache à la session et exécute les tools.
+Catherine lance son agent dans H → la session passe en « awaiting_tool_results » → le worker le voit en
+interrogeant H toutes les 5 s (ou par le webhook H, facultatif) → il se rattache à la session et exécute les tools.
+
+Chaque serveur ne sert que ses agents (SMO_WORKER_KINDS) : Railway les agents -web, le Mac les agents -desktop,
+dont les tools pilotent l'écran du Mac. Ainsi un appel n'est jamais servi deux fois.
 """
 from __future__ import annotations
 
@@ -13,7 +16,7 @@ from datetime import datetime
 
 from ..clients import h
 from ..config import Settings
-from .tools import h_tools, load_tools
+from .tools import find, h_tools
 
 
 log = logging.getLogger("smo.worker")
@@ -28,13 +31,22 @@ class Worker:
         s.require("hai_api_key")
         self.s = s
         self.h = h.client(s.hai_api_key)
-        self.compiled = load_tools(s.tools_dir)
         self.active: set[str] = set()
         self.drifts: dict[str, list[dict]] = {}
         self.lock = threading.Lock()
 
     def is_managed(self, agent: str | None) -> bool:
-        return bool(agent) and agent.startswith(self.s.agent_prefix)
+        return (bool(agent) and agent.startswith(self.s.agent_prefix)
+                and any(agent.endswith(f"-{kind}") for kind in self.s.worker_kinds))
+
+    def tools_for(self, agent: str | None) -> dict:
+        """Les tools que l'agent déclare dans H (precheck_<nom>, run_<nom>), trouvés en local ou en ligne."""
+        declared = [t.name for t in (self.h.agents.get_agent(agent).tools or [])] if agent else []
+        names = {d.removeprefix("run_") for d in declared if d.startswith("run_")}
+        found = {name: tool for name in names if (tool := find(self.s, name))}
+        for missing in names - set(found):
+            log.warning("tool %s introuvable (pas déployé, ou pas dans H_TOOLS_DIR)", missing)
+        return found
 
     def agent_of(self, session_id: str) -> str | None:
         agent = self.h.sessions.get_session(session_id).request.agent
@@ -55,7 +67,7 @@ class Worker:
 
         log.info("session %s : rattachée", session_id)
         try:
-            tools = h_tools(self.compiled, self.s, on_drift)
+            tools = h_tools(self.tools_for(self.agent_of(session_id)), self.s, on_drift)
             for _ in self.h.session(session_id).stream(tools=tools, until="settled", timeout_seconds=3600):
                 pass
         except Exception:

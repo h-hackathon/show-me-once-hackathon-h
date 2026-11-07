@@ -16,7 +16,9 @@ from hai_agents.webhook_verification import WebhookVerificationError, verify_web
 
 from ..config import load
 from .auth import require_safe_deployment, token_checker
-from .tools import input_schema, load_tools
+from ..pipeline.provision import runs_with_tool, upgrade
+from .remote import RemoteTool
+from .tools import find, load_tools
 from .web import WEB_DIR, router_for
 from .worker import Worker
 
@@ -50,21 +52,47 @@ def page() -> FileResponse:
 
 @app.get("/health")
 def health() -> dict:
-    return {"ok": True, "worker": worker is not None, "tools": sorted(load_tools(settings.tools_dir)),
-            "serving": sorted(worker.active) if worker else []}
+    return {"ok": True, "worker": worker is not None, "serves": list(settings.worker_kinds),
+            "local_tools": sorted(load_tools(settings.tools_dir)), "serving": sorted(worker.active) if worker else []}
 
 
 @app.get("/tools", dependencies=[Depends(check_token)])
 def list_tools() -> list[dict]:
-    return [{"name": t.name, "description": t.description, "params": input_schema(t.params)}
+    """Les tools du clone local d'h-tools (les tools déployés se consultent un par un : /tools/<nom>)."""
+    return [{"name": t.name, "description": t.description, "params": t.schema}
             for t in load_tools(settings.tools_dir).values()]
 
 
 def _tool(name: str):
-    tool = load_tools(settings.tools_dir).get(name)
+    tool = find(settings, name)
     if tool is None:
-        raise HTTPException(404, f"Tool inconnu : {name}")
+        raise HTTPException(404, f"Tool introuvable : {name} (pas déployé, ou pas dans H_TOOLS_DIR)")
     return tool
+
+
+@app.get("/tools/{name}", dependencies=[Depends(check_token)])
+def tool_info(name: str) -> dict:
+    """Le tool vu par SMO : h-tools attend ici le commit (sha) qu'il vient de déployer."""
+    tool = _tool(name)
+    return {"name": tool.name, "description": tool.description, "sha": getattr(tool, "sha", None) or "local",
+            "source": "déployé" if isinstance(tool, RemoteTool) else "local"}
+
+
+@app.post("/hooks/tool-deployed", dependencies=[Depends(check_token)])
+def tool_deployed(body: dict) -> dict:
+    """h-tools vient de déployer un tool : chaque agent qui l'attend reçoit le tool et la Skill du repo."""
+    name = body.get("tool") or ""
+    runs = [r for r in runs_with_tool(settings, name)]
+    for run_ in runs:
+        threading.Thread(target=_upgrade, args=(run_,), daemon=True).start()
+    return {"tool": name, "sha": body.get("sha"), "runs": [r.id for r in runs]}
+
+
+def _upgrade(run_) -> None:
+    try:
+        upgrade(run_, settings, log=lambda msg: logging.getLogger("smo.hooks").info("%s : %s", run_.id, msg))
+    except Exception:
+        logging.getLogger("smo.hooks").exception("mise à jour de %s", run_.id)
 
 
 @app.post("/tools/{name}/precheck", dependencies=[Depends(check_token)])

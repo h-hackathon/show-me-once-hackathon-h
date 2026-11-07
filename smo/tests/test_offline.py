@@ -119,8 +119,10 @@ def test_skill_from_repo_wins_once_devin_wrote_it(run, s):
     assert provision.skill_body(run, s).startswith("# relue")
     folder = s.tools_dir / skill.tool_name(run)
     folder.mkdir(parents=True)
+    (folder / "tool.py").write_text(TOOL_SOURCE.replace('"saisir_une_facture_fournisseur"', f'"{folder.name}"'))
     (folder / "skill.md").write_text("# corrigée par Devin\n")
-    assert provision.skill_body(run, s).startswith("# corrigée")
+    tool = runtime_tools.find(s, folder.name)
+    assert tool is not None and provision.skill_body(run, s, tool).startswith("# corrigée")
 
 
 def test_repair_brief_has_every_field():
@@ -346,6 +348,52 @@ def test_docs_summary_feeds_holo(run):
     assert "Documentation publique du logiciel (Linkup)" in prompt
 
 
+def test_deployed_tool_is_described_and_unreachable_one_returns_an_error():
+    import httpx
+    from smo.runtime.remote import RemoteTool, tool_url
+    assert tool_url(None, "saisir_facture_web") == "http://tool-saisir-facture-web.railway.internal:8080"
+
+    def handler(request):
+        assert request.url.path == "/saisir-facture-web/describe"
+        return httpx.Response(200, json={"name": "saisir_facture_web", "description": "Saisit", "sha": "abc",
+                                         "params": {"type": "object", "properties": {"reference": {"type": "string"}}},
+                                         "skill": "# Skill d'h-tools"})
+
+    tool = RemoteTool.fetch("saisir_facture_web", "http://tools.test/{name}", transport=httpx.MockTransport(handler))
+    assert tool.sha == "abc" and tool.skill.startswith("# Skill") and "reference" in tool.schema["properties"]
+    down = RemoteTool(name="x", description="", schema={}, skill=None, sha=None, base_url="http://127.0.0.1:9")
+    assert down.precheck(None)["status"] == "error"
+    assert RemoteTool.fetch("x", "http://127.0.0.1:9") is None
+
+
+def test_find_prefers_the_local_clone_and_only_reaches_deployed_web_tools(s, monkeypatch):
+    from smo.runtime import tools as rt
+    calls = []
+    monkeypatch.setattr(rt.RemoteTool, "fetch", classmethod(lambda cls, name, url=None: calls.append(name) or "remote"))
+    monkeypatch.delenv("RAILWAY_ENVIRONMENT", raising=False)
+    assert rt.find(s, "saisir_web") is None and calls == []              # en local, sans SMO_TOOL_URL : rien à joindre
+    monkeypatch.setenv("RAILWAY_ENVIRONMENT", "production")
+    assert rt.find(s, "saisir_web") == "remote" and rt.find(s, "saisir_desktop") is None   # le bureau, jamais en ligne
+
+
+def test_each_server_serves_only_its_kind_of_agent():
+    from smo.config import worker_kinds
+    assert worker_kinds(None, None) == ("web", "desktop")                 # Mac seul
+    assert worker_kinds(None, "https://smo.up.railway.app") == ("desktop",)   # Mac + Railway : le Mac garde le bureau
+    assert worker_kinds("web", None) == ("web",)
+
+
+def test_tool_deployed_hook_upgrades_the_waiting_agents(monkeypatch):
+    from fastapi.testclient import TestClient
+    from smo.runtime import server
+    upgraded = []
+    monkeypatch.setattr(server, "runs_with_tool", lambda s, name: [type("R", (), {"id": f"run-{name}"})()])
+    monkeypatch.setattr(server, "_upgrade", lambda run_: upgraded.append(run_.id))
+    with TestClient(server.app) as client:
+        body = client.post("/hooks/tool-deployed", json={"tool": "saisir_web", "sha": "abc"}).json()
+    assert body["runs"] == ["run-saisir_web"]
+
+
 def test_turn_stops_on_idle_event_even_if_status_flips_back():
     class FakeHandle:
         def stream(self, **kwargs):
@@ -393,4 +441,4 @@ def test_server_health_without_keys(monkeypatch):
     from smo.runtime import server
     with TestClient(server.app) as client:
         body = client.get("/health").json()
-    assert body["ok"] is True and isinstance(body["tools"], list)
+    assert body["ok"] is True and isinstance(body["local_tools"], list)

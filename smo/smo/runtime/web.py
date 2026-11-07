@@ -143,6 +143,9 @@ def router_for(s: Settings) -> tuple[APIRouter, Runner]:
                              software_name: str = Form("")) -> dict:
         if software_kind not in ("web", "desktop"):
             raise HTTPException(422, "software_kind : web ou desktop")
+        if software_kind not in s.worker_kinds:
+            raise HTTPException(422, f"Ce serveur gère les agents {', '.join(s.worker_kinds)} : une appli de bureau "
+                                     "se capture depuis le SMO du Mac (uv run smo serve, http://localhost:8000).")
         folder = Path(tempfile.mkdtemp())
         dest = folder / f"capture{Path(video.filename or '').suffix or '.webm'}"
         size = 0

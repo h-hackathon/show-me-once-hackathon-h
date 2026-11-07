@@ -98,11 +98,13 @@ def repair(tool: str, session_id: str, details: str, s: Settings, log: Callable[
     out = s.runs_dir / "_repairs" / f"{datetime.now():%Y%m%d-%H%M%S}-{tool}"
     trace = h.build_trace(h.client(s.hai_api_key), session_id, out / "trace", s.hai_api_key)
     (out / "trace.json").write_text(trace.model_dump_json(indent=2), encoding="utf-8")
+    # Clone local d'h-tools si on en a un (Mac) ; sinon (Railway) Devin les lit dans le repo
     contract, skill_md = s.tools_dir / tool / "ui_contract.json", s.tools_dir / tool / "skill.md"
+    in_repo = f"(à lire dans tools/{tool}/ du repo h-tools)"
     prompt = Template((ROOT / "docs" / "DEVIN_REPAIR.md").read_text(encoding="utf-8")).substitute(
         tool_name=tool, repo=s.devin_repo or "ce repo", url=s.site_url or "le logiciel", details=details,
-        contract=contract.read_text(encoding="utf-8") if contract.exists() else "{}",
-        skill=skill_md.read_text(encoding="utf-8") if skill_md.exists() else "(pas encore de skill.md : crée-la)",
+        contract=contract.read_text(encoding="utf-8") if contract.exists() else in_repo,
+        skill=skill_md.read_text(encoding="utf-8") if skill_md.exists() else in_repo,
         trace=trace_text(trace))
     (out / "devin_prompt.md").write_text(prompt, encoding="utf-8")
     api = devin_api.Devin(s.devin_api_key, s.devin_org_id)

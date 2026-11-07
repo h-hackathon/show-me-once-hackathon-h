@@ -60,6 +60,17 @@ def test_capture_review_and_approve(client, s):
     assert run.has("skill.approved") and client.started == [run_id, run_id]
 
 
+def test_online_server_refuses_desktop_captures(s, monkeypatch):
+    router, runner = router_for(dataclasses.replace(s, worker_kinds=("web",)))
+    monkeypatch.setattr(runner, "start", lambda run: True)
+    app = FastAPI()
+    app.include_router(router)
+    with TestClient(app) as c:
+        r = c.post("/api/captures", files={"video": ("capture.webm", b"x", "video/webm")},
+                   data={"task": "t", "url": "COMPTAREX Cabinet 6.2", "software_kind": "desktop"})
+    assert r.status_code == 422 and "Mac" in r.json()["detail"]
+
+
 def test_unknown_run_and_token(client, s):
     assert client.get("/api/runs/inconnu").status_code == 404
     router, _ = router_for(dataclasses.replace(s, server_token="secret"))

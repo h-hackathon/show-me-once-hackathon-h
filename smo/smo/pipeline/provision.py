@@ -14,7 +14,7 @@ from ..clients import h
 from ..config import Settings
 from ..models import CompileResult, Provisioned, RunReport
 from ..runs import Run, slug
-from ..runtime.tools import definitions, h_tools, load_tools
+from ..runtime.tools import definitions, find, h_tools
 from . import target
 from .skill import skill_name, tool_name, with_common_block
 
@@ -35,21 +35,19 @@ def skill_description(run: Run) -> str:
     return f"À utiliser pour : {run.meta.task} dans {run.meta.software_url}."
 
 
-def skill_body(run: Run, s: Settings) -> str:
-    """La Skill du repo si Devin l'a écrite ou corrigée, sinon celle relue par l'humain."""
-    in_repo = s.tools_dir / tool_name(run) / "skill.md"
-    return (in_repo if in_repo.exists() else run.file("skill.md")).read_text(encoding="utf-8")
+def skill_body(run: Run, s: Settings, tool=None) -> str:
+    """La Skill d'h-tools si Devin l'a écrite ou corrigée (tools/<nom>/skill.md), sinon celle relue par l'humain."""
+    return (tool.skill if tool is not None and tool.skill else None) or run.file("skill.md").read_text(encoding="utf-8")
 
 
 def create(run: Run, s: Settings, log: Callable[[str], None]) -> None:
     meta, tname, sname = run.meta, tool_name(run), skill_name(run)
-    compiled = load_tools(s.tools_dir)
-    ready = tname in compiled
-    tools = h_tools({tname: compiled[tname]} if ready else {}, s, on_drift=lambda *_: None)
+    tool = find(s, tname)   # clone local d'h-tools, sinon le service déployé
+    tools = h_tools({tname: tool} if tool else {}, s, on_drift=lambda *_: None)
 
     client = h.client(s.hai_api_key)
     h.upsert_skill(client, sname, description=skill_description(run),
-                   body=with_common_block(skill_body(run, s), tname if ready else None))
+                   body=with_common_block(skill_body(run, s, tool), tname if tool else None))
     env = target.environment(meta)   # web : navigateur (cloud, ou Chrome de cette machine en localhost) ; bureau : le Mac
     spec = dict(
         description=f"{meta.task}, appris d'une démonstration de {meta.owner} ({meta.software_kind}).",
@@ -65,18 +63,35 @@ def create(run: Run, s: Settings, log: Callable[[str], None]) -> None:
     name = agent_name(run, s)
     h.upsert_agent(client, name, **spec)
     run.write_model("agent.json", Provisioned(agent_name=name, skill_name=sname, tools=[t.name for t in tools],
-                                              tool_ready=ready, environment=env.model_dump(mode="json")))
-    log(f"agent {name} : {'tool ' + tname if ready else 'computer use (tool pas encore fusionné)'}")
+                                              tool_ready=tool is not None, environment=env.model_dump(mode="json")))
+    log(f"agent {name} : {'tool ' + tname if tool else 'computer use (tool pas encore déployé)'}")
 
 
 def upgrade(run: Run, s: Settings, log: Callable[[str], None]) -> str | None:
-    """Une fois la PR de Devin fusionnée (et `git pull` fait), l'agent reçoit son tool et la Skill du repo.
-    Après une réparation : `smo run <id> --only upgrade --force` repousse tool et Skill dans H."""
-    if tool_name(run) not in load_tools(s.tools_dir):
+    """Le tool est déployé par h-tools (ou présent dans le clone local) : l'agent reçoit le tool et la Skill du repo.
+
+    Appelé tout seul quand h-tools prévient SMO (POST /hooks/tool-deployed), ou à la main :
+    `smo run <id> --only upgrade --force`.
+    """
+    if find(s, tool_name(run)) is None:
         pr = run.read_model("compile.json", CompileResult).pr_url if run.has("compile.json") else None
-        log(f"tool pas encore là : fusionne la PR {pr or '(voir compile.json)'}, git pull, puis `smo run {run.id}`")
+        log(f"tool pas encore déployé : PR {pr or '(voir compile.json)'} → fusion dans h-tools → déploiement "
+            f"automatique, qui prévient SMO")
         return "waiting"
     return create(run, s, log)
+
+
+def runs_with_tool(s: Settings, tool: str) -> list[Run]:
+    """Les runs dont l'agent attend (ou a déjà) ce tool : ce sont eux qu'un déploiement met à jour."""
+    if not s.runs_dir.exists():
+        return []
+    found = []
+    for folder in sorted(s.runs_dir.iterdir()):
+        if (folder / "meta.json").exists() and (folder / "agent.json").exists():
+            run = Run(folder)
+            if tool_name(run) == tool:
+                found.append(run)
+    return found
 
 
 def tool_ready(run: Run) -> bool:

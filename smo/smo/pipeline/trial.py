@@ -20,7 +20,7 @@ from ..clients import h, holo
 from ..config import Settings
 from ..models import Attempt, FrameSet, Provisioned, Trace, Trial, Verdict
 from ..runs import Run
-from ..runtime.tools import h_tools, load_tools
+from ..runtime.tools import find, h_tools
 from ..runtime.worker import SERVED_ELSEWHERE
 from . import replay, target
 from .provision import skill_description
@@ -85,9 +85,9 @@ def judge(run: Run, s: Settings, trace: Trace, piece: str) -> Verdict:
 
 def attempt(run: Run, s: Settings, n: int, agent: Provisioned, task: str, log: Callable[[str], None]) -> Trace:
     """Un essai : nouvelle session de l'agent, ses tools servis ici, trace dans trials/<n>/."""
-    compiled = load_tools(s.tools_dir)
     tname = tool_name(run)
-    tools = h_tools({tname: compiled[tname]} if agent.tool_ready else {}, s, on_drift=lambda *_: None)
+    tool = find(s, tname) if agent.tool_ready else None
+    tools = h_tools({tname: tool} if tool else {}, s, on_drift=lambda *_: None)
     client = h.client(s.hai_api_key)
     target.prepare(run.meta)
     handle = client.start_session(agent=agent.agent_name, messages=task, timezone="Europe/Paris")
