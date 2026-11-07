@@ -2,7 +2,7 @@
 # Sans l'option desktop de hai-agents : sous Linux elle tire evdev (sources seules, il faudrait gcc), et le serveur
 # n'en a pas besoin (l'agent bureau travaille dans l'environnement desktop configuré dans H).
 FROM python:3.12-slim
-COPY --from=ghcr.io/astral-sh/uv:0.13.1 /uv /usr/local/bin/uv
+RUN pip install --no-cache-dir uv==0.13.1   # via PyPI : ghcr.io est parfois injoignable depuis Railway
 ENV PYTHONUNBUFFERED=1 UV_LINK_MODE=copy
 WORKDIR /app
 

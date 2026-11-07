@@ -219,3 +219,12 @@ sur n'importe quel outil sans API (back-office maison, portail fournisseur…). 
 - **Principe** : le déterminisme est dans les **règles et les contrôles**, pas dans les clics.
   L'agent H regarde l'écran et s'adapte (computer use) ; la Skill lui dit quoi faire et pourquoi ;
   les **custom tools** (notre code) font les vérifications exactes et la pause « demander à l'humain ».
+
+## Samedi 7 nov, soir — Mise en ligne
+
+- **Comptarex** en ligne sur Railway (Dockerfile de l'équipe, secrets neufs, volume `/data`).
+- **SMO** en ligne sur Railway. Deux corrections du Dockerfile : compilateur C pour `evdev` (dépendance Linux du SDK H),
+  et `uv` installé depuis PyPI (ghcr.io était injoignable depuis Railway).
+- **Outils Sportiva** (repo de Noah, chargebacks) : une seule app Python → un seul service Railway, géré par Noah.
+- **h-tools** (repo de Tom) : ne se déploie pas depuis Railway. C'est GitHub Actions qui crée un service `tool-<nom>`
+  à chaque tool fusionné par Devin, dans le projet Railway de SMO. Secrets GitHub configurés ; Thomas gère les variables du logiciel cible.
