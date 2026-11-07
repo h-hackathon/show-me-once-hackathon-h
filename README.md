@@ -1,7 +1,8 @@
 # h-tools : les tools des agents SMO
 
-Devin écrit ici un dossier par tâche apprise (`tools/<nom>/`). Chaque tool tourne dans son propre conteneur Railway.
-Le watcher SMO lui transmet les appels des agents H, `precheck_<nom>` et `run_<nom>`.
+Devin écrit ici un dossier par tâche apprise (`tools/<nom>/`). Chaque tool tourne dans son propre conteneur Railway,
+dans ce projet Railway (séparé de celui de SMO). Le serveur SMO lui transmet les appels des agents H,
+`precheck_<nom>` et `run_<nom>`, par son adresse publique et avec le mot de passe commun (`SMO_SERVER_TOKEN`).
 
 ```
 Devin ─PR─▶ tests verts ─▶ Devin fusionne ─▶ deploy.yml : tests ─▶ service absent ? railway add
@@ -66,20 +67,19 @@ Un écran s'atteint par `path` (URL relative au logiciel), ou par `via` (une lis
 2. relance leurs tests, car rien n'empêche côté GitHub une fusion en rouge ;
 3. lance `scripts/deploy_tool.sh <nom>` pour chacun :
    - il assemble le contexte de build (Dockerfile, `h_tools/`, et `tools/<nom>/` copié en `tool/`) ;
-   - si le service `tool-<nom>` n'existe pas, il le crée (`railway add`), avec `PORT=8080` et les variables de `env.txt` en référence aux variables partagées du projet ;
+   - si le service `tool-<nom>` n'existe pas, il le crée (`railway add`), avec `PORT=8080`, `SMO_SERVER_TOKEN` et les variables de `env.txt`, en référence aux variables partagées du projet ;
    - il lance `railway up` ;
-   - il attend que le watcher voie le nouveau commit ;
-   - il prévient SMO (`POST /hooks/tool-deployed`).
+   - il donne au service une adresse publique (`railway domain`, port 8080) ;
+   - il l'annonce à SMO (`POST /hooks/tool-deployed` avec le nom, le commit et l'adresse), et recommence jusqu'à ce que SMO voie le nouveau commit. SMO met alors l'agent H à jour.
 
-L'adresse d'un tool se déduit de son nom : `http://tool-<nom>.railway.internal:8080`, avec `-` à la place de `_`.
-Le conteneur n'a pas de domaine public. Seul le watcher le joint, à condition d'être dans le même projet et le même environnement Railway.
+Le tool n'accepte que les appels portant le mot de passe commun avec SMO (en-tête `X-SMO-Token`), sauf `/health`.
 
 Redéployer à la main : Actions → deploy → « Run workflow » (tools séparés par des espaces, vide = tous).
 
 ### Mise en place (une fois)
 
-- **Projet Railway** dédié aux tools. Il contient le watcher SMO et les services `tool-*`.
-- **Variables partagées** du projet : `SITE_URL`, `SITE_LOGIN`, `SITE_PASSWORD`, `SITE_ADMIN_TOKEN`.
+- **Projet Railway** dédié aux tools : il ne contient que les services `tool-*`, créés au premier déploiement de chacun.
+- **Variables partagées** du projet (Settings › Shared Variables) : `SITE_URL`, `SITE_LOGIN`, `SITE_PASSWORD`, `SITE_ADMIN_TOKEN` (le logiciel sur lequel travaillent les tools) et `SMO_SERVER_TOKEN` (le mot de passe commun avec SMO).
 - **Secrets GitHub** du repo (`gh secret set NOM -R Tomoroshimaru/h-tools`) :
 
 | Secret | Rôle |
@@ -87,8 +87,8 @@ Redéployer à la main : Actions → deploy → « Run workflow » (tools sépar
 | `RAILWAY_API_TOKEN` | token de **compte** Railway (un token de projet ne peut pas créer de service) |
 | `RAILWAY_PROJECT_ID` | le projet Railway des tools |
 | `SITE_URL`, `SITE_LOGIN`, `SITE_PASSWORD`, `SITE_ADMIN_TOKEN` | les tests, contre le logiciel en ligne |
-| `SMO_WATCHER_URL`, `SMO_SERVER_TOKEN` | attendre que le watcher voie le nouveau commit (optionnel) |
-| `SMO_SERVER_URL` | prévenir SMO pour qu'il mette l'agent H à jour (optionnel) |
+| `SMO_SERVER_URL` | l'adresse publique du serveur SMO, à qui chaque tool est annoncé |
+| `SMO_SERVER_TOKEN` | le mot de passe commun avec SMO (le même que la variable partagée) |
 
 Attention : les tests remettent le logiciel à zéro (`/api/admin/reset`). Il vaut mieux une instance de test que celle de la démo.
 

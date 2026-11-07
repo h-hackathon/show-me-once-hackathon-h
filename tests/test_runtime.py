@@ -45,6 +45,7 @@ def fake_tool(tmp_path, monkeypatch) -> Path:
     (folder / "VERSION").write_text("abc123\n")
     monkeypatch.setattr(loader, "with_page", lambda fn: loader.guarded(fn, None))   # pas de navigateur
     monkeypatch.setenv("SITE_URL", "compta.example.com/")
+    monkeypatch.delenv("SMO_SERVER_TOKEN", raising=False)   # ouvert, sauf dans le test du jeton
     return folder
 
 
@@ -73,6 +74,16 @@ def test_server(fake_tool):
     assert client.post("/precheck").json()["ok"] is True
     assert client.post("/run", json={"reference": "F-1"}).json() == {
         "status": "draft_saved", "reference": "F-1", "site": "https://compta.example.com"}
+
+
+def test_server_only_answers_smo_when_a_token_is_set(fake_tool, monkeypatch):
+    monkeypatch.setenv("SMO_SERVER_TOKEN", "x" * 24)
+    client = TestClient(server.build_app(fake_tool))
+    assert client.get("/health").status_code == 200                       # /health reste ouvert
+    assert client.get("/describe").status_code == 401
+    assert client.post("/run", json={"reference": "A"}).status_code == 401
+    ok = client.get("/describe", headers={"X-SMO-Token": "x" * 24})
+    assert ok.status_code == 200 and ok.json()["sha"] == "abc123"
 
 
 def test_server_turns_failures_into_results(fake_tool):
