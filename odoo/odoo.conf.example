@@ -1,0 +1,11 @@
+[options]
+db_host = db
+db_user = odoo
+db_password = odoo
+; mot de passe maître (gestion des bases) : généré par setup_odoo.sh
+admin_passwd = A_GENERER
+; derrière le tunnel Cloudflare (https)
+proxy_mode = True
+; cache le gestionnaire de bases sur l'URL publique
+list_db = False
+dbfilter = ^hackathon$

@@ -1,0 +1,6 @@
+hai-agents[cli]   # SDK Agents API H
+pydantic>=2
+python-dotenv
+httpx
+imageio-ffmpeg    # ffmpeg intégré : son + images de la vidéo de démo
+pymupdf           # PDF → PNG / texte (macOS : repli automatique sur sips)
