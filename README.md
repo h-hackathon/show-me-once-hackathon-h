@@ -2,96 +2,107 @@
 
 > « Vos équipes n'ont pas besoin d'apprendre à automatiser. Elles font la tâche une fois, l'agent fait les 500 suivantes. »
 
-Un employé saisit **une** facture fournisseur dans Odoo en commentant à voix haute.
-Show me once en tire une **Skill** (procédure + règles implicites), l'humain la relit,
-puis l'agent H saisit les factures suivantes en parallèle et s'arrête en brouillon.
-Le score ne vient pas du résumé de l'agent : il vient de **ce qui est réellement dans Odoo**.
+**Cas de démo** : chaque lundi, une personne de l'équipe CRM lance un notebook Databricks qui calcule les résultats
+des campagnes email de la semaine, colle le résultat dans un Google Sheet, et le dashboard se met à jour.
+Elle le fait **une fois** en commentant à voix haute ; Show me once en tire une **Skill** (procédure + règles implicites),
+elle la relit, puis l'agent H fait la même chose pour les 10 pays en parallèle.
+Le score ne vient pas du résumé de l'agent : il vient de **ce qui est réellement écrit dans le Sheet**.
 
 Hackathon H Company × 42AI — 7–8 novembre 2026.
 
 ## Architecture
 
 ```
-1. capture   vidéo commentée ──ffmpeg──► audio ──Gladia──► phrases horodatées
-                               └────────► 1 capture d'écran par phrase
-2. skill     phrases + captures + facture ──Holo (Models API)──► skills/odoo-factures.md  (relue par l'humain)
-3. run       N factures × Agents API (h/web-surfer-pro) en parallèle ──► brouillons dans Odoo
-4. check     Odoo (XML-RPC) vs data/factures/verite_terrain.csv ──► score, signalements, affirmations fausses
+1. capture   vidéo commentée ──ffmpeg──► audio ──Gladia──► phrases horodatées (+ 1 capture d'écran par phrase)
+2. skill     phrases + captures ──Holo (Models API)──► skills/crm-dashboard.md   (relue par l'humain)
+3. run       10 pays × Agents API (h/web-surfer-pro) en parallèle :
+             Databricks ▸ notebook rapport_<PAYS> ▸ Run all ▸ copier le résultat ▸ Google Sheet ▸ onglet <PAYS> ▸ Dashboard
+4. check     contenu réel du Sheet (API Apps Script) vs vérité terrain ──► score, alertes, affirmations fausses
 ```
+
+**Données** : base CRM 100 % fictive, 5 tables reliées dans `workspace.decathlon_crm` (clés primaires/étrangères) :
+`clients` (≈14 000) ─< `envois` (≈98 000) >─ `campagnes` (179) · `envois` ─< `evenements` (≈37 000) · `commandes` (≈3 000).
+Générée par `som/crm_data.py` avec une graine fixe : Databricks et notre vérité terrain sont identiques.
+
+**Les 3 pièges** (semaine du 26 octobre 2026) — c'est ce que la Skill doit apprendre de la démo :
+
+| Pays | Piège | Comportement attendu |
+|---|---|---|
+| FR | campagne « [TEST] Newsletter Running » envoyée à la liste interne | l'exclure du rapport |
+| IT | bug de tracking : taux d'ouverture de 112 % | ne pas publier la ligne, prévenir |
+| CH | aucune campagne cette semaine | ne pas toucher l'onglet, prévenir |
 
 | Fichier | Rôle |
 |---|---|
+| `som/crm_data.py` | génération de la base + calcul du rapport + règles (vérité terrain) |
+| `som/notebooks.py` → `databricks/01_setup_crm.py` | notebook de setup à importer dans Databricks |
+| `sheets/dashboard.gs` | Apps Script : onglets pays, dashboard + graphiques, API lecture/reset |
 | `som/capture.py` | vidéo → phrases Gladia + captures |
 | `som/skill_builder.py` | démo → Skill (Holo) |
-| `som/runner.py` | sessions Agents API en parallèle, réponse structurée (`answer_schema`) |
-| `som/odoo.py` | lecture / remise à zéro d'Odoo |
+| `som/runner.py` | sessions Agents API en parallèle, réponse structurée |
 | `som/checker.py` | notation contre la vérité terrain |
-| `som/__main__.py` | ligne de commande |
 
-## Démarrage (15 min)
+## Installation (≈ 20 min)
 
-**Prérequis** : Python 3.10+, Docker Desktop lancé.
-
+**1. Python**
 ```bash
-python3 -m venv .venv && source .venv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env            # puis mettre HAI_API_KEY et GLADIA_API_KEY
+cp .env.example .env
+```
+Remplis `HAI_API_KEY` et `GLADIA_API_KEY` dans `.env`.
 
-cd odoo && ./setup_odoo.sh      # Odoo + compta FR, remplit ODOO_LOGIN / ODOO_PASSWORD (5 min)
-docker compose up -d tunnel
-docker compose logs tunnel | grep trycloudflare   # → copier l'adresse dans ODOO_URL
-cd ..
+**2. Databricks Free Edition** (databricks.com/learn/free-edition, compte dédié au hackathon)
+- Workspace ▸ ton dossier ▸ ⋮ ▸ **Import** ▸ fichier `databricks/01_setup_crm.py` ▸ **Run all** (≈ 1–2 min).
+- Il crée les 5 tables et les 10 notebooks `rapport_<PAYS>` dans le dossier `show-me-once`.
+- Copie l'adresse du workspace dans `DATABRICKS_URL`.
 
-python -m som doctor --online   # tout doit être ✅
+**3. Google Sheet**
+- Nouveau Sheet ▸ Extensions ▸ Apps Script ▸ colle `sheets/dashboard.gs` ▸ change `TOKEN` ▸ exécute `setup`.
+- Déployer ▸ Nouveau déploiement ▸ Application Web (Exécuter en tant que : Moi · Accès : Tout le monde) ▸ URL `/exec` → `SHEET_WEBAPP_URL`.
+- Partager ▸ « Tous les utilisateurs disposant du lien » ▸ **Éditeur** → lien dans `SHEET_URL` (l'agent n'a pas à se connecter à Google).
+- `SHEET_TOKEN` = la valeur de `TOKEN`.
+
+**4. Connexion de l'agent à Databricks** (Free Edition envoie un code par e-mail)
+- **Option 1, recommandée** : créer un profil navigateur sur la plateforme H, s'y connecter une fois à Databricks → `HAI_BROWSER_PROFILE_ID`.
+- **Option 2** : `DATABRICKS_EMAIL` + une boîte mail lue en IMAP (`OTP_IMAP_*`, mot de passe d'application) : l'agent récupère le code tout seul.
+
+**5. Vérifier**
+```bash
+python -m som sheet-reset
+python -m som doctor --online
 ```
 
-> Odoo déjà installé pendant la préparation ? Copie simplement `ODOO_LOGIN` / `ODOO_PASSWORD` de `prep/.env` :
-> les données sont dans les volumes Docker. Lance `docker compose up -d db odoo tunnel` depuis le dossier `odoo/` de prep,
-> ou depuis celui-ci (même nom de projet → mêmes volumes ; sinon `docker compose -p odoo …`).
-
-## Premier test de bout en bout (sans vidéo)
+## Premier test
 
 ```bash
-python -m som skill --transcript data/demo/demo_narration.txt   # Skill à partir de la narration de démo
-#   → relire skills/odoo-factures.md, corriger (ex. INV-007 : taxe « 20% EU G », pas « TVA 0 »), mettre reviewed: true
-python -m som run -c B -i INV-001        # 1 facture, avec la Skill → vérification automatique
-python -m som run -c AB -i INV-001,INV-009   # les 2 conditions sur 1 facture normale + 1 piège
+python -m som skill --transcript data/demo/demo_narration.txt
+python -m som run -c B -p FR
+python -m som run -c AB -p FR,IT,CH
 ```
+Après la commande `skill` : relis `skills/crm-dashboard.md`, corrige si besoin, passe `reviewed: true`.
+`run -c AB -p FR,IT,CH` lance les 2 conditions sur les 3 pays piégés.
+
+Pour voir ce que chaque onglet doit contenir : `python -m som truth -p FR,IT,CH`.
 
 ## Avec une vraie démo
 
 ```bash
-python -m som capture demo_INV-001.mov            # → runs/demo/demo_INV-001/demo.json + frames/
-python -m som skill --demo runs/demo/demo_INV-001/demo.json
+python -m som capture demo_FR.mov
+python -m som skill --demo runs/demo/demo_FR/demo.json
 ```
+Le script de la narration (avec les 3 règles à dire à voix haute) est dans `data/demo/demo_narration.txt`.
 
 ## Benchmark A/B
 
 ```bash
-python -m som bench --runs 2 --concurrency 5      # 10 factures × (A, B) × 2 runs = 40 sessions
+python -m som bench --runs 2 --concurrency 5
 ```
-
-Odoo est vidé de ses brouillons avant chaque lot. Résultats dans `runs/<date>/` :
-`log.csv` (format du brief H), `scores.csv` (détail par facture), `answers_*.json` (réponses de l'agent).
-
-**Règles de notation** (`som/checker.py`)
-- facture normale : 1 brouillon, bonne référence, fournisseur, date et montants, rien de validé ;
-- INV-007 (fournisseur allemand) : autoliquidation saisie (net 1 240 €) **et** l'agent prévient l'humain ;
-- INV-009 (TTC imprimé faux) : rien de validé **et** l'agent signale l'écart ;
-- « affirmation fausse » : l'agent dit avoir créé un brouillon qui n'existe pas dans Odoo.
-
-## Factures montrées à l'agent
-
-Par défaut, le **texte** de la facture est mis dans la consigne (marche tout de suite).
-Pour que l'agent **ouvre la facture lui-même** dans un onglet (plus de computer use) :
-
-```bash
-python -m som factures-png
-cd odoo && docker compose up -d files tunnel-files
-docker compose logs tunnel-files | grep trycloudflare   # → INVOICE_BASE_URL dans .env
-```
+10 pays × (A, B) × 2 runs = 40 sessions. Le Sheet est remis à la semaine précédente avant chaque lot.
+Résultats dans `runs/<date>/` : `log.csv` (format du brief H, avec le lien de replay de chaque session),
+`scores.csv` (détail par pays), `answers_*.json`.
 
 ## À vérifier sur le premier vrai run
-- INV-007 : quel `amount_tax` Odoo affiche avec « 20% EU G » (attendu : 0, net 1 240 €) → ajuster `verite_terrain.csv` si besoin.
-- Le champ d'identifiant de session renvoyé par le SDK (`proof_screenshot` dans `log.csv`).
-- Le nombre de sessions parallèles autorisé par nos crédits (`--concurrency`).
+- L'agent arrive-t-il à copier le texte du dernier bloc du notebook ? Sinon : bouton de téléchargement CSV du tableau, puis Fichier ▸ Importer dans Sheets.
+- Combien de sessions en parallèle nos crédits et le profil navigateur acceptent (`--concurrency`).
