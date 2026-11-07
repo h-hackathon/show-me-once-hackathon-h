@@ -7,37 +7,23 @@
 ## Le parcours (vision validée le 7 nov.)
 
 ```mermaid
-flowchart TD
-    subgraph A["Apprendre, une fois"]
-        CAP["Capture<br/>vidéo + voix"] --> GL["Gladia<br/>transcription horodatée"]
-        CAP --> FR["ffmpeg<br/>une capture d'écran par phrase"]
-        GL --> UND["Holo, Models API<br/>info digeste + skill.md"]
-        FR --> UND
-        LK["Linkup, en option<br/>vérifie les règles dites"] -.-> UND
-        UND --> REV{"Relecture humaine<br/>ou --auto"}
-    end
-    subgraph B["Tester"]
-        REV --> PROV["Agent custom créé dans H<br/>avec la Skill, sans tool"]
-        PROV --> TRIAL["L'agent fait la tâche<br/>en computer use"]
-        TRIAL --> TRACE[("Trace : écrans, actions,<br/>ce qui est enregistré")]
-    end
-    subgraph C["Compiler"]
-        TRACE --> DEVIN["Devin<br/>tool + contrat d'interface<br/>+ tests + skill.md"]
-        DEVIN --> PR["PR GitHub<br/>relue puis fusionnée"]
-        PR --> UP["Agent mis à jour<br/>Skill + custom tool"]
-    end
-    subgraph D["Exploiter, à chaque run"]
-        UP --> RUN["Run de l'agent"]
-        RUN --> PRE{"precheck :<br/>interface inchangée ?"}
-        PRE -- oui --> TOOL["run_tool<br/>script déterministe"]
-        PRE -- non --> CU["Reprise en computer use<br/>avec la Skill"]
-        TOOL -- échec --> CU
-        TOOL -- OK --> VER["verify_entry<br/>état réel dans le logiciel"]
-        CU --> VER
-        VER --> DONE(["Brouillon prêt<br/>validation humaine"])
-    end
-    CU -- "report_drift + nouvelle trace" --> DEVIN
+flowchart LR
+    A["1 · Capture<br/>vidéo + voix"] --> B["2 · Comprendre<br/>Skill .md"]
+    B --> C["3 · Tester<br/>agent H à l'écran"]
+    C -- trace --> D["4 · Coder<br/>Devin : tool + PR"]
+    D --> E["5 · Exploiter<br/>agent H + tool"]
+    E -- "tool en échec,<br/>interface changée" --> F["6 · Reprendre<br/>agent H à l'écran"]
+    F -- "nouvelle trace" --> D
 ```
+
+| # | Étape | Qui | Ce qui en sort |
+|---|---|---|---|
+| 1 | Capture | Humain + Gladia | ce qui est dit, horodaté, plus une capture d'écran par phrase |
+| 2 | Comprendre | Holo (Models API) | étapes et règles implicites, en Skill .md relisible |
+| 3 | Tester | Agent custom H | il fait la tâche une fois en computer use, ce qui donne la trace des actions réelles |
+| 4 | Coder | Devin | tool déterministe, contrat d'interface, tests et Skill corrigée, dans une PR |
+| 5 | Exploiter | Agent H + tool | precheck, tool, puis contrôle du résultat réel dans le logiciel |
+| 6 | Reprendre | Agent H → Devin | il finit à l'écran, et sa trace renvoie Devin corriger le tool et la Skill |
 
 Qui exécute le tool quand Catherine lance son agent depuis H :
 

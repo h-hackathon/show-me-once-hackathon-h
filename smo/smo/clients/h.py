@@ -166,13 +166,22 @@ def build_trace(h: Client, session_id: str, out_dir: Path, api_key: str, events:
                  steps=steps, answer=answer, agent_view_url=session.agent_view_url)
 
 
-def drain(handle, events: list, timeout_s: float = 600) -> None:
-    """Lit les événements jusqu'à ce que l'agent attende la consigne suivante (idle) ou ait fini.
+def is_idle_event(event: Any) -> bool:
+    d = as_dict(event)
+    return d.get("type") == "ActiveStateChangeEvent" and (d.get("data") or {}).get("state") == "idle"
 
-    Le curseur du SDK = nombre d'événements déjà lus, d'où from_index=len(events).
+
+def drain(handle, events: list, timeout_s: float = 600) -> None:
+    """Lit les événements jusqu'à ce que l'agent attende la consigne suivante ou que la session finisse.
+
+    On s'arrête sur l'événement « idle », pas sur le statut de la session : avec un navigateur local, le statut
+    repasse « running » 0,4 s après « idle » sans nouvelle consigne (vu le 7 nov.), et un arrêt sur statut
+    attend alors jusqu'au délai. Le curseur du SDK = nombre d'événements déjà lus, d'où from_index=len(events).
     """
-    for event in handle.stream(from_index=len(events), until="settled", timeout_seconds=timeout_s):
+    for event in handle.stream(from_index=len(events), until="terminal", timeout_seconds=timeout_s):
         events.append(event)
+        if is_idle_event(event):
+            return
 
 
 def wait_active(handle, timeout_s: float = 30) -> None:
