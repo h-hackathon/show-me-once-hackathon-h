@@ -17,14 +17,17 @@ from ..clients import h, holo
 from ..config import Settings
 from ..models import MapAnswer, SoftwareMap
 from ..runs import Run, slug
+from . import target
 
 
 PROMPT = """Tu cartographies un logiciel avant qu'un agent apprenne la tâche « {task} ».
-Logiciel : {url}. Connexion : e-mail « {login} », mot de passe « {password} ».{dossier}
+Tu travailles dans {where}. Connexion : e-mail « {login} », mot de passe « {password} ».
 Parcours les écrans nécessaires à cette tâche, en LECTURE SEULE : ne crée, ne modifie, n'enregistre et ne valide
 rien ; si un formulaire s'ouvre, n'y saisis rien et quitte-le.
 Pour chaque écran utile, note : son nom (titre visible), son adresse (URL) si tu la vois, comment y arriver depuis
 l'écran précédent (menus, boutons), les libellés exacts des champs et des boutons.
+Si le logiciel demande de choisir un dossier ou une société, note cet écran et comment on choisit, sans en
+privilégier un : l'agent devra gérer tous les dossiers.
 Signale dans notes les pièges vus (écran intermédiaire, fenêtre de confirmation, champ obligatoire).
 Réponds au format demandé."""
 
@@ -51,12 +54,12 @@ def run(run: Run, s: Settings, log: Callable[[str], None]) -> None:
         log(f"carte déjà connue pour ce logiciel et cette tâche : {cached.name}")
         return
 
-    prompt = PROMPT.format(task=meta.task, url=meta.software_url, login=s.site_login, password=s.site_password,
-                           dossier=f"\nAprès la connexion, ouvre le dossier « {s.site_dossier} »." if s.site_dossier else "")
+    login, password = target.credentials(meta, s)
+    prompt = PROMPT.format(task=meta.task, where=target.where(meta), login=login, password=password)
     client = h.client(s.hai_api_key)
-    h.prepare_local_browser(meta.software_url)
-    handle = client.start_session(agent=h.session_agent(s.replay_agent, meta.software_url, s.agent_model),
-                                  messages=prompt, answer_schema=MapAnswer, timezone="Europe/Paris")
+    target.prepare(meta)
+    handle = client.start_session(agent=target.session_agent(meta, s), messages=prompt, answer_schema=MapAnswer,
+                                  timezone="Europe/Paris")
     log(f"cartographe : session H {handle.id}")
     events = list(h.stream_turn(handle, timeout_s=900))
     trace = h.build_trace(client, handle.id, run.file("map"), s.hai_api_key, events=events)

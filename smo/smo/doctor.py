@@ -84,8 +84,11 @@ def checks(s: Settings) -> list[Check]:
         api = Site(s.site_url, s.site_admin_token)
         health = api.health()
         detail = f"ui {health.get('ui_version')}"
-        if s.site_admin_token:
-            detail += f" · {len(api.invoices())} factures en base"
+        if s.site_admin_token:   # facultatif : seulement pour relire ce qui est enregistré
+            try:
+                detail += f" · {len(api.invoices())} factures en base"
+            except httpx.HTTPStatusError as err:
+                return Check("Site compta", "warn", f"{detail} · jeton admin refusé (HTTP {err.response.status_code}, facultatif)")
         return Check("Site compta", "ok", detail)
 
     def server() -> Check:

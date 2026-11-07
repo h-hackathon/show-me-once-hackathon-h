@@ -15,7 +15,7 @@ from ..clients import h
 from ..config import ROOT, Settings
 from ..models import CompileResult, Context, Trace
 from ..runs import Run
-from . import mapping
+from . import docs, mapping
 from .skill import tool_name
 
 
@@ -63,7 +63,8 @@ def run(run: Run, s: Settings, log: Callable[[str], None], wait: bool = True) ->
             task=meta.task, repo=s.devin_repo or "ce repo", tool_name=name, url=meta.software_url,
             sample=meta.sample or "voir la trace", skill=run.file("skill.md").read_text(encoding="utf-8"),
             trace=trace_text(trace), checks=checks_text(context),
-            map=mapping.summary(soft_map) if (soft_map := mapping.load(run)) else "Pas de carte.")
+            map=mapping.summary(soft_map) if (soft_map := mapping.load(run)) else "Pas de carte.",
+            docs=docs.summary(run) or "Pas de documentation publique trouvée.", kind=meta.software_kind)
         run.write_text("devin_prompt.md", prompt)
         shots = sorted(run.file("trace").glob("step-*.png"))
         urls = _attachments(api, [run.file("trace.json"), run.file("trial.json"), *shots[:MAX_ATTACHMENTS - 2]])

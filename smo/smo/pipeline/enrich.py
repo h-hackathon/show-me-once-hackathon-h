@@ -1,4 +1,4 @@
-"""Étape 4 : Linkup vérifie les règles dites par l'humain (et cherche la doc du logiciel s'il est public).
+"""Étape 4 : Linkup vérifie les règles dites par l'humain (la doc du logiciel est cherchée à l'étape docs).
 
 Exemple vécu en préparation : « fournisseur étranger → TVA 0 % » est faux, la bonne saisie est l'autoliquidation.
 """
@@ -40,8 +40,4 @@ def run(run: Run, s: Settings, log: Callable[[str], None]) -> None:
                           sources=linkup.source_urls(answer))
         context.rule_checks.append(check)
         log(f"{check.verdict:>11} : {rule.text}" + (f" → {check.correction}" if check.correction else ""))
-    if meta.software_name:
-        doc = linkup.search(f"Documentation {meta.software_name} : comment {meta.task.lower()}", s.linkup_api_key)
-        context.software_notes.append(doc.get("answer", ""))
-        context.sources += linkup.source_urls(doc)
     run.write_model("context.json", context)

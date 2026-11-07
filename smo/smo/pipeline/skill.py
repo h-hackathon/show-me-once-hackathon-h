@@ -4,9 +4,10 @@ L'humain la relit et la corrige avant la suite (« l'agent apprend votre méthod
 """
 from __future__ import annotations
 
+from string import Template
 from typing import Callable
 
-from ..config import Settings
+from ..config import ROOT, Settings
 from ..models import Context, Procedure, SoftwareMap
 from ..runs import Run, slug
 from . import mapping
@@ -17,13 +18,24 @@ VERB = {"navigate": "Aller sur", "click": "Cliquer sur", "type": "Remplir", "sel
 
 
 def skill_name(run: Run) -> str:
+    """Un agent, une Skill et un tool par type de logiciel (web, desktop) : le nom porte le type."""
     meta = run.meta
-    return f"smo-{slug(meta.owner, max_len=12)}-{slug(meta.task, max_len=40)}"
+    return f"smo-{slug(meta.owner, max_len=12)}-{slug(meta.task, max_len=36)}-{meta.software_kind}"
 
 
 def tool_name(run: Run) -> str:
     """Nom du tool compilé : lettres, chiffres et _ (format imposé par H), aussi nom du dossier tools/<nom>."""
-    return slug(run.meta.task, sep="_", max_len=40)
+    return f"{slug(run.meta.task, sep='_', max_len=36)}_{run.meta.software_kind}"
+
+
+def with_common_block(body: str, tool: str | None) -> str:
+    """La Skill envoyée à H = celle de la tâche + le bloc commun SMO pour utiliser les tools (skills/).
+
+    Le bloc n'est ni montré à la relecture ni écrit par Devin : SMO l'ajoute à chaque envoi dans H.
+    """
+    name = "bloc_commun.md" if tool else "bloc_commun_sans_tool.md"
+    block = Template((ROOT / "skills" / name).read_text(encoding="utf-8"))
+    return body.rstrip() + "\n\n" + block.substitute(precheck=f"precheck_{tool}", run=f"run_{tool}").strip() + "\n"
 
 
 def render(procedure: Procedure, context: Context, url: str, soft_map: SoftwareMap | None = None) -> str:

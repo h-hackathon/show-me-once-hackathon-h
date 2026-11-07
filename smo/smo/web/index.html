@@ -36,9 +36,18 @@
             <label for="task">Tâche</label>
             <input id="task" name="task" required value="Saisir une facture fournisseur">
           </div>
+          <fieldset class="field kind">
+            <legend>Type de logiciel</legend>
+            <label class="choice"><input type="radio" name="software_kind" value="web" checked> Site web</label>
+            <label class="choice"><input type="radio" name="software_kind" value="desktop"> Application de bureau</label>
+          </fieldset>
           <div class="field">
-            <label for="url">Adresse du logiciel</label>
-            <input id="url" name="url" type="url" required placeholder="http://127.0.0.1:8042">
+            <label for="url" id="url-label">Adresse du logiciel</label>
+            <input id="url" name="url" type="url" required placeholder="https://…">
+          </div>
+          <div class="field">
+            <label for="software_name">Nom du logiciel <span class="optional">pour chercher sa documentation</span></label>
+            <input id="software_name" name="software_name" placeholder="Comptarex, Odoo, Pennylane…">
           </div>
           <div class="row">
             <div class="field">

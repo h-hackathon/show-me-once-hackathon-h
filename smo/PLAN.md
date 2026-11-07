@@ -23,7 +23,7 @@ flowchart LR
 | # | Étape | Qui | Ce qui en sort |
 |---|---|---|---|
 | 1 | Capture | Humain + Gladia | ce qui est dit, horodaté, plus une capture d'écran par phrase |
-| 2 | Comprendre | Holo (Models API) + agent H | étapes et règles implicites, en Skill .md relisible ; en parallèle, un agent H cartographie les écrans de la tâche en lecture seule (chemin, libellés exacts), carte gardée par logiciel et par tâche |
+| 2 | Comprendre | Holo (Models API) + agent H + Linkup | étapes et règles implicites, en Skill .md relisible ; en parallèle, un agent H cartographie les écrans de la tâche en lecture seule (chemin, libellés exacts), carte gardée par logiciel et par tâche ; en parallèle aussi, Linkup cherche la documentation publique du logiciel |
 | 3 | Tester | Agent custom H + Holo | l'agent essaie seul en computer use ; Holo compare son écran final à la fin de la démo ; si c'est raté, la leçon entre dans la Skill et un nouvel essai repart de zéro (3 au plus) |
 | 4 | Coder | Devin | tool déterministe, contrat d'interface, tests et Skill corrigée, dans une PR |
 | 5 | Exploiter | Agent H + tool | precheck, tool, puis contrôle du résultat réel dans le logiciel |

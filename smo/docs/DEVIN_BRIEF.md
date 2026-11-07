@@ -1,7 +1,9 @@
 # Mission : compiler la tâche « $task » en tool déterministe
 
 Repo : $repo. Crée le dossier `tools/$tool_name/` en copiant `tools/_template/`, et lis d'abord `tools/README.md`.
-Logiciel cible : $url. Identifiants de test dans tes Secrets Devin : `SITE_URL`, `SITE_LOGIN`, `SITE_PASSWORD`, `SITE_DOSSIER`, `SITE_ADMIN_TOKEN`.
+Logiciel cible ($kind) : $url. Identifiants de test dans tes Secrets Devin : `SITE_URL`, `SITE_LOGIN`, `SITE_PASSWORD` (appli de bureau : `DESKTOP_LOGIN`, `DESKTOP_PASSWORD`).
+Type `web` : Playwright, comme `tools/_template/`. Type `desktop` : `KIND = "desktop"`, `precheck(cfg)` et `run(params, cfg)` sans page, en Python avec l'accessibilité macOS (pyobjc : ApplicationServices) ; les éléments se trouvent par rôle et nom accessible, comme sur le web.
+Aucun dossier n'est imposé : s'il faut en choisir un, c'est celui du client indiqué sur la pièce (un champ de `Params`).
 Pièce traitée pendant la démo : $sample.
 Détails du logiciel (écrans, libellés exacts, API technique, formats) : `docs/CONTRAT_SITE.md`. Les fournisseurs se comparent sans casse ni accents.
 
@@ -25,6 +27,10 @@ $checks
 Écrans, chemin pour y arriver, libellés exacts : la base de `ui_contract.json`.
 
 $map
+
+## 5. Documentation publique du logiciel (Linkup)
+
+$docs
 
 ## À livrer : une seule PR, titre « tool: $tool_name »
 

@@ -4,39 +4,43 @@
                                ├─ oui : cet essai part chez Devin (trace.json)
                                └─ non : la leçon entre dans la Skill, nouvel essai (MAX_ATTEMPTS au plus)
 
-Chaque essai repart de zéro (nouvelle session, logiciel vidé) : on prouve que la Skill seule suffit, comme pour
-les futurs runs de l'agent. Après MAX_ATTEMPTS échecs, l'étape attend l'humain (Skill à corriger, puis relance).
+Chaque essai part d'une nouvelle session : on prouve que la Skill seule suffit, comme pour les futurs runs.
+Chaque essai traite aussi la pièce suivante (démo sur INV-001 → essais sur INV-002, INV-003, INV-004) : le
+logiciel refuse les doublons, et c'est le vrai but (la méthode appliquée à une nouvelle pièce). Rien n'est
+supprimé entre deux essais. Après MAX_ATTEMPTS échecs, l'étape attend l'humain (Skill à corriger, puis relance).
 Option --guided : l'agent est guidé phrase par phrase par ce que l'humain a dit (replay.py).
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Callable
 
 from ..clients import h, holo
-from ..clients.site import Site
 from ..config import Settings
 from ..models import Attempt, FrameSet, Provisioned, Trace, Trial, Verdict
 from ..runs import Run
 from ..runtime.tools import h_tools, load_tools
 from ..runtime.worker import SERVED_ELSEWHERE
-from . import replay
+from . import replay, target
 from .provision import skill_description
-from .skill import tool_name
+from .skill import tool_name, with_common_block
 
 
 MAX_ATTEMPTS = 3
 LESSONS = "## Leçons des essais"
 
-TASK = """Traite la pièce {sample} en suivant ta Skill, du début à la fin, en computer use.
-Connexion : e-mail « {login} », mot de passe « {password} ».{dossier}
+TASK = """Traite la pièce {piece} en suivant ta Skill, du début à la fin, en computer use, dans {where}.
+Connexion : e-mail « {login} », mot de passe « {password} ».
+{dossier_rule}
 Ne clique jamais sur « Valider » : la pièce reste en brouillon."""
 
-JUDGE = """Tâche : « {task} ».
-Image 1 : l'écran à la fin de la démonstration de l'humain (le résultat attendu).
+JUDGE = """Tâche : « {task} ». L'humain l'a faite sur la pièce {demo_piece}, l'agent sur la pièce {piece}.
+Image 1 : l'écran à la fin de la démonstration de l'humain (le résultat attendu, pour sa pièce).
 Image 2 : l'écran à la fin de l'essai de l'agent.
 Réponse de l'agent : {answer}
-L'agent a-t-il obtenu le même résultat que l'humain ? Rends UNIQUEMENT ce JSON :
+L'agent a-t-il obtenu le résultat équivalent pour sa pièce (même étape atteinte, champs remplis avec les valeurs
+de sa pièce, rien de validé) ? Rends UNIQUEMENT ce JSON :
 {{"success": true ou false, "gap": "ce qui diffère, ou null",
  "lesson": "une consigne courte pour réussir au prochain essai, ou null"}}"""
 
@@ -45,6 +49,15 @@ L'image est l'écran à la fin de l'essai de l'agent. Réponse de l'agent : {ans
 La tâche est-elle accomplie ? Rends UNIQUEMENT ce JSON :
 {{"success": true ou false, "gap": "ce qui manque, ou null",
  "lesson": "une consigne courte pour réussir au prochain essai, ou null"}}"""
+
+
+def trial_piece(sample: str | None, n: int) -> str:
+    """La pièce de l'essai n : la n-ième après celle de la démo (INV-001 → INV-002 pour l'essai 1)."""
+    found = re.fullmatch(r"(.*?)(\d+)", sample or "")
+    if not found:
+        return "une autre pièce à traiter que celle de la démonstration"
+    prefix, number = found.groups()
+    return f"{prefix}{int(number) + n:0{len(number)}d}"
 
 
 def demo_end(run: Run) -> Path | None:
@@ -59,12 +72,14 @@ def agent_end(trace: Trace) -> Path | None:
     return Path(shot) if shot else None
 
 
-def judge(run: Run, s: Settings, trace: Trace) -> Verdict:
+def judge(run: Run, s: Settings, trace: Trace, piece: str) -> Verdict:
     end = agent_end(trace)
     if end is None:
         return Verdict(success=False, gap="aucune capture de l'écran final de l'agent")
     expected = demo_end(run)
-    prompt = (JUDGE if expected else JUDGE_WITHOUT_DEMO).format(task=run.meta.task, answer=str(trace.answer)[:1500])
+    prompt = (JUDGE if expected else JUDGE_WITHOUT_DEMO).format(
+        task=run.meta.task, demo_piece=run.meta.sample or "de la démonstration", piece=piece,
+        answer=str(trace.answer)[:1500])
     return holo.chat_model(prompt, Verdict, s.hai_api_key, s.holo_model, [expected, end] if expected else [end])
 
 
@@ -74,7 +89,7 @@ def attempt(run: Run, s: Settings, n: int, agent: Provisioned, task: str, log: C
     tname = tool_name(run)
     tools = h_tools({tname: compiled[tname]} if agent.tool_ready else {}, s, on_drift=lambda *_: None)
     client = h.client(s.hai_api_key)
-    h.prepare_local_browser(run.meta.software_url)
+    target.prepare(run.meta)
     handle = client.start_session(agent=agent.agent_name, messages=task, timezone="Europe/Paris")
     log(f"essai {n} : session H {handle.id}")
     SERVED_ELSEWHERE.add(handle.id)   # c'est nous qui servons ses tools, pas le worker du serveur
@@ -100,20 +115,21 @@ def run(run: Run, s: Settings, log: Callable[[str], None], guided: bool = False)
     if guided:
         return replay.run(run, s, log)
     meta, agent = run.meta, run.read_model("agent.json", Provisioned)
-    task = TASK.format(sample=meta.sample or "de la démonstration", login=s.site_login, password=s.site_password,
-                       dossier=f"\nAprès la connexion, ouvre le dossier « {s.site_dossier} »." if s.site_dossier else "")
-    site = Site(s.site_url, s.site_admin_token) if s.site_url and s.site_admin_token else None
+    login, password = target.credentials(meta, s)
+    tool = tool_name(run) if agent.tool_ready else None
     client = h.client(s.hai_api_key)
     # La Skill a pu être corrigée par l'humain depuis la création de l'agent : H doit avoir la dernière version.
     h.upsert_skill(client, agent.skill_name, description=skill_description(run),
-                   body=run.file("skill.md").read_text(encoding="utf-8"))
+                   body=with_common_block(run.file("skill.md").read_text(encoding="utf-8"), tool))
 
     trial = Trial()
     for n in range(1, MAX_ATTEMPTS + 1):
-        if site:
-            site.reset()   # sinon l'essai suivant serait refusé comme doublon
+        piece = trial_piece(meta.sample, n)
+        task = TASK.format(piece=piece, where=target.where(meta), login=login, password=password,
+                           dossier_rule=target.DOSSIER_RULE)
+        log(f"essai {n} sur la pièce {piece}")
         trace = attempt(run, s, n, agent, task, log)
-        verdict = judge(run, s, trace)
+        verdict = judge(run, s, trace, piece)
         trial.attempts.append(Attempt(n=n, session_id=trace.session_id, replay_url=trace.agent_view_url,
                                       answer=trace.answer, verdict=verdict))
         trial.success = verdict.success
@@ -124,7 +140,7 @@ def run(run: Run, s: Settings, log: Callable[[str], None], guided: bool = False)
             return None
         log(f"essai {n} raté : {verdict.gap or 'résultat différent de la démo'}")
         body = add_lesson(run, n, verdict)
-        h.upsert_skill(client, agent.skill_name, description=skill_description(run), body=body)
+        h.upsert_skill(client, agent.skill_name, description=skill_description(run), body=with_common_block(body, tool))
         if verdict.lesson:
             log(f"leçon ajoutée à la Skill : {verdict.lesson}")
     log(f"{MAX_ATTEMPTS} essais sans réussite : relis la Skill (leçons comprises), puis relance")

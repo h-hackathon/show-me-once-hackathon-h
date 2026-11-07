@@ -46,6 +46,18 @@ function show(view, step) {
 // --- 1. préparer ---------------------------------------------------------------------------------
 
 const form = $("prepare-form");
+
+// Site web : son adresse ; appli de bureau : le nom de la fenêtre déjà ouverte (un agent H différent par type).
+function syncKind() {
+  const desktop = form.software_kind.value === "desktop";
+  $("url-label").textContent = desktop ? "Nom de l'application ouverte" : "Adresse du logiciel";
+  form.url.type = desktop ? "text" : "url";
+  form.url.placeholder = desktop ? "COMPTAREX Cabinet 6.2" : "https://…";
+  if (desktop && form.url.value === config.site_url) form.url.value = "";
+  if (!desktop && !form.url.value && config.site_url) form.url.value = config.site_url;
+}
+for (const radio of form.querySelectorAll('input[name="software_kind"]')) radio.addEventListener("change", syncKind);
+
 form.addEventListener("submit", (e) => {
   e.preventDefault();
   $("prepare-error").hidden = true;
@@ -175,7 +187,7 @@ function upload() {
   const blob = new Blob(chunks, { type: "video/webm" });
   const body = new FormData();
   body.append("video", blob, "capture.webm");
-  for (const name of ["task", "url", "owner", "sample"]) body.append(name, form[name].value);
+  for (const name of ["task", "url", "owner", "sample", "software_kind", "software_name"]) body.append(name, form[name].value);
   show("upload", "record");
   $("upload-note").textContent = `${(blob.size / 1e6).toFixed(1)} Mo`;
 

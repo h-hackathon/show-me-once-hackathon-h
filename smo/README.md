@@ -7,7 +7,11 @@ Capturer, automatiser et maintenir des agents H pour des tâches répétitives. 
 
 ```
 capture → transcribe → frames → read → understand → enrich → skill → review → provision → trial → compile → upgrade
-   └──→ map (agent H, en parallèle : carte des écrans de la tâche) ──┘
+   ├──→ map (agent H, en parallèle : carte des écrans de la tâche) ──┤
+   └──→ docs (Linkup, en parallèle : documentation publique du logiciel) ──┘
+
+Un agent H par type de logiciel : `web` (navigateur) ou `desktop` (bureau du Mac), chacun avec sa Skill et ses tools.
+Chaque Skill envoyée dans H se termine par le bloc commun `skills/bloc_commun.md` (utiliser les tools).
           Gladia       ffmpeg   Holo   Holo        Linkup            humain   agent H     agent H  Devin     agent H + tool
                                 (1 capture par appel, puis synthèse en texte seul)
 ```

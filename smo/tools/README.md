@@ -25,7 +25,9 @@ Partir de `tools/_template/` (ignoré par le serveur tant qu'il commence par `_`
   - les règles de la Skill sont codées en dur : un écart renvoie `{"status": "flagged", "reason": ...}` sans rien enregistrer ;
   - il s'arrête toujours en brouillon et ne clique jamais sur « Valider ».
 - **Statuts renvoyés par `run`** : `draft_saved`, `duplicate`, `flagged` ou `error`, plus les valeurs saisies.
-- **`cfg`** donne `site_url`, `site_login`, `site_password`, `site_dossier` et `site_admin_token` (lus dans l'environnement).
+- **`cfg`** donne `site_url`, `site_login`, `site_password`, `site_admin_token` (facultatif), `desktop_login` et `desktop_password`.
+- **Dossier** : aucun n'est imposé. S'il faut en choisir un, c'est un champ de `Params` (le client indiqué sur la pièce), passé à `login(page, cfg, dossier)`.
+- **Appli de bureau** : `KIND = "desktop"`, `precheck(cfg)` et `run(params, cfg)` sans page, avec l'accessibilité macOS (pyobjc).
 
 ## Format de `ui_contract.json`
 

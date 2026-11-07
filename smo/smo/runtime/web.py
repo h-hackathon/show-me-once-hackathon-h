@@ -33,6 +33,7 @@ MAX_UPLOAD_MB = 500   # ~25 min d'écran enregistré par la page ; au-delà, 413
 
 LABELS = {
     "map": "Cartographie du logiciel (agent H)",
+    "docs": "Documentation du logiciel (Linkup)",
     "transcribe": "Transcription de la voix (Gladia)",
     "frames": "Captures d'écran, une par phrase",
     "read": "Lecture des écrans (Holo)",
@@ -138,7 +139,10 @@ def router_for(s: Settings) -> tuple[APIRouter, Runner]:
 
     @router.post("/captures", dependencies=[Depends(check_token)])
     async def create_capture(video: UploadFile, task: str = Form(...), url: str = Form(...),
-                             owner: str = Form("demo"), sample: str = Form("")) -> dict:
+                             owner: str = Form("demo"), sample: str = Form(""), software_kind: str = Form("web"),
+                             software_name: str = Form("")) -> dict:
+        if software_kind not in ("web", "desktop"):
+            raise HTTPException(422, "software_kind : web ou desktop")
         folder = Path(tempfile.mkdtemp())
         dest = folder / f"capture{Path(video.filename or '').suffix or '.webm'}"
         size = 0
@@ -149,7 +153,8 @@ def router_for(s: Settings) -> tuple[APIRouter, Runner]:
                     shutil.rmtree(folder)
                     raise HTTPException(413, f"Vidéo trop lourde (plus de {MAX_UPLOAD_MB} Mo)")
                 fh.write(chunk)
-        meta = CaptureMeta(task=task.strip(), software_url=url.strip(), owner=owner.strip() or "demo",
+        meta = CaptureMeta(task=task.strip(), software_kind=software_kind, software_url=url.strip(),
+                           software_name=software_name.strip() or None, owner=owner.strip() or "demo",
                            sample=sample.strip() or None)
         run = Run.create(s.runs_dir, meta, [dest])
         shutil.rmtree(folder)

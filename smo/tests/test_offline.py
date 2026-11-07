@@ -50,8 +50,8 @@ PROCEDURE = Procedure(
 
 def test_slug_and_names(run):
     assert slug("Saisir une facture fournisseur") == "saisir-une-facture-fournisseur"
-    assert skill.tool_name(run) == "saisir_une_facture_fournisseur"
-    assert skill.skill_name(run) == "smo-catherine-saisir-une-facture-fournisseur"
+    assert skill.tool_name(run) == "saisir_une_facture_fournisseur_web"
+    assert skill.skill_name(run) == "smo-catherine-saisir-une-facture-fournisseur-web"
 
 
 def test_extract_json_fenced_and_raw():
@@ -241,7 +241,7 @@ def _trial_setup(run, monkeypatch, verdicts):
     monkeypatch.setattr(trial.h, "upsert_skill", lambda client, name, description, body: pushed.append(body))
     monkeypatch.setattr(trial, "attempt", lambda run, s, n, agent, task, log: Trace(
         session_id=f"sess-{n}", agent="smo-catherine-x", status="idle", steps=[], answer=f"essai {n}"))
-    monkeypatch.setattr(trial, "judge", lambda run, s, trace: queue.pop(0))
+    monkeypatch.setattr(trial, "judge", lambda run, s, trace, piece: queue.pop(0))
     return trial, pushed
 
 
@@ -312,6 +312,40 @@ def test_background_stage_runs_in_parallel_and_is_awaited(run, s, monkeypatch):
     assert order == ["a", "map", "b"]                 # a n'attend pas la carte, b l'attend
 
 
+def test_each_attempt_takes_the_next_piece():
+    from smo.pipeline.trial import trial_piece
+    assert [trial_piece("INV-001", n) for n in (1, 2, 3)] == ["INV-002", "INV-003", "INV-004"]
+    assert "autre pièce" in trial_piece(None, 1)
+
+
+def test_common_block_is_added_to_the_skill_sent_to_h():
+    with_tool = skill.with_common_block("# Skill\n", "saisir_web")
+    assert "## Utiliser les tools" in with_tool and "`precheck_saisir_web`" in with_tool and "`run_saisir_web`" in with_tool
+    without = skill.with_common_block("# Skill\n", None)
+    assert "Pas encore de tool" in without and "$" not in without
+
+
+def test_desktop_gets_its_own_agent_environment_and_names(s, tmp_path):
+    from smo.pipeline import target
+    run = Run.create(s.runs_dir, CaptureMeta(task="Saisir une facture fournisseur", software_kind="desktop",
+                                             software_url="COMPTAREX Cabinet 6.2", owner="Catherine"), [])
+    assert target.environment(run.meta).kind == "desktop" and target.environment(run.meta).host == "user_device"
+    assert skill.tool_name(run).endswith("_desktop") and provision.agent_name(run, s).endswith("-desktop")
+    assert "application de bureau « COMPTAREX Cabinet 6.2 »" in target.where(run.meta)
+    assert target.credentials(run.meta, s) == (s.desktop_login, s.desktop_password)
+
+
+def test_docs_summary_feeds_holo(run):
+    from smo.models import Notes
+    from smo.pipeline import docs, understand
+    assert docs.summary(run) == ""
+    run.write_json("docs.json", {"query": "q", "answer": "Saisie > Factures fournisseurs > Nouvelle facture",
+                                 "sources": ["https://doc.example/factures"], "pages": [{"url": "https://x", "text": "Connexion"}]})
+    assert "Ce que dit la documentation" in docs.summary(run) and "https://doc.example/factures" in docs.summary(run)
+    prompt = understand.synthesis_prompt(run, run.read_model("transcript.json", Transcript), Notes())
+    assert "Documentation publique du logiciel (Linkup)" in prompt
+
+
 def test_turn_stops_on_idle_event_even_if_status_flips_back():
     class FakeHandle:
         def stream(self, **kwargs):
@@ -348,7 +382,8 @@ def test_devin_brief_renders(run, s):
     assert "> Consigne : Étape 1" in text and "click(" in text
     from string import Template
     prompt = Template((config.ROOT / "docs" / "DEVIN_BRIEF.md").read_text()).substitute(
-        task="t", repo="r", tool_name="x", url="u", sample="s", skill="k", trace=text, checks="c", map="m")
+        task="t", repo="r", tool_name="x", url="u", sample="s", skill="k", trace=text, checks="c", map="m",
+        docs="d", kind="web")
     assert "tools/x/" in prompt and "$" not in prompt.replace("$tool", "")
 
 

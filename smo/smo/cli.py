@@ -20,7 +20,7 @@ def cmd_new(a, s):
     from .runs import Run
     if not (a.url or s.site_url):
         raise config.MissingConfig("Donne --url, ou SITE_URL dans smo/.env")
-    meta = CaptureMeta(task=a.task, software_url=a.url or s.site_url, software_name=a.software_name,
+    meta = CaptureMeta(task=a.task, software_kind=a.kind, software_url=a.url or s.site_url, software_name=a.software_name,
                        owner=a.owner, language=a.lang, sample=a.sample)
     run = Run.create(s.runs_dir, meta, [Path(f) for f in a.files])
     print(run.id)
@@ -124,7 +124,8 @@ def main(argv: list[str] | None = None) -> int:
     n = sub.add_parser("new", help="crée un run à partir d'une capture (vidéo, audio, images)")
     n.add_argument("files", nargs="+")
     n.add_argument("--task", required=True, help="ex. « Saisir une facture fournisseur »")
-    n.add_argument("--url", help="où se fait la tâche (défaut : SITE_URL)")
+    n.add_argument("--url", help="web : l'adresse (défaut : SITE_URL) ; desktop : le nom de l'application ouverte")
+    n.add_argument("--kind", choices=["web", "desktop"], default="web", help="un agent H par type de logiciel")
     n.add_argument("--software-name", help="nom public du logiciel, pour chercher sa doc (ex. Odoo)")
     n.add_argument("--owner", default="demo")
     n.add_argument("--sample", help="la pièce traitée pendant la démo (ex. INV-001)")

@@ -19,7 +19,7 @@ from typing import Callable
 
 from ..config import ENV, Settings
 from ..runs import Run
-from . import capture, compile, enrich, mapping, provision, skill, trial, understand
+from . import capture, compile, docs, enrich, mapping, provision, skill, trial, understand
 
 
 @dataclass(frozen=True)
@@ -35,6 +35,7 @@ class Stage:
 STAGES = [
     Stage("map", mapping.run, ("hai_api_key", "site_login", "site_password"), lambda r: r.has("map.json"),
           optional=True, join_before="understand"),
+    Stage("docs", docs.run, ("linkup_api_key",), lambda r: r.has("docs.json"), optional=True, join_before="understand"),
     Stage("transcribe", capture.transcribe, ("gladia_api_key",), lambda r: r.has("transcript.json")),
     Stage("frames", capture.frames, (), lambda r: r.has("frames.json")),
     Stage("read", understand.read, ("hai_api_key",), lambda r: r.has("notes.json") or r.has("procedure.json")),
@@ -59,18 +60,17 @@ def run_pipeline(run: Run, s: Settings, *, start: str | None = None, stop: str |
     selected = [st for st in STAGES[first:last] if not only or st.name in only]
     extras = {"review": {"auto": auto}, "compile": {"wait": wait}, "trial": {"guided": guided}}
 
-    background: dict[str, tuple[Stage, threading.Thread]] = {}
+    background: dict[str, list[tuple[Stage, threading.Thread]]] = {}
     for stage in selected:
         if stage.join_before and not (stage.done(run) and not force):
             thread = threading.Thread(target=_execute, args=(stage, run, s, log, {}), daemon=True)
             thread.start()
-            background[stage.join_before] = (stage, thread)
+            background.setdefault(stage.join_before, []).append((stage, thread))
 
     for stage in selected:
         if stage.join_before:
             continue                                   # tourne déjà en parallèle
-        if stage.name in background:
-            waited, thread = background.pop(stage.name)
+        for waited, thread in background.pop(stage.name, []):
             if thread.is_alive():
                 log(f"… attente de {waited.name}")
             thread.join(timeout=900)
@@ -80,7 +80,7 @@ def run_pipeline(run: Run, s: Settings, *, start: str | None = None, stop: str |
         state = _execute(stage, run, s, log, extras.get(stage.name, {}))
         if state in ("blocked", "failed", "waiting"):
             return state
-    for _, thread in background.values():           # ex. `--only map`, ou arrêt avant l'étape qui l'attend
+    for _, thread in (pair for pairs in background.values() for pair in pairs):   # ex. `--only map`
         thread.join(timeout=900)
     return "done"
 

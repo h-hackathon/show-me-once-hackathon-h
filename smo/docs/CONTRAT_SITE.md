@@ -14,7 +14,7 @@ SMO a besoin de trois choses : un parcours réaliste, des libellés stables, et 
 ## Parcours « saisir une facture fournisseur » (vérifié en vrai navigateur par la session du site)
 
 - **Connexion `/login`** : « E-mail », « Mot de passe », bouton « Se connecter ». Le formulaire s'affiche même si une session est déjà ouverte.
-- **Choix du dossier `/dossiers`** : on clique sur le texte `SITE_DOSSIER` (« 00417 ATELIER DORN SAS »), ce qui mène au bureau. `smo.runtime.ui.login` le fait déjà.
+- **Choix du dossier `/dossiers`** : aucun dossier n'est imposé. L'agent prend celui du client indiqué sur la pièce ; un tool le reçoit en paramètre (`login(page, cfg, dossier)`).
 - **Boîte de réception `/inbox`** (« Factures à traiter ») : chaque PDF est à `/inbox/INV-00X.pdf`, avec le bouton « Saisir ».
 - **Nouvelle facture `/factures/nouvelle`**. On y arrive aussi par le menu Saisie → Factures fournisseurs → Nouvelle facture.
   - **Champs** (libellés exacts) : « Fournisseur », « Référence fournisseur », « Date de facture » (JJ/MM/AAAA, sinon « Erreur 0x2F »).
@@ -61,4 +61,6 @@ Bureau → Editions → Etats de synthèse → Situation intermédiaire → date
 
 ## Variables dans `smo/.env`
 
-`SITE_URL`, `SITE_LOGIN`, `SITE_PASSWORD`, `SITE_ADMIN_TOKEN` (les trois derniers recopiés de `comptarex/.env`), `SITE_DOSSIER`.
+`SITE_URL` (Comptarex en ligne : https://show-me-once-prep-production.up.railway.app), `SITE_LOGIN`, `SITE_PASSWORD`. `SITE_ADMIN_TOKEN` est facultatif (relire ce qui est enregistré). Appli de bureau (base locale) : `DESKTOP_LOGIN`, `DESKTOP_PASSWORD`.
+
+Décisions du 7 nov. au soir : on ne vide pas Comptarex entre deux essais (chaque essai traite la pièce suivante), et l'interface reste fixe (pas de bascule v1 / v2 en démo).

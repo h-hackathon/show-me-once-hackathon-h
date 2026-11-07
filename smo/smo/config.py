@@ -29,7 +29,8 @@ ENV = {
     "site_login": "SITE_LOGIN",
     "site_password": "SITE_PASSWORD",
     "site_admin_token": "SITE_ADMIN_TOKEN",
-    "site_dossier": "SITE_DOSSIER",
+    "desktop_login": "DESKTOP_LOGIN",
+    "desktop_password": "DESKTOP_PASSWORD",
     "server_url": "SMO_SERVER_URL",
     "server_token": "SMO_SERVER_TOKEN",
     "h_webhook_secret": "H_WEBHOOK_SECRET",
@@ -69,7 +70,8 @@ class Settings:
     site_login: str | None
     site_password: str | None
     site_admin_token: str | None
-    site_dossier: str | None       # dossier à ouvrir après la connexion (ex. « 00417 ATELIER DORN SAS »)
+    desktop_login: str | None      # appli de bureau (base locale) : identifiants propres, sinon ceux du site
+    desktop_password: str | None
     server_url: str | None       # serveur SMO déployé (Railway)
     server_token: str | None
     h_webhook_secret: str | None
@@ -114,7 +116,8 @@ def load() -> Settings:
         site_login=env("site_login"),
         site_password=env("site_password"),
         site_admin_token=env("site_admin_token"),
-        site_dossier=env("site_dossier"),
+        desktop_login=env("desktop_login") or env("site_login"),
+        desktop_password=env("desktop_password") or env("site_password"),
         server_url=url(env("server_url")),
         server_token=env("server_token"),
         h_webhook_secret=env("h_webhook_secret"),

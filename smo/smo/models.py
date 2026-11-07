@@ -10,8 +10,9 @@ from pydantic import BaseModel, Field
 class CaptureMeta(BaseModel):
     """Ce qu'on sait de la capture avant de la traiter (meta.json)."""
     task: str                              # ex. « Saisir une facture fournisseur »
-    software_url: str                      # où la tâche se fait
-    software_name: str | None = None       # nom public du logiciel (ex. « Odoo »), pour chercher sa doc
+    software_kind: Literal["web", "desktop"] = "web"   # un agent H par type : navigateur ou bureau du Mac
+    software_url: str                      # web : l'adresse ; bureau : le nom de l'application ouverte
+    software_name: str | None = None       # nom public du logiciel (ex. « Odoo »), pour chercher sa doc (Linkup)
     owner: str = "demo"                    # ex. « catherine » : à qui appartiendra l'agent
     language: str = "fr"
     sample: str | None = None              # la pièce traitée pendant la démo (ex. « INV-001 »)
