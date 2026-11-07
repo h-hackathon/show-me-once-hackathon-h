@@ -20,3 +20,5 @@ __pycache__/
 # Vidéos de démo (trop lourdes pour git : à partager par Drive)
 *.mov
 *.mp4
+.env.*
+!.env.example
