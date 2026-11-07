@@ -29,18 +29,29 @@ def tool_name(run: Run) -> str:
 
 
 def with_common_block(body: str, tool: str | None) -> str:
-    """La Skill envoyée à H = celle de la tâche + le bloc commun SMO pour utiliser les tools (skills/).
+    """La Skill envoyée à H : le titre, puis la règle absolue SMO (skills/), puis la méthode de la tâche.
 
-    Le bloc n'est ni montré à la relecture ni écrit par Devin : SMO l'ajoute à chaque envoi dans H.
+    La règle vient en premier : le tool fait la tâche, l'écran n'est qu'un secours. Elle n'est ni montrée à la
+    relecture ni écrite par Devin : SMO l'insère à chaque envoi dans H.
     """
     name = "bloc_commun.md" if tool else "bloc_commun_sans_tool.md"
     block = Template((ROOT / "skills" / name).read_text(encoding="utf-8"))
-    return body.rstrip() + "\n\n" + block.substitute(precheck=f"precheck_{tool}", run=f"run_{tool}").strip() + "\n"
+    rule = block.substitute(precheck=f"precheck_{tool}", run=f"run_{tool}").strip()
+    title, _, rest = body.strip().partition("\n")
+    if not title.startswith("# "):                     # pas de titre : la règle tout en haut
+        title, rest = "", body.strip()
+    return "\n\n".join(part for part in (title, rule, rest.strip()) if part) + "\n"
 
 
 def render(procedure: Procedure, context: Context, url: str, soft_map: SoftwareMap | None = None) -> str:
     corrections = {c.rule: c for c in context.rule_checks if c.verdict == "corrected" and c.correction}
-    lines = [f"# {procedure.task}", "", f"Logiciel : {procedure.software} ({url})", "", "## Étapes"]
+    lines = [f"# {procedure.task}", "",
+             "## Objectif",
+             f"{procedure.task} dans {procedure.software} ({url}), une pièce à la fois, en s'arrêtant en brouillon.", "",
+             "## Prérequis",
+             "- Être connecté au logiciel.",
+             "- S'il faut choisir un dossier ou une société : celui du client indiqué sur la pièce.", "",
+             "## Étapes"]
     for st in procedure.steps:
         line = f"{st.index + 1}. {VERB[st.action]} « {st.target} »"
         if st.value_source:

@@ -33,8 +33,10 @@ class Devin:
         return data if isinstance(data, str) else data.get("url") or data.get("attachment_url")
 
     def create_session(self, prompt: str, *, tags: list[str] = (), max_acu: int | None = None,
-                       attachment_urls: list[str] = ()) -> dict:
+                       attachment_urls: list[str] = (), playbook_id: str | None = None) -> dict:
         body: dict = {"prompt": prompt}
+        if playbook_id:
+            body["playbook_id"] = playbook_id
         if tags:
             body["tags"] = list(tags)
         if max_acu:

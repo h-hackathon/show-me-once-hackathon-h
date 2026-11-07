@@ -19,11 +19,16 @@ from . import target
 from .skill import skill_name, tool_name, with_common_block
 
 
-INSTRUCTIONS = """Tu es l'agent « {task} » de {owner}. Tu travailles dans {where}, une pièce à la fois.
-Suis ta Skill « {skill} » : sa méthode, ses règles, et sa dernière partie « Utiliser les tools ».
+INSTRUCTIONS = """{rule}
+Tu es l'agent « {task} » de {owner}. Tu travailles dans {where}, une pièce à la fois, avec ta Skill « {skill} ».
 {dossier_rule}
 Si une règle de la Skill demande l'arrêt (incohérence, cas inconnu), n'enregistre rien et explique pourquoi.
 Ne clique jamais sur « Valider ». Réponds au format demandé."""
+
+RULE_WITH_TOOL = ("Règle absolue, avant tout le reste : appelle d'abord `run_{tool}` avec les valeurs lues sur la pièce. "
+                  "Il fait toute la tâche sur un serveur et renvoie le résultat final : tu n'as rien à faire à l'écran. "
+                  "Tu ne travailles à l'écran que s'il renvoie une erreur, puis tu appelles `report_drift`.")
+RULE_WITHOUT_TOOL = "Règle absolue : pas encore de tool pour cette tâche, fais-la toi-même à l'écran en suivant ta Skill."
 
 
 def agent_name(run: Run, s: Settings) -> str:
@@ -32,7 +37,10 @@ def agent_name(run: Run, s: Settings) -> str:
 
 
 def skill_description(run: Run) -> str:
-    return f"À utiliser pour : {run.meta.task} dans {run.meta.software_url}."
+    """Ce qui décide quand H charge la Skill : la tâche telle qu'on la demandera à l'agent."""
+    meta = run.meta
+    return (f"Utiliser pour toute demande de type « {meta.task.lower()} » dans {meta.software_name or meta.software_url} "
+            f"(par exemple « traite la pièce {meta.sample or 'XXX'} ») : la méthode, les contrôles, quand s'arrêter.")
 
 
 def skill_body(run: Run, s: Settings, tool=None) -> str:
@@ -52,8 +60,9 @@ def create(run: Run, s: Settings, log: Callable[[str], None]) -> None:
     spec = dict(
         description=f"{meta.task}, appris d'une démonstration de {meta.owner} ({meta.software_kind}).",
         environments=[env],
-        instructions=INSTRUCTIONS.format(task=meta.task, owner=meta.owner, where=target.where(meta), skill=sname,
-                                         dossier_rule=target.DOSSIER_RULE),
+        instructions=INSTRUCTIONS.format(
+            rule=RULE_WITH_TOOL.format(tool=tname) if tool else RULE_WITHOUT_TOOL,
+            task=meta.task, owner=meta.owner, where=target.where(meta), skill=sname, dossier_rule=target.DOSSIER_RULE),
         skills=[sname],
         tools=[ToolDefinition(**d) for d in definitions(tools)],
         answer_format=RunReport.model_json_schema(),

@@ -148,6 +148,7 @@ class CompileResult(BaseModel):
     status: str | None = None
     pr_url: str | None = None
     mode: Literal["create", "repair"] = "create"
+    report: dict | None = None             # sortie structurée de Devin : tool, pr_url, tests_passed, merged, issues
 
 
 class Provisioned(BaseModel):

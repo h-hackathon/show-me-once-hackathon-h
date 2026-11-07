@@ -128,7 +128,7 @@ def test_skill_from_repo_wins_once_devin_wrote_it(run, s):
 def test_repair_brief_has_every_field():
     from string import Template
     Template((config.ROOT / "docs" / "DEVIN_REPAIR.md").read_text()).substitute(
-        tool_name="x", repo="r", url="u", details="d", contract="{}", skill="k", trace="t")
+        method="m", tool_name="x", repo="r", url="u", details="d", contract="{}", skill="k", trace="t")
 
 
 def test_pipeline_blocks_on_missing_key(s):
@@ -321,8 +321,10 @@ def test_each_attempt_takes_the_next_piece():
 
 
 def test_common_block_is_added_to_the_skill_sent_to_h():
-    with_tool = skill.with_common_block("# Skill\n", "saisir_web")
-    assert "## Utiliser les tools" in with_tool and "`precheck_saisir_web`" in with_tool and "`run_saisir_web`" in with_tool
+    with_tool = skill.with_common_block("# Saisir une facture\n\n## Étapes\n1. Cliquer\n", "saisir_web")
+    title, rule, method = with_tool.index("# Saisir"), with_tool.index("## Règle absolue"), with_tool.index("## Étapes")
+    assert title < rule < method                                   # la règle absolue passe avant la méthode
+    assert "`run_saisir_web`" in with_tool and "computer use" in with_tool
     without = skill.with_common_block("# Skill\n", None)
     assert "Pas encore de tool" in without and "$" not in without
 
@@ -333,7 +335,7 @@ def test_desktop_gets_its_own_agent_environment_and_names(s, tmp_path):
                                              software_url="COMPTAREX Cabinet 6.2", owner="Catherine"), [])
     local = target.environment(run.meta, s)                         # sans environnement H : le bureau de la machine
     assert local.kind == "desktop" and local.host == "user_device"
-    assert target.environment(run.meta, dataclasses.replace(s, h_desktop_env="comptarex-desktop")) == "comptarex-desktop"
+    assert target.environment(run.meta, dataclasses.replace(s, h_desktop_env="qonta-desktop")) == "qonta-desktop"
     assert skill.tool_name(run).endswith("_desktop") and provision.agent_name(run, s).endswith("-desktop")
     assert "application de bureau « COMPTAREX Cabinet 6.2 »" in target.where(run.meta)
     assert target.credentials(run.meta, s) == (s.desktop_login, s.desktop_password)
@@ -441,8 +443,8 @@ def test_devin_brief_renders(run, s):
     assert "> Consigne : Étape 1" in text and "click(" in text
     from string import Template
     prompt = Template((config.ROOT / "docs" / "DEVIN_BRIEF.md").read_text()).substitute(
-        task="t", repo="r", tool_name="x", url="u", sample="s", skill="k", trace=text, checks="c", map="m",
-        docs="d", kind="web")
+        method="m", task="t", repo="r", tool_name="x", url="u", sample="s", skill="k", trace=text, checks="c",
+        map="m", docs="d", kind="web")
     assert "tools/x/" in prompt and "$" not in prompt.replace("$tool", "")
 
 

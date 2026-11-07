@@ -43,6 +43,13 @@ def checks_text(context: Context) -> str:
                      + (f" ({', '.join(c.sources[:2])})" if c.sources else "") for c in context.rule_checks)
 
 
+def method_text(s: Settings) -> str:
+    """Les règles fixes : le playbook Devin s'il est créé (DEVIN_PLAYBOOK_ID), sinon son texte dans le brief."""
+    if s.devin_playbook_id:
+        return "Suis le playbook « SMO : créer ou réparer un tool dans h-tools » : méthode, règles du tool, sortie JSON."
+    return (ROOT / "docs" / "DEVIN_PLAYBOOK.md").read_text(encoding="utf-8")
+
+
 def _attachments(api: devin_api.Devin, files: list[Path]) -> list[str]:
     return [url for f in files[:MAX_ATTACHMENTS] if f.exists() and (url := api.upload(f))]
 
@@ -60,21 +67,26 @@ def run(run: Run, s: Settings, log: Callable[[str], None], wait: bool = True) ->
         context = run.read_model("context.json", Context) if run.has("context.json") else Context()
         name = tool_name(run)
         prompt = Template((ROOT / "docs" / "DEVIN_BRIEF.md").read_text(encoding="utf-8")).substitute(
-            task=meta.task, repo=s.devin_repo or "ce repo", tool_name=name, url=meta.software_url,
+            method=method_text(s), task=meta.task, repo=s.devin_repo or "ce repo", tool_name=name, url=meta.software_url,
             sample=meta.sample or "voir la trace", skill=run.file("skill.md").read_text(encoding="utf-8"),
             trace=trace_text(trace), checks=checks_text(context),
             map=mapping.summary(soft_map) if (soft_map := mapping.load(run)) else "Pas de carte.",
             docs=docs.summary(run) or "Pas de documentation publique trouvée.", kind=meta.software_kind)
         run.write_text("devin_prompt.md", prompt)
+        # les sorties JSON complètes de chaque étape (rien n'est perdu par le résumé du brief), puis des captures
+        outputs = [run.file(n) for n in ("trace.json", "trial.json", "procedure.json", "notes.json", "map.json",
+                                         "docs.json") if run.has(n)]
         shots = sorted(run.file("trace").glob("step-*.png"))
-        urls = _attachments(api, [run.file("trace.json"), run.file("trial.json"), *shots[:MAX_ATTACHMENTS - 2]])
-        session = api.create_session(prompt, tags=["smo", run.id], max_acu=s.devin_max_acu, attachment_urls=urls)
+        urls = _attachments(api, [*outputs, *shots[:max(0, MAX_ATTACHMENTS - len(outputs))]])
+        session = api.create_session(prompt, tags=["smo", run.id], max_acu=s.devin_max_acu, attachment_urls=urls,
+                                     playbook_id=s.devin_playbook_id)
         result = CompileResult(tool_name=name, devin_id=devin_api.session_id(session), url=session.get("url"))
         run.write_model("compile.json", result)
         log(f"session Devin {result.devin_id} ({len(urls)} pièces jointes) : {result.url or ''}")
 
     def update(session: dict) -> None:
         result.status, result.pr_url = session.get("status"), devin_api.pr_url(session) or result.pr_url
+        result.report = session.get("structured_output") or result.report
         run.write_model("compile.json", result)
 
     if not wait:
@@ -102,14 +114,15 @@ def repair(tool: str, session_id: str, details: str, s: Settings, log: Callable[
     contract, skill_md = s.tools_dir / tool / "ui_contract.json", s.tools_dir / tool / "skill.md"
     in_repo = f"(à lire dans tools/{tool}/ du repo h-tools)"
     prompt = Template((ROOT / "docs" / "DEVIN_REPAIR.md").read_text(encoding="utf-8")).substitute(
-        tool_name=tool, repo=s.devin_repo or "ce repo", url=s.site_url or "le logiciel", details=details,
+        method=method_text(s), tool_name=tool, repo=s.devin_repo or "ce repo", url=s.site_url or "le logiciel", details=details,
         contract=contract.read_text(encoding="utf-8") if contract.exists() else in_repo,
         skill=skill_md.read_text(encoding="utf-8") if skill_md.exists() else in_repo,
         trace=trace_text(trace))
     (out / "devin_prompt.md").write_text(prompt, encoding="utf-8")
     api = devin_api.Devin(s.devin_api_key, s.devin_org_id)
     session = api.create_session(prompt, tags=["smo", "repair", tool], max_acu=s.devin_max_acu,
-                                 attachment_urls=_attachments(api, [out / "trace.json"]))
+                                 attachment_urls=_attachments(api, [out / "trace.json"]),
+                                 playbook_id=s.devin_playbook_id)
     result = CompileResult(tool_name=tool, devin_id=devin_api.session_id(session), url=session.get("url"),
                            mode="repair")
     (out / "compile.json").write_text(result.model_dump_json(indent=2), encoding="utf-8")

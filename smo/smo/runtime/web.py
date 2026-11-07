@@ -105,7 +105,7 @@ def links(run: Run) -> dict:
         out["trial_replay"] = run.read_model("trace.json", Trace).agent_view_url
     if run.has("compile.json"):
         compiled = run.read_model("compile.json", CompileResult)
-        out |= {"devin": compiled.url, "pr": compiled.pr_url}
+        out |= {"devin": compiled.url, "pr": compiled.pr_url, "devin_report": compiled.report}
     return out
 
 

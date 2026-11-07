@@ -63,7 +63,7 @@ def test_capture_review_and_approve(client, s):
 def test_online_desktop_capture_needs_the_h_desktop_environment(s, monkeypatch):
     monkeypatch.setenv("RAILWAY_ENVIRONMENT", "production")
     data = {"task": "t", "url": "COMPTAREX Cabinet 6.2", "software_kind": "desktop"}
-    for desktop_env, expected in ((None, 422), ("comptarex-desktop", 200)):
+    for desktop_env, expected in ((None, 422), ("qonta-desktop", 200)):
         router, runner = router_for(dataclasses.replace(s, h_desktop_env=desktop_env))
         monkeypatch.setattr(runner, "start", lambda run: True)
         app = FastAPI()

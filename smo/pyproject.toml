@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Agent bureau (appli de bureau, ex. Comptarex en Qt) : seulement sur le Mac, `uv sync --extra desktop`.
+# Agent bureau (appli de bureau, ex. Qonta en Qt) : seulement sur le Mac, `uv sync --extra desktop`.
 # Pas sur Railway : sous Linux il tire evdev, à compiler, et le serveur ne pilote aucun bureau.
 desktop = ["hai-agents[desktop]==1.4.3"]
 

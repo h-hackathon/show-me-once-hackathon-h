@@ -1,6 +1,6 @@
 # Contrat site compta ↔ SMO
 
-Le logiciel cible des démos est **Comptarex** (`comptarex/` du repo, « COMPTAREX Cabinet 6.2 », un faux logiciel de cabinet de 2004). Il existe en deux versions sur la même base SQLite :
+Le logiciel cible des démos est **Qonta** (`comptarex/` du repo, « COMPTAREX Cabinet 6.2 », un faux logiciel de cabinet de 2004). Il existe en deux versions sur la même base SQLite :
 - un site web : `uv run comptarex-web` → http://127.0.0.1:8042 ;
 - une application de bureau Qt : `uv run --extra desktop comptarex-desktop`.
 
@@ -61,6 +61,6 @@ Bureau → Editions → Etats de synthèse → Situation intermédiaire → date
 
 ## Variables dans `smo/.env`
 
-`SITE_URL` (Comptarex en ligne : https://show-me-once-prep-production.up.railway.app), `SITE_LOGIN`, `SITE_PASSWORD`. `SITE_ADMIN_TOKEN` est facultatif (relire ce qui est enregistré). Appli de bureau (base locale) : `DESKTOP_LOGIN`, `DESKTOP_PASSWORD`.
+`SITE_URL` (Qonta en ligne : https://show-me-once-prep-production.up.railway.app), `SITE_LOGIN`, `SITE_PASSWORD`. `SITE_ADMIN_TOKEN` est facultatif (relire ce qui est enregistré). Appli de bureau (base locale) : `DESKTOP_LOGIN`, `DESKTOP_PASSWORD`.
 
-Décisions du 7 nov. au soir : on ne vide pas Comptarex entre deux essais (chaque essai traite la pièce suivante), et l'interface reste fixe (pas de bascule v1 / v2 en démo).
+Décisions du 7 nov. au soir : on ne vide pas Qonta entre deux essais (chaque essai traite la pièce suivante), et l'interface reste fixe (pas de bascule v1 / v2 en démo).

@@ -83,7 +83,7 @@ Les tools déterministes de bureau (accessibilité macOS) doivent tourner là o�
 
 ## Déployer sur Railway
 
-Trois projets Railway séparés : Comptarex (le logiciel de test), SMO (ce serveur), h-tools (les tools de Devin).
+Trois projets Railway séparés : Qonta (le logiciel de test), SMO (ce serveur), h-tools (les tools de Devin).
 
 1. **Service SMO**, dans son propre projet : New › GitHub Repo › `show-me-once-prep`.
    - Settings › Source : **Root Directory = `smo`** ; branche `main` une fois la PR fusionnée, ou `feat/smo` pour tester avant.

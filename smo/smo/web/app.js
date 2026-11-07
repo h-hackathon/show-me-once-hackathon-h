@@ -308,6 +308,11 @@ function renderLinks(links, attempts) {
   }
   if (links.devin) rows.push(["Devin", anchor(links.devin, "voir la session")]);
   if (links.pr) rows.push(["Pull request", anchor(links.pr, links.pr.replace(/^https:\/\/github\.com\//, ""))]);
+  const report = links.devin_report;
+  if (report) {
+    const verdict = `tests ${report.tests_passed ? "verts" : "rouges"} · ${report.merged ? "fusionné, déploiement en cours" : "pas fusionné"}`;
+    rows.push(["Devin", document.createTextNode(report.issues?.length ? `${verdict} · ${report.issues.join(" ; ")}` : verdict)]);
+  }
   $("links").hidden = rows.length === 0;
   $("link-list").replaceChildren(...rows.flatMap(([term, value]) => {
     const dt = document.createElement("dt");
