@@ -1,4 +1,4 @@
-"""Les 24 litiges de la démo et la vérité terrain (ce qu'un analyste expérimenté ferait).
+"""Les 60 litiges de la démo (24 historiques + 36 ajoutés) et la vérité terrain (ce qu'un analyste expérimenté ferait).
 
 Marketplace fictive « Sportiva ». Chaque litige Stripe est rattaché à une commande (métadonnée order_id).
 Les preuves sont dispersées dans 3 outils internes : back-office commandes, portail transporteur, support client.
@@ -35,7 +35,7 @@ PRODUITS = [("Chaussures de trail homme", 89.99), ("Veste coupe-vent running", 5
             ("Bâtons de marche nordique", 44.99), ("Casque vélo urbain", 39.99), ("Planche de surf 7'", 279.00)]
 PETITS = [("Bandeau running", 6.99), ("Chaussettes de ski x2", 9.99), ("Gourde inox 750 ml", 12.99), ("Gants tactiles", 14.49)]
 
-# 24 litiges : (famille, motif Stripe, nombre)
+# 24 premiers litiges (inchangés : le lot « essai » et le script vidéo s'appuient dessus)
 FAMILLES = [
     ("livre_signe", "product_not_received", 5),   # contester avec la preuve de livraison (signée par le client)
     ("livre_signe", "fraudulent", 3),             # « fraude » mais livré et signé par le titulaire → contester
@@ -45,6 +45,19 @@ FAMILLES = [
     ("carte_volee", "fraudulent", 3),             # piège : signé par un tiers, titulaire confirme le vol → accepter + bloquer
     ("perdu", "product_not_received", 2),         # accepter : colis égaré, rien d'autre
     ("sans_signature", "product_not_received", 2),# accepter : boîte aux lettres, rien d'autre
+]
+# 36 litiges ajoutés (mêmes 6 règles, deux pièges de plus qui obligent à croiser les outils)
+FAMILLES_EXTRA = [
+    ("livre_signe", "product_not_received", 8),
+    ("livre_signe", "fraudulent", 4),
+    ("recu_confirme", "product_not_received", 4),
+    ("deja_rembourse", "product_not_received", 4),
+    ("petit_montant", "product_not_received", 4),
+    ("carte_volee", "fraudulent", 3),
+    ("carte_volee_petit", "fraudulent", 2),       # piège : carte volée MAIS < 15 € → la règle 1 passe avant : accepter, PAS de blocage
+    ("perdu_puis_recu", "product_not_received", 3),# piège : Parcelia dit « égaré », mais le client a écrit au support qu'il l'a finalement reçu → contester (ticket)
+    ("perdu", "product_not_received", 2),
+    ("sans_signature", "product_not_received", 2),
 ]
 
 
@@ -70,6 +83,9 @@ def generate(seed: int = SEED) -> list[dict]:
     scenarios, n = [], 0
     file = [(f, m) for f, m, k in FAMILLES for _ in range(k)]
     random.Random(seed + 1).shuffle(file)  # pièges mélangés dans la file, comme dans la vraie vie
+    extra = [(f, m) for f, m, k in FAMILLES_EXTRA for _ in range(k)]
+    random.Random(seed + 2).shuffle(extra)
+    file += extra  # ajoutés APRÈS : les 24 premiers litiges restent strictement identiques
     for famille, motif in file:
         if True:
             n += 1
@@ -77,14 +93,14 @@ def generate(seed: int = SEED) -> list[dict]:
             ville, cp = pick(VILLES)
             email = f"{prenom.lower().replace('é', 'e').replace('ë', 'e').replace('ï', 'i').replace('è', 'e')}.{nom.lower()}{n}@mail.test"
             commande = aujourd_hui - timedelta(days=12 + int(r.random() * 20))
-            if famille == "petit_montant":
+            if famille in ("petit_montant", "carte_volee_petit"):
                 articles = [(*pick(PETITS), 1)]
             else:
                 articles = [(*pick(PRODUITS), 1)]
                 if r.random() < 0.35:
                     articles.append((*pick(PRODUITS), 1))
             montant = round(sum(p * q for _, p, q in articles), 2)
-            if famille != "petit_montant" and montant < SEUIL_MONTANT:
+            if famille not in ("petit_montant", "carte_volee_petit") and montant < SEUIL_MONTANT:
                 articles.append(("Sac à dos randonnée 30 L", 49.99, 1))
                 montant = round(sum(p * q for _, p, q in articles), 2)
             expedie = commande + timedelta(days=1)
@@ -99,13 +115,13 @@ def generate(seed: int = SEED) -> list[dict]:
                 "articles": [{"nom": a, "prix": p, "qte": q} for a, p, q in articles],
                 "montant": montant, "date_commande": commande.isoformat(), "date_expedition": expedie.isoformat(),
                 "transporteur": "Parcelia", "suivi": suivi,
-                "rembourse": famille == "deja_rembourse", "carte_volee": famille == "carte_volee",
+                "rembourse": famille == "deja_rembourse", "carte_volee": famille in ("carte_volee", "carte_volee_petit"),
                 "tickets": [],
             }
             # --- livraison (portail transporteur)
             evenements = [(expedie.isoformat() + " 18:12", "Colis pris en charge — hub Parcelia de Lyon-Saint-Exupéry"),
                           ((expedie + timedelta(days=1)).isoformat() + " 06:40", f"En transit — agence Parcelia de {ville}")]
-            if famille in ("perdu", "deja_rembourse"):
+            if famille in ("perdu", "deja_rembourse", "perdu_puis_recu"):
                 evenements.append(((expedie + timedelta(days=2)).isoformat() + " 09:03", "Anomalie : colis non localisé"))
                 s["livraison"] = {"statut": "perdu", "date": None, "signe_par": None, "preuve": "losing_evidence",
                                   "libelle": "Colis égaré — enquête ouverte"}
@@ -114,7 +130,7 @@ def generate(seed: int = SEED) -> list[dict]:
                 s["livraison"] = {"statut": "boite_aux_lettres", "date": livre.isoformat(), "signe_par": None,
                                   "preuve": "losing_evidence", "libelle": "Livré sans signature (boîte aux lettres)"}
             else:
-                signe = f"{pick(PRENOMS)} {pick(NOMS)}" if famille == "carte_volee" else f"{prenom} {nom}"
+                signe = f"{pick(PRENOMS)} {pick(NOMS)}" if famille in ("carte_volee", "carte_volee_petit") else f"{prenom} {nom}"
                 evenements.append((livre.isoformat() + " 10:" + f"{int(r.random() * 50) + 10}", "En cours de livraison"))
                 evenements.append((livre.isoformat() + " 12:" + f"{int(r.random() * 50) + 10}", f"Livré — remis contre signature ({signe})"))
                 s["livraison"] = {"statut": "livre_signe", "date": livre.isoformat(), "signe_par": signe,
@@ -135,7 +151,7 @@ def generate(seed: int = SEED) -> list[dict]:
                                                   ("agent", f"Le transporteur a perdu votre colis : nous vous avons remboursé {montant:.2f} € "
                                                             f"le {d.strftime('%d/%m/%Y')} (réf. RMB-{80000 + n * 13})."),
                                                   ("client", "Merci.")], "statut": "Résolu", "preuve": "losing_evidence"})
-            if famille == "carte_volee":
+            if famille in ("carte_volee", "carte_volee_petit"):
                 d = commande + timedelta(days=4)
                 s["tickets"].append({"date": d.isoformat(), "sujet": "Commande que je n'ai jamais passée",
                                      "messages": [("client", "Bonjour, je n'ai jamais commandé chez vous. Ma carte bancaire a été volée, "
@@ -147,6 +163,13 @@ def generate(seed: int = SEED) -> list[dict]:
                                      "messages": [("client", "Bonjour, je n'ai toujours pas reçu mon colis."),
                                                   ("agent", "Nous vérifions avec le transporteur et revenons vers vous.")], "statut": "En attente",
                                      "preuve": "losing_evidence"})
+            if famille == "perdu_puis_recu":
+                s["tickets"].append({"date": (expedie + timedelta(days=4)).isoformat(), "sujet": "Colis introuvable",
+                                     "messages": [("client", "Bonjour, le suivi Parcelia indique que mon colis est égaré, je ne l'ai pas reçu."),
+                                                  ("agent", "Nous ouvrons une enquête avec le transporteur."),
+                                                  ("client", "Finalement mon colis est arrivé hier, une voisine l'avait récupéré. Je l'ai bien reçu, tout est en ordre, merci !"),
+                                                  ("agent", "Parfait, merci de nous avoir prévenus. Bonne journée !")], "statut": "Résolu",
+                                     "preuve": "winning_evidence"})
             if famille == "livre_signe" and r.random() < 0.5:
                 s["tickets"].append({"date": (expedie + timedelta(days=1)).isoformat(), "sujet": "Délai de livraison",
                                      "messages": [("client", "Bonjour, quand est-ce que mon colis arrive ?"),

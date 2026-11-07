@@ -301,15 +301,16 @@ def spark(seed: str, w: int = 92, h: int = 30, color: str = "#ff5a1f") -> str:
 
 
 def admin_home() -> str:
-    orders = list(DATA["orders"].values())
+    allo = list(DATA["orders"].values())
+    orders = [o for o in allo if o["date"] >= (TODAY - timedelta(days=30)).isoformat()]
     ca = sum(o["total"] for o in orders)
-    lit = [o for o in orders if o["litige"]]
-    kpis = [("Ventes · 30 jours", eur(ca), "a"), ("Commandes", str(len(orders)), "b"), ("Panier moyen", eur(ca / len(orders)), "c")]
+    lit = [o for o in allo if o["litige"]]
+    kpis = [("Ventes · 30 jours", eur(ca), "a"), ("Commandes · 30 jours", str(len(orders)), "b"), ("Panier moyen", eur(ca / max(len(orders), 1)), "c")]
     k = "".join(f'<div class="card kpi rise d{i + 1}"><small>{a}</small><div class="v">{b}</div>{spark(s)}</div>' for i, (a, b, s) in enumerate(kpis))
     k += (f'<div class="card kpi hot rise d4"><small>Litiges ouverts</small><div class="v">{len(lit)}</div>'
           f'<div style="color:#a9abb3;font-size:12.5px;margin-top:2px">{eur(sum(o["total"] for o in lit))} contestés</div></div>')
     per_day = {}
-    for o in orders:
+    for o in allo:
         per_day[o["date"]] = per_day.get(o["date"], 0) + 1
     days = [(TODAY - timedelta(days=i)).isoformat() for i in range(20, -1, -1)]
     mx = max(per_day.get(d, 0) for d in days) or 1
@@ -328,7 +329,7 @@ def admin_home() -> str:
     return admin_shell("home", inner)
 
 
-def admin_orders(q: str, vue: str) -> str:
+def admin_orders(q: str, vue: str, pg: int = 1) -> str:
     ql = q.lower().strip()
     def keep(o, v):
         if v == "litiges":
@@ -345,14 +346,16 @@ def admin_orders(q: str, vue: str) -> str:
     rows = "".join(f"""<tr class="r"><td><a class="oid" href="/admin/orders/{o['id']}">{o['id']}</a>{f'<span class="flag" title="Litige ouvert">{ic("alert", 15)}</span>' if o['litige'] else ''}</td>
 <td style="color:var(--mute)">{fdate(o['date'], False)}</td><td><div class="who">{avatar(DATA['clients'][o['client_email']]['nom'], 28)}{e(DATA['clients'][o['client_email']]['nom'])}</div></td>
 <td style="color:var(--mute)">Boutique en ligne</td><td class="num">{eur(o['total'])}</td><td>{pay_pill(o['paiement'])}</td><td>{ful_pill(o['traitement'])}</td>
-<td style="color:var(--mute)">{sum(a['qte'] for a in o['articles'])} article{'s' if sum(a['qte'] for a in o['articles']) > 1 else ''}</td></tr>""" for o in out[:60])
+<td style="color:var(--mute)">{sum(a['qte'] for a in o['articles'])} article{'s' if sum(a['qte'] for a in o['articles']) > 1 else ''}</td></tr>""" for o in out[(pg - 1) * 50:pg * 50])
     empty = '<tr><td colspan="8" style="padding:40px;text-align:center;color:var(--mute)">Aucune commande ne correspond à cette recherche.</td></tr>'
     inner = f"""<div class="title"><h1>Commandes</h1><span class="meta">{len(out)} commande{'s' if len(out) > 1 else ''}</span>
 <div class="act"><span class="btn">{ic('file', 16)} Exporter</span><span class="btn dark">{ic('plus', 16)} Créer une commande</span></div></div>
 <div class="card rise"><div class="tabs">{tabs}</div><form class="tools" action="/admin/orders"><input type="hidden" name="vue" value="{e(vue)}">
 <div class="f">{ic('search', 17)}<input name="q" value="{e(q)}" placeholder="Filtrer par n° de commande, client, e-mail ou n° de suivi"></div><button class="btn">Rechercher</button></form>
 <table><tr><th>Commande</th><th>Date</th><th>Client</th><th>Canal</th><th style="text-align:right">Total</th><th>Paiement</th><th>Traitement</th><th>Articles</th></tr>
-{rows or empty}</table><div class="tfoot">Affichage de {min(len(out), 60)} sur {len(out)}</div></div>"""
+{rows or empty}</table><div class="tfoot" style="display:flex;align-items:center;gap:10px">Affichage de {min(len(out), (pg - 1) * 50 + 1)}–{min(len(out), pg * 50)} sur {len(out)}
+<span style="margin-left:auto"></span>{f'<a class="btn" href="/admin/orders?vue={vue}&q={quote(q)}&page={pg - 1}">← Précédent</a>' if pg > 1 else ''}
+{f'<a class="btn" href="/admin/orders?vue={vue}&q={quote(q)}&page={pg + 1}">Suivant →</a>' if pg * 50 < len(out) else ''}</div></div>"""
     return admin_shell("orders", inner, q)
 
 
@@ -370,7 +373,7 @@ def admin_order(oid: str) -> str | None:
     if rb:
         paid += (f"<span style='color:#b3261e'>Remboursé</span><span class='num' style='color:#b3261e'>− {eur(rb['montant'])}</span>"
                  f"<span class='tot'>Montant net</span><span class='num tot'>{eur(o['total'] - rb['montant'])}</span>")
-    receipt = (f"""<div class="receipt"><b>{ic('refund', 17)} Remboursement intégral · {fdate(rb['date'], False)}</b>
+    receipt = (f"""<div class="receipt"><b>{ic('refund', 17)} {'Remboursement intégral' if rb['montant'] >= o['total'] else 'Remboursement partiel'} · {fdate(rb['date'], False)}</b>{f"<div>{e(rb['motif'])}</div>" if rb.get('motif') else ''}
 <div>{eur(rb['montant'])} remboursés sur la carte d'origine · réf. <span class="mono">{e(rb['ref'])}</span></div>
 <div style="color:var(--mute)">Justificatif de remboursement — référence de preuve à transmettre : <code class="ref">{e(rb['preuve'])}</code></div></div>""" if rb else "")
     ship = ""
@@ -438,6 +441,47 @@ def admin_customer(email: str) -> str | None:
 <div class="card rise d1"><h2>{ic('users')} Coordonnées</h2><div class="in kv"><small>E-mail</small>{e(email)}<br><br><small>Adresse</small>{e(c['cp'])} {e(c['ville'])}, France
 <br><br><small>Historique</small>{c['commandes']} commande(s) au total</div></div></div>"""
     return admin_shell("customers", inner)
+
+
+def admin_products() -> str:
+    ps = sorted(DATA.get("produits", []), key=lambda p: -p["ca"])
+    rows = "".join(f"""<tr class="r"><td><div class="who"><div class="thumb" style="width:36px;height:36px;border-radius:9px;font-size:15px;background:{PALETTE[hue(p['nom']) % len(PALETTE)]}">{e(p['nom'][0])}</div>
+<b style="font-weight:600">{e(p['nom'])}</b></div></td><td class="mono" style="color:var(--mute)">{e(p['sku'])}</td><td class="num">{eur(p['prix'])}</td>
+<td>{'<span class="pill p-red"><i></i>Rupture</span>' if p['stock'] == 0 else f'<span class="pill p-amber"><i></i>{p["stock"]} en stock</span>' if p['stock'] < 15 else f'<span class="pill p-green"><i></i>{p["stock"]} en stock</span>'}</td>
+<td class="num">{p['vendus']}</td><td class="num">{eur(p['ca'])}</td></tr>""" for p in ps)
+    inner = f"""<div class="title"><h1>Produits</h1><span class="meta">{len(ps)} produits actifs</span><div class="act"><span class="btn dark">{ic('plus', 16)} Ajouter un produit</span></div></div>
+<div class="card rise"><table><tr><th>Produit</th><th>SKU</th><th style="text-align:right">Prix</th><th>Stock</th><th style="text-align:right">Vendus</th><th style="text-align:right">Chiffre d'affaires</th></tr>{rows}</table></div>"""
+    return admin_shell("products", inner)
+
+
+def admin_analytics() -> str:
+    allo = [o for o in DATA["orders"].values() if o["date"] >= (TODAY - timedelta(days=90)).isoformat()]
+    weeks = {}
+    for o in allo:
+        d = date.fromisoformat(o["date"])
+        k = (d - timedelta(days=d.weekday())).isoformat()
+        weeks[k] = weeks.get(k, 0) + o["total"]
+    ks = sorted(weeks)[-13:]
+    mx = max(weeks[k] for k in ks) or 1
+    bars = "".join(f'<rect x="{i * 46 + 8}" y="{170 - weeks[k] / mx * 150:.0f}" width="30" height="{weeks[k] / mx * 150:.0f}" rx="5" fill="#16171a"><title>{eur(weeks[k])}</title></rect>'
+                   f'<text x="{i * 46 + 23}" y="190" font-size="10" text-anchor="middle" fill="#6b6f78">{int(k[8:])} {MOIS[int(k[5:7]) - 1]}</text>' for i, k in enumerate(ks))
+    lit = [o for o in allo if o["litige"]]
+    remb = sum((o["remboursement"] or {}).get("montant", 0) for o in allo)
+    villes = {}
+    for o in allo:
+        v = o["adresse"].split(" ", 1)[1]
+        villes[v] = villes.get(v, 0) + o["total"]
+    top = sorted(villes.items(), key=lambda kv: -kv[1])[:6]
+    vm = top[0][1] if top else 1
+    vrows = "".join(f'<div style="display:grid;grid-template-columns:110px 1fr 90px;gap:10px;align-items:center;margin:9px 0"><span>{e(v)}</span>'
+                    f'<span style="height:8px;border-radius:9px;background:#ff5a1f;width:{x / vm * 100:.0f}%"></span><span class="num">{eur(x)}</span></div>' for v, x in top)
+    k = [("Chiffre d'affaires · 90 jours", eur(sum(o["total"] for o in allo))), ("Commandes", str(len(allo))),
+         ("Taux de litige", f"{len(lit) / len(allo) * 100:.1f} %".replace(".", ",")), ("Remboursé", eur(remb))]
+    kk = "".join(f'<div class="card kpi rise d{i + 1}"><small>{a}</small><div class="v">{b}</div></div>' for i, (a, b) in enumerate(k))
+    inner = f"""<div class="title"><h1>Analyses</h1><span class="meta">90 derniers jours</span></div><div class="kpis">{kk}</div>
+<div class="cols"><div class="card rise"><h2>{ic('chart')} Ventes par semaine</h2><div class="in"><svg viewBox="0 0 {len(ks) * 46 + 8} 200" width="100%" height="230">{bars}</svg></div></div>
+<div class="card rise d1"><h2>{ic('pin')} Ventes par ville</h2><div class="in">{vrows}</div></div></div>"""
+    return admin_shell("analytics", inner)
 
 
 def admin_stub(active: str, title: str) -> str:
@@ -817,15 +861,17 @@ class H(BaseHTTPRequestHandler):
             if not rest:
                 out = admin_home()
             elif rest == ["orders"]:
-                out = admin_orders(q.get("q", ""), q.get("vue", "toutes"))
+                out = admin_orders(q.get("q", ""), q.get("vue", "toutes"), max(1, int(q.get("page", "1")) if q.get("page", "1").isdigit() else 1))
             elif len(rest) == 2 and rest[0] == "orders":
                 out = admin_order(rest[1])
             elif rest == ["customers"]:
                 out = admin_customers(q.get("q", ""))
             elif len(rest) == 2 and rest[0] == "customers":
                 out = admin_customer(unquote(rest[1]))
-            elif rest in (["products"], ["analytics"]):
-                out = admin_stub(rest[0], "Produits" if rest[0] == "products" else "Analyses")
+            elif rest == ["products"]:
+                out = admin_products()
+            elif rest == ["analytics"]:
+                out = admin_analytics()
         elif app == "parcelia":
             if not rest:
                 out = parcelia_home(q.get("q", ""))

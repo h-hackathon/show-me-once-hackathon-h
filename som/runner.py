@@ -39,9 +39,9 @@ Litige : {url}
 Commande {order_id} · {montant} € · motif : {motif}
 
 Outils internes pour enquêter :
-- Back-office Sportiva Admin : {outils}/admin  (identifiant {u1} / mot de passe {p1})
-- Portail transporteur Parcelia Pro : {outils}/parcelia  (identifiant {u2} / mot de passe {p2})
-- Support client Sportiva Care : {outils}/care  (identifiant {u3} / mot de passe {p3})
+- Back-office Sportiva Admin : {outils}/admin{c1}
+- Portail transporteur Parcelia Pro : {outils}/parcelia{c2}
+- Support client Sportiva Care : {outils}/care{c3}
 {stripe_login}
 Décide s'il faut contester ou accepter le litige, puis fais-le dans le Dashboard Stripe (mode test).
 Ne laisse pas le litige sans réponse. N'invente aucune preuve.
@@ -62,10 +62,11 @@ def stripe_login() -> str:
 
 def build_task(row: dict, skill: str | None) -> str:
     (u1, p1), (u2, p2), (u3, p3) = COMPTES["admin"], COMPTES["parcelia"], COMPTES["care"]
+    cred = (lambda u, p: "") if env("HAI_VAULT_ID") else (lambda u, p: f"  (identifiant {u} / mot de passe {p})")
     task = TASK.format(url=row["url"], order_id=row["order_id"], montant=f"{row['montant']:.2f}".replace(".", ","),
                        motif=MOTIFS.get(row.get("reason") or row["motif"], row.get("reason") or row["motif"]),
                        outils=env("OUTILS_URL", required=True).rstrip("/"),
-                       u1=u1, p1=p1, u2=u2, p2=p2, u3=u3, p3=p3, stripe_login=stripe_login())
+                       c1=cred(u1, p1), c2=cred(u2, p2), c3=cred(u3, p3), stripe_login=stripe_login())
     return task + (SKILL_BLOCK.format(skill=skill) if skill else "")
 
 

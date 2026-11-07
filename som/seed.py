@@ -23,7 +23,8 @@ def _one(s: dict, batch: str) -> dict:
                   metadata={"order_id": s["order_id"], "batch": batch})
     articles = ", ".join(a["nom"] for a in s["articles"])
     pi = st.post("/payment_intents", amount=round(s["montant"] * 100), currency="eur", customer=cus["id"],
-                 payment_method=CARTES[s["motif"]], payment_method_types=["card"], confirm=True,
+                 payment_method=CARTES[s["motif"]], confirm=True,
+                 automatic_payment_methods={"enabled": True, "allow_redirects": "never"},
                  description=f"Commande {s['order_id']} — {articles}",
                  metadata={"order_id": s["order_id"], "batch": batch, "marketplace": "Sportiva"})
     return {"order_id": s["order_id"], "customer": cus["id"], "payment_intent": pi["id"],

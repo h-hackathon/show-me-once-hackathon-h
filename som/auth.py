@@ -12,7 +12,14 @@ from .config import env
 COMPTES = {"shopify": ("SHOPIFY_LOGIN", "SHOPIFY_PASSWORD"), "stripe": ("STRIPE_LOGIN", "STRIPE_PASSWORD")}
 
 
+def vault_hint() -> str:
+    return ("Les identifiants de connexion sont dans le coffre sécurisé : sur une page de connexion, "
+            "utilise le remplissage sécurisé des identifiants (fill_secret_at) au lieu de les taper.\n")
+
+
 def login_hint(*cibles: str) -> str:
+    if env("HAI_VAULT_ID"):
+        return vault_hint()
     lines = []
     for c in cibles:
         u, p = (env(k) for k in COMPTES[c])

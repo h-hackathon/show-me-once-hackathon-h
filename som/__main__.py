@@ -4,7 +4,7 @@
   python -m som connexion                  te connecter une fois (Shopify, Stripe, Freshdesk) dans le profil H par défaut
   python -m som test-acces shopify         l'agent H ouvre-t-il l'admin Shopify sans blocage ?
   python -m som outils                     (re)génère le site des 3 outils internes (dossier outils/)
-  python -m som stripe-seed --batch demo   crée 24 litiges réels dans Stripe (mode test)
+  python -m som stripe-seed --batch demo   crée 60 litiges réels dans Stripe (mode test, --limit N pour moins)
   python -m som truth                      affiche la décision attendue pour chaque commande
   python -m som capture demo.mov           vidéo commentée → phrases horodatées + captures
   python -m som skill --transcript data/demo/demo_narration.txt    → skills/litiges.md
@@ -33,7 +33,8 @@ def _ok(label, good, hint=""):
 
 def _reachable(url: str) -> bool:
     try:
-        with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 show-me-once"}), timeout=15) as r:
+        from .stripe_api import SSL
+        with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 show-me-once"}), timeout=15, context=SSL) as r:
             return r.status < 400
     except Exception:
         return False

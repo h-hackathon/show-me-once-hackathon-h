@@ -35,8 +35,11 @@ Hackathon H Company × 42AI — 7–8 novembre 2026.
 | 5 | Sans signature, mais le client a écrit « bien reçu » | Sportiva Care | contester avec l'export du ticket |
 | 6 | Aucune preuve | — | accepter |
 
-**24 litiges réels** dans Stripe (mode test), mélangés : 8 livrés signés, 3 réceptions confirmées au support,
-3 déjà remboursés, 3 petits montants, 3 cartes volées, 4 sans aucune preuve. `python -m som truth` affiche la décision attendue.
+**60 litiges réels** dans Stripe (mode test), mélangés : 20 livrés signés, 10 réceptions confirmées au support
+(dont 3 colis « égarés » chez Parcelia que le client dit finalement avoir reçus), 7 déjà remboursés, 9 petits montants
+(dont 2 cartes volées sous 15 € : la règle 1 passe avant, pas de blocage), 6 cartes volées à bloquer, 8 sans aucune preuve.
+Les outils contiennent aussi ~330 commandes ordinaires sur 90 jours, l'historique d'achat des clients, 160 tickets,
+un catalogue produits : tout est corrélé (commande ↔ colis Parcelia ↔ ticket Care ↔ client). `python -m som truth` affiche la décision attendue.
 
 **Pourquoi c'est réel.** Les litiges sont créés par les cartes de test Stripe qui déclenchent un chargeback.
 En mode test, Stripe tranche selon la preuve : `winning_evidence` fait gagner, `losing_evidence` fait perdre.
@@ -46,10 +49,10 @@ Chaque document des outils affiche sa « référence de preuve » : une preuve q
 
 | | Agent seul (A) | Agent + Skill (B) |
 |---|---|---|
-| Litiges bien traités | 12 / 24 | **24 / 24** |
-| € récupérés | 880 € | **1 182 €** |
-| Contestés à tort | 144 € | **0 €** |
-| Fraudeurs bloqués | 0 / 3 | **3 / 3** |
+| Litiges bien traités | 28 / 60 | **60 / 60** |
+| € récupérés | 2 267 € | **4 131 €** |
+| Contestés à tort | 377 € | **0 €** |
+| Fraudeurs bloqués | 0 / 6 | **6 / 6** |
 
 (Simulation avec un agent « classique » qui conteste dès qu'il voit une preuve de livraison. Les chiffres réels sortent de `bench`.)
 
@@ -79,7 +82,7 @@ python -m som run -c B --batch demo --concurrency 5
 python -m som check --batch demo
 ```
 
-- `stripe-seed` crée les 24 litiges (1–2 min).
+- `stripe-seed` crée les 60 litiges (2–3 min ; `--limit 24` pour les 24 premiers seulement).
 - Après `skill` : relis `skills/litiges.md`, corrige, passe `reviewed: true`.
 - `watch` ouvre l'écran de démo sur http://localhost:8787, à laisser ouvert dans un 2e terminal.
 - `run -o CMD-10247` traite 1 litige (le premier test) ; sans `-o`, toute la file.
@@ -102,7 +105,7 @@ Le texte à dire (avec les 6 règles) est dans `data/demo/demo_narration.txt`.
 
 | Fichier | Rôle |
 |---|---|
-| `som/scenarios.py` | les 24 litiges, leurs preuves, les règles (vérité terrain) |
+| `som/scenarios.py` | les 60 litiges, leurs preuves, les règles (vérité terrain) |
 | `som/seed.py`, `som/stripe_api.py` | création des litiges dans Stripe (mode test), lecture des statuts |
 | `som/tools_site.py` → `app/` | Sportiva Admin, Parcelia Pro, Sportiva Care : app Python sans dépendance, déployable sur Railway |
 | `som/capture.py`, `som/skill_builder.py` | démo → phrases Gladia + captures → Skill (Holo) |

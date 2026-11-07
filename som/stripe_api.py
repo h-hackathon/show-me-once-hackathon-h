@@ -5,6 +5,7 @@ L'agent, lui, ne passe jamais par l'API : il travaille dans le Dashboard Stripe,
 """
 import base64
 import json
+import ssl
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -12,6 +13,18 @@ import urllib.request
 from .config import env
 
 API = "https://api.stripe.com/v1"
+
+
+def _ssl_context():
+    """Python installé depuis python.org sur Mac n'a pas de certificats : on prend ceux de certifi."""
+    try:
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        return ssl.create_default_context()
+
+
+SSL = _ssl_context()
 
 
 def _key() -> str:
@@ -52,7 +65,7 @@ def call(method: str, path: str, params: dict | None = None) -> dict:
         "Content-Type": "application/x-www-form-urlencoded",
     })
     try:
-        with urllib.request.urlopen(req, timeout=60) as r:
+        with urllib.request.urlopen(req, timeout=60, context=SSL) as r:
             return json.loads(r.read().decode())
     except urllib.error.HTTPError as e:
         try:
