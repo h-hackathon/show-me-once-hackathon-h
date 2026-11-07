@@ -16,6 +16,7 @@ Trois projets **indépendants** : chacun a son `pyproject.toml`, son `uv.lock`, 
 | [`prep/`](prep/) | Préparation : tests des API, factures de test, Odoo, docs sponsors, journal | avant le sam. 7 nov 10h30 |
 | [`comptarex/`](comptarex/) | Comptarex, faux logiciel de cabinet comptable (web + desktop) : cible de la démo et du benchmark | hackathon |
 | [`smo/`](smo/) | Le produit : le pipeline Show me once | hackathon |
+| [`chargebacks/`](chargebacks/) | **Cas principal** : défendre les litiges Stripe (plan, back-office, seed Stripe). Comptarex = plan B | hackathon |
 
 Le code du produit (`smo/`, `comptarex/`) s'écrit pendant le hackathon : l'historique des commits le montre au jury.
 
