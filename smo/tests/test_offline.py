@@ -157,6 +157,12 @@ def test_tool_registry_and_h_definitions(s):
     assert drifts == [("run_x", "bouton renommé")]
 
 
+def test_localhost_opens_the_browser_on_this_machine():
+    assert h.browser_overrides("https://compta.example") == {}
+    overrides = h.browser_overrides("http://127.0.0.1:8042")["overrides"]
+    assert overrides["agent.environments[kind=web].host"] == "user_device"
+
+
 def test_provision_environment_and_definitions():
     from hai_agents.types.tool_definition import ToolDefinition
     assert provision.environment("http://localhost:3000").host == "user_device"

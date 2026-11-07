@@ -48,7 +48,8 @@ def run(run: Run, s: Settings, log: Callable[[str], None]) -> None:
         dossier=f"\nAprès la connexion, ouvre le dossier « {s.site_dossier} »." if s.site_dossier else "")
 
     client = h.client(s.hai_api_key)
-    handle = client.start_session(agent=s.replay_agent, messages=intro, idle_timeout_s=900, timezone="Europe/Paris")
+    handle = client.start_session(agent=s.replay_agent, messages=intro, idle_timeout_s=900, timezone="Europe/Paris",
+                                  **h.browser_overrides(meta.software_url))
     run.write_json("replay_session.json", {"session_id": handle.id})
     log(f"session H {handle.id}")
 

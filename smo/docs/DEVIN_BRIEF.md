@@ -3,6 +3,7 @@
 Repo : $repo. Crée le dossier `tools/$tool_name/` en copiant `tools/_template/`, et lis d'abord `tools/README.md`.
 Logiciel cible : $url. Identifiants de test dans tes Secrets Devin : `SITE_URL`, `SITE_LOGIN`, `SITE_PASSWORD`, `SITE_DOSSIER`, `SITE_ADMIN_TOKEN`.
 Pièce traitée pendant la démo : $sample.
+Détails du logiciel (écrans, libellés exacts, API technique, formats) : `docs/CONTRAT_SITE.md`. Les fournisseurs se comparent sans casse ni accents.
 
 ## 1. La Skill validée par l'humain (référence métier, prioritaire sur tout le reste)
 

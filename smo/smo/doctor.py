@@ -106,7 +106,7 @@ def probe_guided(s: Settings, log) -> Check:
     """Agent H guidé : envoyer des consignes pendant la session, et voir ce que contient une action."""
     client = h.client(s.hai_api_key)
     url = s.site_url or "https://example.com"
-    handle = client.start_session(agent=s.replay_agent, idle_timeout_s=300,
+    handle = client.start_session(agent=s.replay_agent, idle_timeout_s=300, **h.browser_overrides(url),
                                   messages=f"Va sur {url}, décris la page en une phrase, puis attends ma consigne.")
     events: list = []
     h.drain(handle, events)

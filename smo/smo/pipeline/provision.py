@@ -44,8 +44,7 @@ def agent_name(run: Run, s: Settings) -> str:
 
 def environment(url: str) -> Environment_Web:
     """Site en ligne → navigateur cloud H ; localhost → navigateur sur la machine qui fait tourner SMO."""
-    local = "localhost" in url or "127.0.0.1" in url
-    return Environment_Web(id="web", host="user_device" if local else "cloud", start_url=url)
+    return Environment_Web(id="web", host="user_device" if h.is_local(url) else "cloud", start_url=url)
 
 
 def create(run: Run, s: Settings, log: Callable[[str], None]) -> None:

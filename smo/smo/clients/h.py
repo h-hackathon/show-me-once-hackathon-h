@@ -22,6 +22,19 @@ def web_environment(start_url: str, host: str = "cloud") -> dict:
     return {"kind": "web", "id": "web", "host": host, "start_url": start_url}
 
 
+def is_local(url: str) -> bool:
+    return "localhost" in url or "127.0.0.1" in url
+
+
+def browser_overrides(url: str) -> dict:
+    """Garde l'agent H tel quel, mais ouvre son navigateur sur cette machine si le site est en localhost
+    (le navigateur cloud de H ne voit pas localhost). Syntaxe : SessionRequest.overrides."""
+    if not is_local(url):
+        return {}
+    return {"overrides": {"agent.environments[kind=web].host": "user_device",
+                          "agent.environments[kind=web].start_url": url}}
+
+
 def as_dict(event: Any) -> dict:
     return event.model_dump(mode="json") if hasattr(event, "model_dump") else dict(event)
 

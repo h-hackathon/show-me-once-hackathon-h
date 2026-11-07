@@ -51,7 +51,9 @@ Le SDK le prévoit explicitement : « for calls another process answers ».
 
 1. **Clés dans `smo/.env`**, puis `uv run smo doctor` : tout doit être ✅ ou ⏭️.
 2. **Les 2 tests qui valident le plan** : `uv run smo doctor --probe guided tool` (une à deux sessions H).
-3. **Site compta en ligne** (session `logiciel-test`) : renseigner `SITE_*`.
+3. ~~Site compta~~ ✅ **Comptarex** tourne en local (http://127.0.0.1:8042) et `SITE_*` est rempli dans `smo/.env`.
+   `doctor` est ✅ et le precheck réel v1/v2 est vérifié (`tests/test_site_live.py`).
+   Reste à décider l'accès en ligne pour le navigateur cloud H : tunnel ou Railway. En attendant, le navigateur tourne sur cette machine (`host: "user_device"`).
 4. **1re capture réelle** : INV-001 sur le site, voix + écran, puis `uv run smo new capture.mov --task "Saisir une facture fournisseur" --owner catherine --sample INV-001 --go`.
 5. **Serveur SMO sur Railway** (Dockerfile prêt) :
    - variables d'environnement = `.env` ;
@@ -64,9 +66,10 @@ Le SDK le prévoit explicitement : « for calls another process answers ».
    - C : agent + tool ;
    - on mesure réussite, temps, coût et écart entre runs ;
    - le contrôle se fait par `GET /api/invoices`, comparé à `prep/factures/verite_terrain.csv`.
-8. **Desktop** (prototype) :
-   - même site en localhost (`host: "user_device"`) ;
-   - si on veut une vraie appli native : fenêtre pywebview ou appli Qt (voir avec la session `logiciel-test`). Le script compilé passe alors par l'API d'accessibilité macOS, en Python, pas en Rust.
+8. **Desktop** (prototype) : Comptarex a aussi une vraie application Qt (`uv run --extra desktop comptarex-desktop`), sur la même base.
+   - L'agent H la pilote avec l'environnement `desktop` (extra `hai-agents[desktop]`, déjà installé).
+   - Le script compilé passe par l'API d'accessibilité macOS, en Python, pas en Rust.
+   - `/api/invoices` voit aussi les saisies faites dans l'application.
 
 ## Risques connus
 

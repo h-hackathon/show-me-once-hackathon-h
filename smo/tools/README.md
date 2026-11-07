@@ -30,7 +30,7 @@ Partir de `tools/_template/` (ignoré par le serveur tant qu'il commence par `_`
 {
   "version": 1,
   "screens": [
-    {"name": "Nouvelle facture", "path": "/invoices/new",
+    {"name": "Nouvelle facture", "path": "/factures/nouvelle",
      "anchors": [{"label": "Fournisseur"}, {"label": "Référence fournisseur"},
                  {"role": "button", "name": "Enregistrer le brouillon"}]}
   ]
