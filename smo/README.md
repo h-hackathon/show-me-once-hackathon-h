@@ -7,6 +7,7 @@ Capturer, automatiser et maintenir des agents H pour des tâches répétitives. 
 
 ```
 capture → transcribe → frames → read → understand → enrich → skill → review → provision → trial → compile → upgrade
+   └──→ map (agent H, en parallèle : carte des écrans de la tâche) ──┘
           Gladia       ffmpeg   Holo   Holo        Linkup            humain   agent H     agent H  Devin     agent H + tool
                                 (1 capture par appel, puis synthèse en texte seul)
 ```
@@ -59,7 +60,7 @@ uv run smo status <run_id>
 uv run smo new capture.mov --task "..." --owner catherine --go --auto
 ```
 
-Chaque étape écrit son fichier dans `runs/<run_id>/` : `transcript.json`, `frames/`, `notes.json`, `procedure.json`, `context.json`, `skill.md`, `agent.json`, `trace.json` (+ `trace/`), `trial.json`, `compile.json`.
+Chaque étape écrit son fichier dans `runs/<run_id>/` : `map.json` (gardée aussi dans `runs/_maps/`), `transcript.json`, `frames/`, `notes.json`, `procedure.json`, `context.json`, `skill.md`, `agent.json`, `trace.json` (+ `trace/`), `trial.json`, `compile.json`.
 Option `--guided` : à l'étape trial, l'agent est guidé phrase par phrase au lieu de suivre seul sa Skill.
 On peut refaire une étape : `uv run smo run <id> --only understand --force`.
 

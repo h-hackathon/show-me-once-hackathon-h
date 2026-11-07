@@ -73,6 +73,9 @@ class Worker:
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(json.dumps(record, indent=2, ensure_ascii=False), encoding="utf-8")
         log.warning("interface changée (%s) : %s", drift["tool"], drift["details"])
+        if self.s.site_url:
+            from ..pipeline import mapping
+            mapping.forget(self.s, self.s.site_url)   # elle sera refaite au prochain run
         if self.s.auto_repair:
             from ..pipeline.compile import repair
             tool = drift["tool"].removeprefix("run_").removeprefix("precheck_")

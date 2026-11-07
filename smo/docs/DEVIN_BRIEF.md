@@ -20,6 +20,12 @@ $trace
 
 $checks
 
+## 4. Carte du logiciel (relevée par un agent H qui l'a parcouru en lecture seule)
+
+Écrans, chemin pour y arriver, libellés exacts : la base de `ui_contract.json`.
+
+$map
+
 ## À livrer : une seule PR, titre « tool: $tool_name »
 
 1. `tools/$tool_name/tool.py` : `NAME = "$tool_name"`, `DESCRIPTION`, `Params` (pydantic, un champ par valeur lue sur la pièce, avec une description), `precheck(page, cfg)`, `run(page, params, cfg)`.

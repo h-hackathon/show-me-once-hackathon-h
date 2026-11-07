@@ -265,6 +265,53 @@ def test_trial_waits_for_the_human_after_three_failures(run, s, monkeypatch):
     assert not run.has("trace.json")
 
 
+MAP = {"screens": [{"name": "Nouvelle facture", "url": "/factures/nouvelle", "how_to_reach": "Saisie > Factures fournisseurs",
+                     "fields": ["Fournisseur", "Référence fournisseur"], "buttons": ["Enregistrer le brouillon"]}],
+       "notes": "écran « Choix du dossier » après la connexion"}
+
+
+def test_map_is_reused_from_cache_and_forgotten_when_the_ui_changes(run, s, monkeypatch):
+    from smo.models import SoftwareMap
+    from smo.pipeline import mapping
+    cached = mapping.cache_path(s, run.meta.software_url, run.meta.task)
+    cached.parent.mkdir(parents=True)
+    cached.write_text(SoftwareMap(**MAP, software_url=run.meta.software_url, task=run.meta.task).model_dump_json())
+    monkeypatch.setattr(mapping.h, "client", lambda key: (_ for _ in ()).throw(AssertionError("pas d'appel H")))
+    mapping.run(run, s, log=lambda _: None)
+    assert mapping.load(run).screens[0].name == "Nouvelle facture"
+    assert mapping.forget(s, run.meta.software_url) == 1 and not cached.exists()
+
+
+def test_map_feeds_the_synthesis_and_the_skill(run, s):
+    from smo.models import Notes, SoftwareMap
+    from smo.pipeline import understand
+    run.write_model("map.json", SoftwareMap(**MAP, software_url=run.meta.software_url, task=run.meta.task))
+    prompt = understand.synthesis_prompt(run, run.read_model("transcript.json", Transcript), Notes())
+    assert "Carte du logiciel" in prompt and "Saisie > Factures fournisseurs" in prompt
+    skill.run(run, s, log=lambda _: None)
+    md = run.file("skill.md").read_text()
+    assert "## Carte du logiciel" in md and "Boutons : Enregistrer le brouillon" in md and "Choix du dossier" in md
+
+
+def test_background_stage_runs_in_parallel_and_is_awaited(run, s, monkeypatch):
+    import time as _time
+    order = []
+
+    def slow_map(r, s, log):
+        _time.sleep(0.3)
+        r.write_text("bg.done", "")
+        order.append("map")
+
+    fake = [orchestrator.Stage("map", slow_map, (), lambda r: r.has("bg.done"), optional=True, join_before="b"),
+            orchestrator.Stage("a", lambda r, s, log: order.append("a"), (), lambda r: False),
+            orchestrator.Stage("b", lambda r, s, log: order.append("b" if r.has("bg.done") else "b-trop-tôt"), (),
+                               lambda r: False)]
+    monkeypatch.setattr(orchestrator, "STAGES", fake)
+    monkeypatch.setattr(orchestrator, "NAMES", [st.name for st in fake])
+    assert orchestrator.run_pipeline(run, s, log=lambda _: None) == "done"
+    assert order == ["a", "map", "b"]                 # a n'attend pas la carte, b l'attend
+
+
 def test_turn_stops_on_idle_event_even_if_status_flips_back():
     class FakeHandle:
         def stream(self, **kwargs):
@@ -301,7 +348,7 @@ def test_devin_brief_renders(run, s):
     assert "> Consigne : Étape 1" in text and "click(" in text
     from string import Template
     prompt = Template((config.ROOT / "docs" / "DEVIN_BRIEF.md").read_text()).substitute(
-        task="t", repo="r", tool_name="x", url="u", sample="s", skill="k", trace=text, checks="c")
+        task="t", repo="r", tool_name="x", url="u", sample="s", skill="k", trace=text, checks="c", map="m")
     assert "tools/x/" in prompt and "$" not in prompt.replace("$tool", "")
 
 

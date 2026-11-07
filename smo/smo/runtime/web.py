@@ -22,7 +22,7 @@ from pydantic import BaseModel
 
 from ..clients import gladia
 from ..config import Settings
-from ..models import CaptureMeta, CompileResult, Provisioned, Trace, Trial
+from ..models import CaptureMeta, CompileResult, Provisioned, SoftwareMap, Trace, Trial
 from ..pipeline.orchestrator import NAMES, run_pipeline
 from ..runs import Run
 from .auth import token_checker
@@ -32,6 +32,7 @@ WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 MAX_UPLOAD_MB = 500   # ~25 min d'écran enregistré par la page ; au-delà, 413
 
 LABELS = {
+    "map": "Cartographie du logiciel (agent H)",
     "transcribe": "Transcription de la voix (Gladia)",
     "frames": "Captures d'écran, une par phrase",
     "read": "Lecture des écrans (Holo)",
@@ -93,6 +94,8 @@ def overall(status: dict, busy: bool) -> str:
 
 def links(run: Run) -> dict:
     out: dict = {}
+    if run.has("map.json"):
+        out["map"] = run.read_model("map.json", SoftwareMap).replay_url
     if run.has("agent.json"):
         agent = run.read_model("agent.json", Provisioned)
         out |= {"agent": agent.agent_name, "tool_ready": agent.tool_ready}

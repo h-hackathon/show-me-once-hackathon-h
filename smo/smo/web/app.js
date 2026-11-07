@@ -285,6 +285,7 @@ function render(run) {
 
 function renderLinks(links, attempts) {
   const rows = [];
+  if (links.map) rows.push(["Cartographie", anchor(links.map, "revoir la session")]);
   if (links.agent) rows.push(["Agent dans H", code(links.agent)]);
   if (links.agent) rows.push(["Mode", document.createTextNode(links.tool_ready ? "tool + reprise à l'écran" : "à l'écran (tool en préparation)")]);
   for (const a of attempts) {

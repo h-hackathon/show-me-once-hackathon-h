@@ -158,6 +158,30 @@ class Provisioned(BaseModel):
     environment: dict[str, Any]
 
 
+class ScreenMap(BaseModel):
+    """Un écran du logiciel, relevé par l'agent cartographe."""
+    name: str                              # titre ou nom visible
+    url: str | None = None
+    how_to_reach: str | None = None        # menus / boutons depuis l'écran précédent
+    fields: list[str] = []                 # libellés exacts des champs
+    buttons: list[str] = []                # libellés exacts des boutons et liens utiles
+
+
+class MapAnswer(BaseModel):
+    """Format de réponse imposé à l'agent cartographe."""
+    screens: list[ScreenMap]
+    notes: str | None = None               # pièges vus (écran intermédiaire, fenêtre de confirmation…)
+
+
+class SoftwareMap(MapAnswer):
+    """La carte du logiciel pour une tâche (map.json, gardée dans runs/_maps/)."""
+    software_url: str
+    task: str
+    session_id: str | None = None
+    replay_url: str | None = None
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
 class Verdict(BaseModel):
     """Holo compare l'écran final de l'agent à celui de la démo : même résultat ou pas."""
     success: bool

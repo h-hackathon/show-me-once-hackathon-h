@@ -7,8 +7,9 @@ from __future__ import annotations
 from typing import Callable
 
 from ..config import Settings
-from ..models import Context, Procedure
+from ..models import Context, Procedure, SoftwareMap
 from ..runs import Run, slug
+from . import mapping
 
 
 VERB = {"navigate": "Aller sur", "click": "Cliquer sur", "type": "Remplir", "select": "Choisir dans",
@@ -25,7 +26,7 @@ def tool_name(run: Run) -> str:
     return slug(run.meta.task, sep="_", max_len=40)
 
 
-def render(procedure: Procedure, context: Context, url: str) -> str:
+def render(procedure: Procedure, context: Context, url: str, soft_map: SoftwareMap | None = None) -> str:
     corrections = {c.rule: c for c in context.rule_checks if c.verdict == "corrected" and c.correction}
     lines = [f"# {procedure.task}", "", f"Logiciel : {procedure.software} ({url})", "", "## Étapes"]
     for st in procedure.steps:
@@ -47,13 +48,15 @@ def render(procedure: Procedure, context: Context, url: str) -> str:
     lines += [f"- {c}" for c in procedure.stop_conditions] or ["- une valeur est illisible ou incohérente"]
     if procedure.inputs:
         lines += ["", "## À lire sur la pièce"] + [f"- {i}" for i in procedure.inputs]
+    if soft_map and soft_map.screens:
+        lines += ["", "## Carte du logiciel", mapping.summary(soft_map)]
     return "\n".join(lines) + "\n"
 
 
 def run(run: Run, s: Settings, log: Callable[[str], None]) -> None:
     procedure = run.read_model("procedure.json", Procedure)
     context = run.read_model("context.json", Context) if run.has("context.json") else Context()
-    run.write_text("skill.md", render(procedure, context, run.meta.software_url))
+    run.write_text("skill.md", render(procedure, context, run.meta.software_url, mapping.load(run)))
     log(f"Skill écrite : {run.file('skill.md')}")
 
 

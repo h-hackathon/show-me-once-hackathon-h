@@ -17,6 +17,7 @@ from ..config import Settings
 from ..models import (DocumentNote, DocumentReading, FrameSet, Notes, Procedure, ScreenNote, ScreenReading,
                       Transcript)
 from ..runs import Run
+from . import mapping
 
 
 MAX_SCREENS = 60   # au-delà, captures prises à intervalles réguliers, dernière comprise (souvent « Enregistrer »)
@@ -46,12 +47,13 @@ SYNTH_PROMPT = """Un humain a fait une fois la tâche « {task} » dans le logic
 Pour chaque phrase : ce qu'il a dit, puis ce qu'on voyait à l'écran à ce moment (lu sur la capture).
 
 {lines}
-{documents}
+{documents}{map}
 Rends UNIQUEMENT un objet JSON de cette forme :
 {schema}
 
 Consignes :
 - steps : chaque action à l'écran, dans l'ordre ; target = le libellé exact vu à l'écran (bouton, champ, menu).
+- Si la carte du logiciel est fournie, prends ses libellés exacts et son chemin entre les écrans.
 - value_source : relie chaque valeur saisie au champ de la pièce d'où elle vient, quand c'est possible.
 - rules : les règles implicites (contrôles, exceptions, interdits), dites ou visibles.
 - N'invente rien qui ne soit ni dit ni vu."""
@@ -124,8 +126,11 @@ def synthesis_prompt(run: Run, transcript: Transcript, notes: Notes) -> str:
         f"\nPièce de référence ({Path(d.path).name}) : {d.kind or 'pièce'}\n"
         + "\n".join(f"  - {k} : {v}" for k, v in d.fields.items()) + "\n"
         for d in notes.documents if not d.error)
+    soft_map = mapping.load(run)
+    map_text = (f"\nCarte du logiciel, relevée par un agent qui l'a parcouru (libellés exacts) :\n"
+                f"{mapping.summary(soft_map)}\n") if soft_map else ""
     return SYNTH_PROMPT.format(task=meta.task, software=meta.software_name or "web", url=meta.software_url,
-                               lines="\n".join(lines), documents=documents, schema=SCHEMA)
+                               lines="\n".join(lines), documents=documents, map=map_text, schema=SCHEMA)
 
 
 def synthesize(run: Run, s: Settings, log: Callable[[str], None]) -> None:
