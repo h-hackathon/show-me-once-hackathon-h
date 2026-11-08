@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Show Me Once — Timeline</title>
+<style>
+  :root { --bg:#0f1115; --card:#181b22; --line:#262a33; --fg:#e8eaed; --muted:#9aa0a6; --accent:#7c5cff; --ok:#34a853; --warn:#fbbc04; --err:#ea4335; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.5 system-ui, sans-serif; background:var(--bg); color:var(--fg); }
+  header { padding:16px 24px; border-bottom:1px solid var(--line); display:flex; gap:16px; align-items:center; flex-wrap:wrap; }
+  header h1 { font-size:18px; margin:0; flex:1; min-width:200px; }
+  .pill { padding:2px 10px; border-radius:99px; background:var(--line); font-size:12px; }
+  .pill.ready { background:var(--ok); color:#000; } .pill.error { background:var(--err); }
+  main { display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1fr); gap:20px; padding:20px 24px; }
+  @media (max-width: 900px) { main { grid-template-columns:1fr; padding:16px; } }
+  .card { background:var(--card); border-radius:12px; padding:16px; margin-bottom:16px; }
+  video { width:100%; border-radius:8px; background:#000; }
+  h2 { font-size:14px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:0 0 10px; }
+  .step { display:grid; grid-template-columns:52px 1fr 96px; gap:10px; padding:10px 0; border-top:1px solid var(--line); cursor:pointer; }
+  .step:hover { background:#1e222b; }
+  .t { color:var(--accent); font-variant-numeric:tabular-nums; font-weight:600; }
+  .act { font-weight:600; } .app { color:var(--muted); font-size:12px; word-break:break-all; }
+  .say { color:var(--warn); font-style:italic; margin-top:4px; }
+  .step img { width:96px; border-radius:4px; border:1px solid var(--line); }
+  button { font:inherit; font-weight:600; border:0; border-radius:8px; padding:9px 14px; cursor:pointer; background:var(--accent); color:#fff; }
+  button.sec { background:var(--line); }
+  input, textarea { width:100%; font:inherit; background:#0f1115; color:var(--fg); border:1px solid var(--line); border-radius:8px; padding:8px; margin:4px 0 10px; }
+  pre { white-space:pre-wrap; font:12px/1.5 ui-monospace, monospace; color:#cfd3d8; max-height:420px; overflow:auto; margin:0; }
+  .muted { color:var(--muted); } a { color:var(--accent); }
+  .acc { display:flex; gap:10px; align-items:baseline; padding:6px 0; border-top:1px solid var(--line); }
+  .acc:first-child { border-top:0; } .acc b { min-width:0; word-break:break-all; }
+  .tag { font-size:12px; padding:1px 8px; border-radius:99px; white-space:nowrap; }
+  .tag.ok { background:var(--ok); color:#000; } .tag.warn { background:var(--warn); color:#000; } .tag.err { background:var(--err); }
+  .row { display:flex; gap:8px; flex-wrap:wrap; }
+  dialog { background:var(--card); color:var(--fg); border:1px solid var(--line); border-radius:12px; max-width:90vw; }
+  dialog img { max-width:85vw; max-height:80vh; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">Chargement…</h1>
+  <span id="status" class="pill">…</span>
+  <a href="/" class="muted">Tous les enregistrements</a>
+</header>
+<main>
+  <section>
+    <div class="card"><video id="video" controls preload="metadata"></video></div>
+    <div class="card">
+      <h2>Objectif</h2>
+      <div id="goal" class="muted">—</div>
+      <h2 style="margin-top:14px">Applications</h2>
+      <div id="apps" class="muted">—</div>
+    </div>
+    <div class="card">
+      <h2>Accès requis</h2>
+      <div id="auth" class="muted">—</div>
+    </div>
+    <div class="card">
+      <h2>Envoyer à H Company</h2>
+      <label class="muted">Instructions pour ce run (optionnel)</label>
+      <textarea id="instr" rows="2" placeholder="ex : fais-le pour le litige dp_1Q2w3E sur la commande #1042"></textarea>
+      <label class="muted">URL de départ</label>
+      <input id="startUrl">
+      <div class="row">
+        <button id="agent">＋ Créer l'agent dans H</button>
+        <button id="run" class="sec">▶ Lancer maintenant</button>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <a id="dlAgent" class="muted">⬇ Fichier agent H (.json)</a>
+        <a id="dlSkill" class="muted">⬇ SKILL.md</a>
+      </div>
+      <pre id="hout" class="muted" style="margin-top:10px"></pre>
+    </div>
+  </section>
+  <section>
+    <div class="card">
+      <h2>Étapes</h2>
+      <div id="steps" class="muted">En attente du traitement…</div>
+    </div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between; align-items:center; margin-bottom:8px">
+        <h2 style="margin:0">skill.md</h2>
+        <div class="row"><button class="sec" id="copy">Copier</button><a id="json" class="muted" target="_blank">session.json</a></div>
+      </div>
+      <pre id="skillmd"></pre>
+    </div>
+  </section>
+</main>
+<dialog id="dlg"><img id="dlgImg"><form method="dialog"><button class="sec">Fermer</button></form></dialog>
+<script>
+const id = location.pathname.split("/").pop();
+const KEY = new URLSearchParams(location.search).get("key") || "";
+const $ = (x) => document.getElementById(x);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const LABEL = { start:"Départ", click:"Clic", type:"Saisie", press_enter:"Entrée", submit:"Envoi formulaire", navigate:"Navigation", switch_tab:"Changement d'onglet", open_tab:"Nouvel onglet" };
+
+$("video").src = `/files/${id}/video.webm`;
+$("json").href = `/recordings/${id}`;
+$("dlAgent").href = `/recordings/${id}/export/h-agent.json`;
+$("dlSkill").href = `/recordings/${id}/export/SKILL.md`;
+
+function stepText(s) {
+  if (s.action === "click") return `${LABEL.click} sur ${esc(s.target_label)}` + (s.result_url ? ` → <span class="app">${esc(s.result_url)}</span>` : "");
+  if (s.action === "type") return `${LABEL.type} dans ${esc(s.target_label)} : <b>${esc(s.value)}</b>`;
+  if (s.action === "press_enter") return `${LABEL.press_enter} dans ${esc(s.target_label)}`;
+  return LABEL[s.action] || esc(s.action);
+}
+
+async function load() {
+  const r = await fetch(`/recordings/${id}`);
+  const { status, session } = await r.json();
+  $("status").textContent = status.status + (status.gladia_error ? " (Gladia: erreur)" : "");
+  $("status").className = "pill " + status.status;
+  if (status.status === "error") { $("steps").textContent = status.error; return; }
+  if (!session || status.status !== "ready") return setTimeout(load, 2500);
+
+  $("title").textContent = session.title;
+  $("goal").textContent = session.goal || "—";
+  $("apps").textContent = session.apps.join(" → ") || "—";
+  if (!$("startUrl").value) $("startUrl").value = session.start_url || "";
+  $("steps").innerHTML = session.steps.map((s) => {
+    const shot = s.screenshot || s.screenshot_after;
+    return `<div class="step" data-t="${s.t}">
+      <div class="t">${s.t.toFixed(1)}s</div>
+      <div><div class="act">${s.index}. ${stepText(s)}</div>
+        <div class="app">${esc(s.app)}${s.page_title ? " — " + esc(s.page_title) : ""}</div>
+        ${s.narration ? `<div class="say">« ${esc(s.narration)} »</div>` : ""}</div>
+      <div>${shot ? `<img loading="lazy" src="/files/${id}/screenshots/${esc(shot)}" data-full="/files/${id}/screenshots/${esc(shot)}">` : ""}</div>
+    </div>`;
+  }).join("") || "Aucune étape capturée.";
+  document.querySelectorAll(".step").forEach((el) => el.onclick = (e) => {
+    if (e.target.tagName === "IMG") { $("dlgImg").src = e.target.dataset.full; $("dlg").showModal(); return; }
+    $("video").currentTime = Math.max(0, +el.dataset.t - 1); $("video").play();
+  });
+  $("skillmd").textContent = await (await fetch(`/recordings/${id}/skill.md`)).text();
+  loadAuth(session);
+}
+
+const AUTH = {
+  ok: ["ok", "Vault : identifiants + code 2FA"],
+  no_totp: ["warn", "Vault sans code 2FA (TOTP) : bloquera si le site demande un code"],
+  incomplete: ["warn", "Item du vault sans mot de passe"],
+  profile_only: ["warn", "Pas dans le vault : connecte-toi une fois dans l'Agent View (profil navigateur)"],
+  missing: ["err", "Aucun accès : ajoute un item au vault ou active le profil navigateur"],
+};
+async function loadAuth(session) {
+  const r = await fetch(`/recordings/${id}/hcompany/auth-check`);
+  if (!r.ok) {
+    $("auth").innerHTML = (session.accounts || []).map((a) => `<div class="acc"><b>${esc(a.app)}</b></div>`).join("") +
+      `<div class="muted" style="margin-top:6px">Vérification H impossible : ${esc((await r.json()).detail || r.status)}</div>`;
+    return;
+  }
+  const data = await r.json();
+  $("auth").innerHTML = data.accounts.map((a) => {
+    const [cls, txt] = AUTH[a.status] || ["", a.status];
+    return `<div class="acc"><b>${esc(a.app)}</b><span class="tag ${cls}">${esc(txt)}</span>` +
+      (a.vault_item ? `<span class="muted">item « ${esc(a.vault_item)} »</span>` : "") +
+      (a.login_seen ? `<span class="muted">· connexion vue pendant l'enregistrement</span>` : "") + `</div>`;
+  }).join("") || "Aucune app détectée." ;
+  if (data.vault_error) $("auth").innerHTML += `<div class="muted" style="margin-top:6px">Vault illisible : ${esc(data.vault_error)}</div>`;
+  if (!data.mode.vault_id) $("auth").innerHTML += `<div class="muted" style="margin-top:6px">Aucun vault configuré (HAI_VAULT_ID dans backend/.env).</div>`;
+}
+
+async function post(path, body) {
+  $("hout").textContent = "…";
+  const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json", ...(KEY ? { "X-ShowMeOnce-Key": KEY } : {}) }, body: JSON.stringify(body) });
+  const data = await r.json();
+  if (!r.ok) { $("hout").textContent = "Erreur : " + (data.detail || JSON.stringify(data)); return null; }
+  return data;
+}
+
+$("run").onclick = async () => {
+  const data = await post(`/recordings/${id}/hcompany/run`, { instructions: $("instr").value || null, start_url: $("startUrl").value || null });
+  if (!data) return;
+  $("hout").innerHTML = `Session ${esc(data.session_id)} lancée — <a target="_blank" href="${esc(data.agent_view_url)}">voir l'agent en direct</a>`;
+  const poll = async () => {
+    const s = await (await fetch(`/hcompany/sessions/${data.session_id}`)).json();
+    const st = s.status?.status || "?";
+    $("hout").innerHTML = `Session <b>${esc(st)}</b> — <a target="_blank" href="${esc(data.agent_view_url)}">voir l'agent</a>` +
+      (s.latest_answer ? `\n\nRéponse :\n${esc(typeof s.latest_answer === "string" ? s.latest_answer : JSON.stringify(s.latest_answer, null, 2))}` : "");
+    if (!["completed", "failed", "timed_out", "interrupted"].includes(st)) setTimeout(poll, 4000);
+  };
+  poll();
+};
+$("agent").onclick = async () => {
+  const data = await post(`/recordings/${id}/hcompany/agent`, {});
+  if (!data) return;
+  const st = (x) => ({ created: "créé", updated: "mis à jour", already_exists: "existait déjà" }[x] || x);
+  $("hout").innerHTML = `Agent <b>${esc(data.agent)}</b> ${st(data.agent_status)} (skill ${esc(data.skill)} ${st(data.skill_status)}).\n` +
+    `Il est maintenant dans ton catalogue H : <a target="_blank" href="https://platform.hcompany.ai">platform.hcompany.ai</a> → Agents.`;
+};
+$("copy").onclick = () => navigator.clipboard.writeText($("skillmd").textContent);
+load();
+</script>
+</body>
+</html>

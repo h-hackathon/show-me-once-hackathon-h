@@ -2,7 +2,13 @@
 
 Environnement de démonstration indépendant, développé pour un hackathon. Marques et données 100 % fictives.
 
-Le repo contient deux choses :
+Le repo contient trois parties, chacune dans son dossier :
+
+| Dossier | Contenu |
+|---|---|
+| [`app/`](app/) | les 3 outils internes factices (déployés sur Railway) |
+| [`som/`](som/) | la gestion des litiges : données des outils + création des litiges dans Stripe |
+| [`chrome_cast/`](chrome_cast/) | l'enregistreur Chrome « Show Me Once » : extension + backend (voir [`chrome_cast/README.md`](chrome_cast/README.md)) |
 
 1. **`app/` : trois outils internes factices**, déployés sur Railway, avec des données reliées entre elles
    (commande ↔ colis ↔ ticket ↔ client).
@@ -11,6 +17,9 @@ Le repo contient deux choses :
    - **Sportiva Care** (`/care`) : support client — tickets et conversations.
 2. **`som/` : la gestion des litiges** — génère les données des outils et crée de vrais litiges dans un compte
    Stripe **en mode test**, rattachés aux commandes des outils (numéro `CMD-…` dans la description du paiement).
+3. **`chrome_cast/` : l'enregistreur Chrome**, indépendant du reste (il a son propre backend, ses propres
+   dépendances et son propre `.env`). Il enregistre l'écran, la voix et les clics, puis produit la timeline et
+   le `skill.md`. Code repris du repo [noahsgds/chrome_cast](https://github.com/noahsgds/chrome_cast).
 
 ## Les données
 
@@ -77,3 +86,5 @@ un `git push` suffit pour que Railway redéploie.
 | `som/scenarios.py` | les 400 litiges, leurs preuves et la règle de décision |
 | `som/tools_site.py` | génère `app/data.json` (litiges + commandes ordinaires + historique) |
 | `som/seed.py`, `som/stripe_api.py` | création des litiges dans Stripe (refuse toute clé qui n'est pas de test) |
+| `chrome_cast/extension/` | extension Chrome MV3 (à charger dans `chrome://extensions`) |
+| `chrome_cast/backend/` | backend FastAPI de l'enregistreur (`cd chrome_cast/backend`, voir son README) |
