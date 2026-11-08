@@ -41,7 +41,7 @@ def verifier_production() -> None:
         elif len(valeur) < longueur_min:
             refus.append(f"{nom} (moins de {longueur_min} caractères)")
     if refus:
-        raise SystemExit("Comptarex en production : secrets à définir avant de démarrer : " + ", ".join(refus))
+        raise SystemExit("Qonta en production : secrets à définir avant de démarrer : " + ", ".join(refus))
 
 USER_CODE = "CMOREAU"             # le collaborateur du cabinet qui se connecte
 CABINET = "Fiduciaire Moreau & Associés"

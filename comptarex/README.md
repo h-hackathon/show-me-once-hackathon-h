@@ -1,6 +1,6 @@
-# Comptarex : faux logiciel de cabinet comptable
+# Qonta : faux logiciel de cabinet comptable
 
-« COMPTAREX Cabinet 6.2 » imite un logiciel de cabinet de 2004 : gris Windows 2000, Tahoma 11 px, codes partout,
+« QONTA Cabinet 6.2 » imite un logiciel de cabinet de 2004 : gris Windows 2000, Tahoma 11 px, codes partout,
 menus en arbre, éditions en Courier. Il sert de **cible de test aux agents H** : l'agent n'a aucune API, il doit
 passer par l'écran. Le projet a deux versions, branchées sur la **même base SQLite** :
 

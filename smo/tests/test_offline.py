@@ -368,13 +368,13 @@ def test_common_block_is_added_to_the_skill_sent_to_h():
 def test_desktop_gets_its_own_agent_environment_and_names(s, tmp_path):
     from smo.pipeline import target
     run = Run.create(s.runs_dir, CaptureMeta(task="Saisir une facture fournisseur", software_kind="desktop",
-                                             software_url="COMPTAREX Cabinet 6.2"), [])
+                                             software_url="QONTA Cabinet 6.2"), [])
     s = dataclasses.replace(s, h_desktop_env=None, h_desktop_bridge=None)
     local = target.environment(run.meta, s)                         # sans environnement H : le bureau de la machine
     assert local.kind == "desktop" and local.host == "user_device" and not local.session_id
     assert target.environment(run.meta, dataclasses.replace(s, h_desktop_env="qonta-desktop")) == "qonta-desktop"
     assert skill.tool_name(run).endswith("_desktop") and provision.agent_name(run, s).endswith("-desktop")
-    assert "application de bureau « COMPTAREX Cabinet 6.2 »" in target.where(run.meta)
+    assert "application de bureau « QONTA Cabinet 6.2 »" in target.where(run.meta)
     assert target.credentials(run.meta, s) == (s.desktop_login, s.desktop_password)
 
 

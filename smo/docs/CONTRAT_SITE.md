@@ -1,6 +1,6 @@
 # Contrat site compta ↔ SMO
 
-Le logiciel cible des démos est **Qonta** (`comptarex/` du repo, « COMPTAREX Cabinet 6.2 », un faux logiciel de cabinet de 2004). Il existe en deux versions sur la même base SQLite :
+Le logiciel cible des démos est **Qonta** (`comptarex/` du repo, « QONTA Cabinet 6.2 », un faux logiciel de cabinet de 2004). Il existe en deux versions sur la même base SQLite :
 - un site web : `uv run comptarex-web` → http://127.0.0.1:8042 ;
 - une application de bureau Qt : `uv run --extra desktop comptarex-desktop`.
 
