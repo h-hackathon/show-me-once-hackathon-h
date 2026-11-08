@@ -17,7 +17,7 @@ the agent handles the inbox with her rules, and every result is checked in the s
 ## 1. The idea: show it once, like you would to an intern
 
 When a manager trains an intern, they don't write a program. **They do the task in front of them and explain** what they
-do and why: *"Here I check the amount. Under €15 we don't contest — it costs more than it brings back."*
+do and why: *"Here I check that net plus VAT equals the total. If it doesn't, I never enter the invoice — I flag it."*
 
 Show me once does exactly that with an AI agent:
 - **you do the task once**, on your screen, talking;
@@ -132,7 +132,7 @@ show-me-once-hackathon-h/
 ```mermaid
 flowchart TB
     subgraph Human
-      U["Analyst<br/>(demo + review + approval)"]
+      U["Accountant<br/>(demo + review + approval)"]
     end
     subgraph SMO["smo/ — SMO server"]
       P["pipeline<br/>Gladia · Holo · Linkup"]
