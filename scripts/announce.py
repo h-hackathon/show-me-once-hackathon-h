@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 import subprocess
 import sys
 import time
@@ -55,7 +56,12 @@ def post(url: str, token: str, body: dict) -> dict:
     try:
         with urllib.request.urlopen(request, timeout=300) as response:
             return json.loads(response.read() or b"{}")
-    except (urllib.error.URLError, ValueError) as err:
+    except urllib.error.URLError as err:
+        if isinstance(err.reason, socket.gaierror):   # adresse inconnue : réessayer 10 min n'y changerait rien
+            sys.exit("SMO_SERVER_URL ne correspond à aucune adresse : corrige le secret GitHub (l'adresse publique de SMO)")
+        print(f"SMO : {err}", file=sys.stderr)
+        return {}
+    except ValueError as err:
         print(f"SMO : {err}", file=sys.stderr)
         return {}
 
