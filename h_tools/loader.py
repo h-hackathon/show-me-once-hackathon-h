@@ -52,6 +52,24 @@ class Tool:
         return cfg.scrub(with_page(lambda page: self.module.run(page, params, cfg)))
 
 
+LOCALE, TIMEZONE = "fr-FR", "Europe/Paris"
+VIEWPORT = {"width": 1366, "height": 768}
+ACTION_TIMEOUT_MS = 10_000      # une action (clic, saisie, attente d'un élément)
+NAVIGATION_TIMEOUT_MS = 30_000  # un chargement de page
+
+
+def browser_context(browser):
+    """Le navigateur d'un utilisateur français ordinaire, comme celui de l'agent H : langue, fuseau, taille d'écran,
+    et l'agent utilisateur de ce Chrome sans la mention « Headless ». Rien de plus : pas de contournement d'anti-bot
+    (si un site bloque le tool, l'erreur rend la main à l'agent H, à l'écran)."""
+    agent = f"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{browser.version} Safari/537.36"
+    context = browser.new_context(locale=LOCALE, timezone_id=TIMEZONE, viewport=VIEWPORT, user_agent=agent,
+                                  extra_http_headers={"Accept-Language": "fr-FR,fr;q=0.9"})
+    context.set_default_timeout(ACTION_TIMEOUT_MS)
+    context.set_default_navigation_timeout(NAVIGATION_TIMEOUT_MS)
+    return context
+
+
 def with_page(fn: Callable) -> dict:
     """Un navigateur neuf par appel (l'API sync de Playwright ne se partage pas entre threads)."""
     from playwright.sync_api import sync_playwright
@@ -59,15 +77,19 @@ def with_page(fn: Callable) -> dict:
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         try:
-            return guarded(fn, browser.new_page())
+            return guarded(fn, browser_context(browser).new_page())
         finally:
             browser.close()
 
 
 def guarded(fn: Callable, page) -> dict:
-    """Un tool qui casse ne doit jamais faire planter la session H : l'erreur devient un résultat."""
+    """Un tool qui casse ne doit jamais faire planter la session H : l'erreur devient un résultat, avec l'étape où
+    il a cassé (ui.step) pour que l'agent et la réparation sachent où regarder."""
+    from .steps import StepError
     try:
         return fn(page)
+    except StepError as err:
+        return {"ok": False, "status": "error", "step": err.step, "error": f"{type(err.cause).__name__}: {err.cause}"}
     except Exception as err:
         return {"ok": False, "status": "error", "error": f"{type(err).__name__}: {err}"}
 

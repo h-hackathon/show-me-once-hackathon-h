@@ -111,6 +111,31 @@ def test_failures_become_results_without_secrets(fake_tool):
     assert crashed == {"ok": False, "status": "error", "error": f"RuntimeError: montant négatif (connecté avec {MASK})"}
 
 
+def test_a_failure_names_the_step_where_it_happened():
+    from h_tools.steps import step
+
+    def fill(_page):
+        with step("ouverture de la facture"):
+            with step("saisie du fournisseur"):
+                raise TimeoutError("Fournisseur introuvable")
+    assert loader.guarded(fill, None) == {"ok": False, "status": "error", "step": "saisie du fournisseur",
+                                          "error": "TimeoutError: Fournisseur introuvable"}
+
+
+def test_the_browser_looks_like_a_french_user():
+    class Browser:
+        version = "131.0.6778.33"
+
+        def new_context(self, **kw):
+            self.kw = kw
+            return type("C", (), {"set_default_timeout": lambda s, ms: None,
+                                  "set_default_navigation_timeout": lambda s, ms: None})()
+    browser = Browser()
+    loader.browser_context(browser)
+    assert browser.kw["locale"] == "fr-FR" and browser.kw["timezone_id"] == "Europe/Paris"
+    assert "Headless" not in browser.kw["user_agent"] and "Chrome/131.0.6778.33" in browser.kw["user_agent"]
+
+
 def test_cli(fake_tool, monkeypatch, capsys):
     monkeypatch.setenv("SITE_PASSWORD", "s3cret-pass")
     assert cli.main([str(fake_tool), "run", '{"reference": "F-2"}']) == 0

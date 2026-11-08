@@ -12,6 +12,8 @@ from pathlib import Path
 
 from playwright.sync_api import Locator, Page, TimeoutError as PlaywrightTimeout
 
+from .steps import StepError, step  # noqa: F401  (les tools importent leurs helpers depuis h_tools.ui)
+
 
 def locate(page: Page, anchor: dict) -> Locator:
     exact = anchor.get("exact", True)
@@ -45,6 +47,21 @@ def login(page: Page, cfg, dossier: str | None = None, *, path: str = "/login", 
     if dossier:
         page.get_by_text(dossier, exact=False).first.click()
         page.wait_for_load_state()
+
+
+def logged_out(page: Page, email: str = "E-mail") -> bool:
+    """La session a expiré en cours d'appel : le formulaire de connexion est revenu à l'écran."""
+    field = page.get_by_label(email)
+    return field.count() > 0 and field.first.is_visible()
+
+
+def stay_logged_in(page: Page, cfg, dossier: str | None = None, **login_kw) -> bool:
+    """À appeler avant d'enregistrer : si la session a expiré, se reconnecte (une fois) et renvoie True. Le tool
+    reprend alors sa saisie depuis le début ; sa vérification de doublon évite toute double saisie."""
+    if not logged_out(page, login_kw.get("email", "E-mail")):
+        return False
+    login(page, cfg, dossier, **login_kw)
+    return True
 
 
 def contract_of(tool_file: str) -> dict:
