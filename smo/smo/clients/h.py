@@ -9,7 +9,8 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from hai_agents import Agent, Client, ConflictError, Environment_Web
+from hai_agents import Agent, Client, Environment_Web
+from hai_agents.core.api_error import ApiError
 
 from ..models import Trace, TraceStep
 
@@ -214,7 +215,9 @@ def upsert_skill(h: Client, name: str, description: str, body: str, files: dict[
     extra = {"files": files, "executable_files": executable_files or []} if files else {}
     try:
         return h.skills.create_skill(name=name, description=description, body=body, **extra)
-    except ConflictError:
+    except ApiError as err:
+        if err.status_code != 409:   # le SDK lève un ApiError nu (pas ConflictError) pour le 409 des Skills
+            raise
         return h.skills.update_skill(name, name=name, description=description, body=body, **extra)
 
 
@@ -222,5 +225,7 @@ def upsert_agent(h: Client, name: str, **spec):
     """Crée l'agent, ou ajoute une révision s'il existe déjà."""
     try:
         return h.agents.create_agent(name=name, **spec)
-    except ConflictError:
+    except ApiError as err:
+        if err.status_code != 409:
+            raise
         return h.agents.update_agent(name, name=name, **spec)

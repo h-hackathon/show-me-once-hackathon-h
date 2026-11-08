@@ -99,6 +99,11 @@ async function startRecording() {
   recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
   recorder.onstop = () => { stopLive(); tracks.forEach((t) => t.stop()); if (!cancelled) upload(); };
   display.getVideoTracks()[0].addEventListener("ended", stopRecording);   // « Arrêter le partage » de Chrome
+  // micro pris par une autre app ou casque déconnecté : la vidéo continue sans la voix, il faut le voir tout de suite
+  const voice = mic.getAudioTracks()[0];
+  voice.addEventListener("mute", () => liveStatus("micro coupé : votre voix n'est plus enregistrée", false));
+  voice.addEventListener("unmute", () => liveStatus("micro rétabli", true));
+  voice.addEventListener("ended", () => liveStatus("micro perdu : arrêtez et recommencez l'enregistrement", false));
   recorder.start(1000);
 
   $("rec-task").textContent = form.task.value;
