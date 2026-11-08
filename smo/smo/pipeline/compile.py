@@ -17,6 +17,7 @@ from ..models import CompileResult, Context, DevinReport, Trace
 from ..runs import Run
 from . import docs, mapping
 from .skill import tool_name
+from .trial import trial_request
 
 
 MAX_TRACE_CHARS = 20_000
@@ -81,7 +82,7 @@ def run(run: Run, s: Settings, log: Callable[[str], None], wait: bool = True) ->
         name = tool_name(run)
         prompt = Template((ROOT / "docs" / "DEVIN_BRIEF.md").read_text(encoding="utf-8")).substitute(
             method=METHOD, task=meta.task, repo=s.devin_repo or "ce repo", tool_name=name, url=meta.software_url,
-            sample=meta.sample or "voir la trace", skill=run.file("skill.md").read_text(encoding="utf-8"),
+            request=trial_request(run).message, skill=run.file("skill.md").read_text(encoding="utf-8"),
             trace=trace_text(trace), checks=checks_text(context),
             map=mapping.summary(soft_map) if (soft_map := mapping.load(run)) else "Pas de carte.",
             docs=docs.summary(run) or "Pas de documentation publique trouvée.", kind=meta.software_kind)

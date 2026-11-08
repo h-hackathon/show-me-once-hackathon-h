@@ -13,10 +13,15 @@ class CaptureMeta(BaseModel):
     software_kind: Literal["web", "desktop"] = "web"   # un agent H par type : navigateur ou bureau du Mac
     software_url: str                      # web : l'adresse ; bureau : le nom de l'application ouverte
     software_name: str | None = None       # nom public du logiciel (ex. « Odoo »), pour chercher sa doc (Linkup)
-    owner: str = "demo"                    # ex. « catherine » : à qui appartiendra l'agent
     language: str = "fr"
-    sample: str | None = None              # la pièce traitée pendant la démo (ex. « INV-001 »)
     created_at: datetime = Field(default_factory=datetime.now)
+
+
+class TrialRequest(BaseModel):
+    """Ce que les essais envoient à l'agent, comme le ferait un utilisateur (trial_request.json) : une demande en
+    conversation et ses pièces jointes (trial_files/), proposée par Holo puis corrigée à la relecture."""
+    message: str
+    files: list[str] = []                  # noms des fichiers dans trial_files/
 
 
 class Utterance(BaseModel):
@@ -100,6 +105,7 @@ class Procedure(BaseModel):
     rules: list[Rule]
     stop_conditions: list[str] = []
     inputs: list[str] = []                 # champs à lire sur la pièce à traiter
+    request: str | None = None             # la demande d'un utilisateur pour refaire la tâche (« Saisis la facture jointe »)
 
 
 class RuleCheck(BaseModel):

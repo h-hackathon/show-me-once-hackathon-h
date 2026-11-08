@@ -52,7 +52,7 @@ Quelques précisions :
 
 ```bash
 # 1. Une capture → un run (vidéo, ou audio + images ; un PDF = pièce de référence)
-uv run smo new capture.mov --task "Saisir une facture fournisseur" --owner catherine --sample INV-001
+uv run smo new capture.mov --task "Saisir une facture fournisseur"
 
 # 2. Le pipeline : s'arrête à la relecture de la Skill (sauf --auto), puis reprend où il en était
 uv run smo run <run_id>
@@ -61,7 +61,7 @@ uv run smo run <run_id> --no-wait    # n'attend pas Devin ; relancer pour suivre
 uv run smo status <run_id>
 
 # Tout d'un coup, sans relecture (parcours Catherine)
-uv run smo new capture.mov --task "..." --owner catherine --go --auto
+uv run smo new capture.mov --task "..." --go --auto
 ```
 
 Chaque étape écrit son fichier dans `runs/<run_id>/` : `map.json` (gardée aussi dans `runs/_maps/`), `transcript.json`, `frames/`, `notes.json`, `procedure.json`, `context.json`, `skill.md`, `agent.json`, `trace.json` (+ `trace/`), `trial.json`, `compile.json`.

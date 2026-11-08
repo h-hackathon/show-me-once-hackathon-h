@@ -29,8 +29,7 @@ def s(tmp_path) -> config.Settings:
 
 @pytest.fixture
 def run(s) -> Run:
-    meta = CaptureMeta(task="Saisir une facture fournisseur", software_url="https://compta.example",
-                       owner="Catherine", sample="INV-001")
+    meta = CaptureMeta(task="Saisir une facture fournisseur", software_url="https://compta.example")
     r = Run.create(s.runs_dir, meta, [])
     r.write_model("transcript.json", Transcript(language="fr", utterances=[
         Utterance(index=0, start=0.0, end=3.0, text="J'ouvre une nouvelle facture."),
@@ -52,7 +51,8 @@ PROCEDURE = Procedure(
 def test_slug_and_names(run):
     assert slug("Saisir une facture fournisseur") == "saisir-une-facture-fournisseur"
     assert skill.tool_name(run) == "saisir_une_facture_fournisseur_web"
-    assert skill.skill_name(run) == "smo-catherine-saisir-une-facture-fournisseur-web"
+    assert skill.skill_name(run) == "smo-saisir-une-facture-fournisseur-web"
+    assert skill.skill_name(run, "smotest-") == "smotest-saisir-une-facture-fournisseur-web"
 
 
 def test_extract_json_fenced_and_raw():
@@ -269,9 +269,9 @@ def _trial_setup(run, monkeypatch, verdicts):
     monkeypatch.setattr(trial.h, "client", lambda key: None)
     monkeypatch.setattr(trial.target, "vault_item", lambda meta, s, client=None: vault.Item("v1", "i1", "Qonta"))
     monkeypatch.setattr(trial.h, "upsert_skill", lambda client, name, description, body, **kw: pushed.append(body))
-    monkeypatch.setattr(trial, "attempt", lambda run, s, n, agent, task, log: Trace(
+    monkeypatch.setattr(trial, "attempt", lambda run, s, n, agent, task, files, log: Trace(
         session_id=f"sess-{n}", agent="smo-catherine-x", status="idle", steps=[], answer=f"essai {n}"))
-    monkeypatch.setattr(trial, "judge", lambda run, s, trace, piece: queue.pop(0))
+    monkeypatch.setattr(trial, "judge", lambda run, s, trace, request: queue.pop(0))
     return trial, pushed
 
 
@@ -342,10 +342,17 @@ def test_background_stage_runs_in_parallel_and_is_awaited(run, s, monkeypatch):
     assert order == ["a", "map", "b"]                 # a n'attend pas la carte, b l'attend
 
 
-def test_each_attempt_takes_the_next_piece():
-    from smo.pipeline.trial import trial_piece
-    assert [trial_piece("INV-001", n) for n in (1, 2, 3)] == ["INV-002", "INV-003", "INV-004"]
-    assert "autre pièce" in trial_piece(None, 1)
+def test_trial_request_comes_from_holo_then_from_the_review(run):
+    from smo.models import TrialRequest
+    from smo.pipeline.trial import trial_files, trial_request
+    assert trial_request(run).message == "Saisir une facture fournisseur."     # Holo n'a rien proposé : la tâche
+    run.write_model("procedure.json", PROCEDURE.model_copy(update={"request": "Saisis la facture jointe."}))
+    assert trial_request(run).message == "Saisis la facture jointe."
+    run.file("trial_files").mkdir()
+    run.file("trial_files/INV-002.pdf").write_bytes(b"%PDF")
+    run.write_model("trial_request.json", TrialRequest(message="Rentre ces factures", files=["INV-002.pdf", "x.pdf"]))
+    assert trial_request(run).message == "Rentre ces factures"                # relue par l'humain : prioritaire
+    assert [f.name for f in trial_files(run, trial_request(run))] == ["INV-002.pdf"]   # fichier absent : ignoré
 
 
 def test_common_block_is_added_to_the_skill_sent_to_h():
@@ -360,7 +367,7 @@ def test_common_block_is_added_to_the_skill_sent_to_h():
 def test_desktop_gets_its_own_agent_environment_and_names(s, tmp_path):
     from smo.pipeline import target
     run = Run.create(s.runs_dir, CaptureMeta(task="Saisir une facture fournisseur", software_kind="desktop",
-                                             software_url="COMPTAREX Cabinet 6.2", owner="Catherine"), [])
+                                             software_url="COMPTAREX Cabinet 6.2"), [])
     s = dataclasses.replace(s, h_desktop_env=None, h_desktop_bridge=None)
     local = target.environment(run.meta, s)                         # sans environnement H : le bureau de la machine
     assert local.kind == "desktop" and local.host == "user_device" and not local.session_id
@@ -438,7 +445,7 @@ def _hook_setup(monkeypatch, live: dict, precheck: dict, kind: str = "web"):
     registered, upgraded, prechecked = [], [], []
     monkeypatch.setattr(server.remote, "register", lambda s, name, url, sha, **kw: registered.append((url, kw)))
     monkeypatch.setattr(server, "find", lambda s, name: type("T", (), {"sha": live["sha"], "kind": kind})())
-    meta = CaptureMeta(task="Saisir", software_url="https://qonta.example", owner="Catherine")
+    meta = CaptureMeta(task="Saisir", software_url="https://qonta.example")
     monkeypatch.setattr(server, "runs_with_tool", lambda s, name: [type("R", (), {"id": f"run-{name}", "meta": meta})()])
     monkeypatch.setattr(server, "agent_name", lambda run_, s: "smo-catherine-saisir-web")
     monkeypatch.setattr(server, "call_tool", lambda method, tool, context: prechecked.append(method) or precheck)
@@ -523,7 +530,7 @@ def test_devin_brief_renders(run, s):
     assert "> Consigne : Étape 1" in text and "click(" in text
     from string import Template
     prompt = Template((config.ROOT / "docs" / "DEVIN_BRIEF.md").read_text()).substitute(
-        method="m", task="t", repo="r", tool_name="x", url="u", sample="s", skill="k", trace=text, checks="c",
+        method="m", task="t", repo="r", tool_name="x", url="u", request="q", skill="k", trace=text, checks="c",
         map="m", docs="d", kind="web")
     assert "tools/x/" in prompt and "$" not in prompt.replace("$tool", "")
 

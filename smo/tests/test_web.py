@@ -42,11 +42,10 @@ def test_config_lists_every_stage_with_a_label(client):
 
 def test_capture_review_and_approve(client, s):
     r = client.post("/api/captures", files={"video": ("capture.webm", b"\x1a\x45\xdf\xa3webm", "video/webm")},
-                    data={"task": "Saisir une facture fournisseur", "url": "http://127.0.0.1:8042",
-                          "owner": "Catherine", "sample": "INV-001"})
+                    data={"task": "Saisir une facture fournisseur", "url": "http://127.0.0.1:8042"})
     run_id = r.json()["run_id"]
     run = Run.open(s.runs_dir, run_id)
-    assert run.video().name == "capture.webm" and run.meta.owner == "Catherine"
+    assert run.video().name == "capture.webm" and run.meta.task == "Saisir une facture fournisseur"
     assert client.started == [run_id]
 
     run.write_text("skill.md", "# Skill\n- HT + TVA = TTC\n")
@@ -56,6 +55,13 @@ def test_capture_review_and_approve(client, s):
 
     client.put(f"/api/runs/{run_id}/skill", json={"skill": "# Skill corrigée\n"})
     assert run.file("skill.md").read_text() == "# Skill corrigée\n"
+    assert state["trial_request"] == {"message": "Saisir une facture fournisseur.", "files": []}
+    r = client.put(f"/api/runs/{run_id}/trial-request", data={"message": "Saisis la facture jointe"},
+                   files=[("files", ("../INV-002.pdf", b"%PDF-1.4", "application/pdf"))])
+    assert r.json()["files"] == ["INV-002.pdf"] and run.file("trial_files/INV-002.pdf").read_bytes() == b"%PDF-1.4"
+    client.put(f"/api/runs/{run_id}/trial-request", data={"message": "Rentre ces factures"})   # sans fichier : gardé
+    assert client.get(f"/api/runs/{run_id}").json()["trial_request"] == {"message": "Rentre ces factures",
+                                                                        "files": ["INV-002.pdf"]}
     client.post(f"/api/runs/{run_id}/approve")
     assert run.has("skill.approved") and client.started == [run_id, run_id]
 

@@ -192,7 +192,7 @@ function upload() {
   const blob = new Blob(chunks, { type: "video/webm" });
   const body = new FormData();
   body.append("video", blob, "capture.webm");
-  for (const name of ["task", "url", "owner", "sample", "software_kind", "software_name"]) body.append(name, form[name].value);
+  for (const name of ["task", "url", "software_kind", "software_name"]) body.append(name, form[name].value);
   show("upload", "record");
   $("upload-note").textContent = `${(blob.size / 1e6).toFixed(1)} Mo`;
 
@@ -252,7 +252,7 @@ function waitingLabel(run) {
 
 function render(run) {
   $("follow-title").textContent = run.meta.task;
-  $("follow-meta").textContent = [run.meta.owner, run.meta.sample, run.meta.software_url].filter(Boolean).join(" · ");
+  $("follow-meta").textContent = [run.meta.software_name, run.meta.software_url].filter(Boolean).join(" · ");
   const [label, tone] = run.state === "waiting" ? waitingLabel(run) : PILL[run.state] || [run.state, ""];
   const pill = $("follow-state");
   pill.textContent = label;
@@ -286,7 +286,14 @@ function render(run) {
   const retrying = !run.busy && run.status.trial?.state === "waiting" && run.skill;
   const mode = reviewing ? "review" : retrying ? "retry" : null;
   $("review").hidden = !mode;
-  if (mode && editorMode !== mode) { $("skill").value = run.skill; editorMode = mode; }
+  if (mode && editorMode !== mode) {
+    $("skill").value = run.skill;
+    $("trial-message").value = run.trial_request.message;
+    $("trial-files").value = "";
+    editorMode = mode;
+  }
+  const attached = run.trial_request.files;
+  $("trial-files-note").textContent = attached.length ? `Déjà jointes : ${attached.join(", ")}` : "";
   if (mode === "retry") {
     $("review-title").textContent = "L'agent n'a pas réussi en 3 essais";
     $("review-note").textContent = "Ses leçons sont à la fin de la Skill. Corrigez ce qui bloque, puis relancez les essais.";
@@ -335,13 +342,22 @@ function anchor(href, text) {
   return a;
 }
 
+// La Skill et la demande d'essai (texte + pièces jointes) relues, avant de lancer ou relancer les essais.
+async function saveReview(runId) {
+  await api(`/api/runs/${encodeURIComponent(runId)}/skill`, {
+    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ skill: $("skill").value }),
+  });
+  const body = new FormData();
+  body.append("message", $("trial-message").value);
+  for (const file of $("trial-files").files) body.append("files", file);
+  await api(`/api/runs/${encodeURIComponent(runId)}/trial-request`, { method: "PUT", body });
+}
+
 async function approve(runId) {
   const button = $("approve");
   button.disabled = true;
   try {
-    await api(`/api/runs/${encodeURIComponent(runId)}/skill`, {
-      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ skill: $("skill").value }),
-    });
+    await saveReview(runId);
     await api(`/api/runs/${encodeURIComponent(runId)}/approve`, { method: "POST" });
     poll(runId);
   } catch (err) {
@@ -355,11 +371,11 @@ async function retry(runId) {
   const button = $("approve");
   button.disabled = true;
   try {
-    await api(`/api/runs/${encodeURIComponent(runId)}/skill`, {
-      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ skill: $("skill").value }),
-    });
+    await saveReview(runId);
     editorMode = null;
     await resume(runId);
+  } catch (err) {
+    $("log").textContent = `Relance impossible : ${err.message}`;
   } finally {
     button.disabled = false;
   }

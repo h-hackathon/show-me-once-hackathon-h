@@ -15,7 +15,7 @@ from . import target
 
 
 INTRO = """Tu vas refaire une tâche dans {where}, guidé pas à pas par la personne qui l'a montrée.
-Tâche : {task}.{sample}
+Tâche : {task}.
 {login_hint}
 {dossier_rule}
 Dans chaque message, fais uniquement l'étape demandée, puis arrête-toi et attends la suivante.
@@ -47,7 +47,6 @@ def run(run: Run, s: Settings, log: Callable[[str], None]) -> None:
     client = h.client(s.hai_api_key)
     item = target.vault_item(meta, s, client)   # le navigateur reçoit le vault : aucun mot de passe dans le prompt
     intro = INTRO.format(where=target.where(meta), task=meta.task, login_hint=target.login_hint(meta, s, item),
-                         sample=f"\nPièce à traiter : {meta.sample}." if meta.sample else "",
                          dossier_rule=target.DOSSIER_RULE)
 
     target.prepare(meta)

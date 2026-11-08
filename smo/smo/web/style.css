@@ -136,6 +136,8 @@ input:focus-visible, textarea:focus-visible, .btn:focus-visible { outline: 2px s
 
 .review { border-color: var(--iris-light); }
 .review textarea { min-height: 340px; resize: vertical; font: 13px/1.6 var(--font-mono); }
+.review textarea.short { min-height: 72px; }
+.review h3 { margin: 18px 0 0; font-size: 14px; font-weight: 600; }
 .links { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 8px 14px; font-size: 14px; }
 .links dt { color: var(--text-3); }
 .links dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }

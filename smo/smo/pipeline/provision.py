@@ -11,16 +11,17 @@ from typing import Callable
 from hai_agents.types.tool_definition import ToolDefinition
 
 from ..clients import h
-from ..config import Settings
+from ..config import ROOT, Settings
 from ..models import CompileResult, Provisioned, RunReport
-from ..runs import Run, slug
+from ..runs import Run
 from ..runtime.tools import definitions, desktop_files, find, h_tools
 from . import target
 from .skill import skill_name, tool_name, with_common_block
 
 
 INSTRUCTIONS = """{rule}
-Tu es l'agent « {task} » de {owner}. Tu travailles dans {where}, une pièce à la fois, avec ta Skill « {skill} ».
+Tu es l'agent « {task} ». Tu travailles dans {where}, une pièce à la fois, avec ta Skill « {skill} ».
+Les pièces jointes à la demande sont sur ta workstation : lis-les avec ta Skill « {read_skill} ».
 {dossier_rule}
 Si une règle de la Skill demande l'arrêt (incohérence, cas inconnu), n'enregistre rien et explique pourquoi.
 Ne clique jamais sur « Valider ». Réponds au format demandé."""
@@ -46,15 +47,23 @@ def rule_for(tool, tname: str) -> str:
 
 
 def agent_name(run: Run, s: Settings) -> str:
-    meta = run.meta
-    return f"{s.agent_prefix}{slug(meta.owner, max_len=12)}-{slug(meta.task, max_len=36)}-{meta.software_kind}"
+    """Un agent par tâche et type de logiciel, le même nom que sa Skill."""
+    return skill_name(run, s.agent_prefix)
+
+
+def read_skill_name(s: Settings) -> str:
+    return f"{s.agent_prefix}lire-pieces-jointes"
+
+
+READ_SKILL_DESCRIPTION = ("Utiliser quand la demande arrive avec des pièces jointes (PDF, images) : où les trouver, "
+                          "comment en lire les valeurs sans rien inventer, une pièce à la fois.")
 
 
 def skill_description(run: Run) -> str:
     """Ce qui décide quand H charge la Skill : la tâche telle qu'on la demandera à l'agent."""
     meta = run.meta
-    return (f"Utiliser pour toute demande de type « {meta.task.lower()} » dans {meta.software_name or meta.software_url} "
-            f"(par exemple « traite la pièce {meta.sample or 'XXX'} ») : la méthode, les contrôles, quand s'arrêter.")
+    return (f"Utiliser pour toute demande de type « {meta.task.lower()} » dans {meta.software_name or meta.software_url} : "
+            f"la méthode, les contrôles, quand s'arrêter.")
 
 
 def skill_body(run: Run, s: Settings, tool=None) -> str:
@@ -65,32 +74,39 @@ def skill_body(run: Run, s: Settings, tool=None) -> str:
 def push_skill(client, run: Run, s: Settings, tool, body: str):
     """La Skill dans H, règle absolue en tête. Tool de bureau : ses fichiers sont posés dans la Skill (API Skills de H),
     l'agent le lance depuis son shell ; rien n'est installé chez l'utilisateur."""
-    tname = tool_name(run)
+    tname, sname = tool_name(run), skill_name(run, s.agent_prefix)
     if not is_desktop_tool(tool):
-        return h.upsert_skill(client, skill_name(run), description=skill_description(run),
+        return h.upsert_skill(client, sname, description=skill_description(run),
                               body=with_common_block(body, tname if tool else None))
-    return h.upsert_skill(client, skill_name(run), description=skill_description(run),
+    return h.upsert_skill(client, sname, description=skill_description(run),
                           body=with_common_block(body, tname, desktop_schema=tool.schema),
                           files=desktop_files(tool), executable_files=["run.sh"])
 
 
+def push_read_skill(client, s: Settings):
+    """La petite Skill commune à tous les agents SMO : lire les pièces jointes sur la workstation."""
+    body = (ROOT / "skills" / "lire_pieces_jointes.md").read_text(encoding="utf-8")
+    return h.upsert_skill(client, read_skill_name(s), description=READ_SKILL_DESCRIPTION, body=body)
+
+
 def create(run: Run, s: Settings, log: Callable[[str], None]) -> None:
-    meta, tname, sname = run.meta, tool_name(run), skill_name(run)
+    meta, tname, sname = run.meta, tool_name(run), skill_name(run, s.agent_prefix)
     tool = find(s, tname)   # clone local d'h-tools, sinon ce qu'h-tools a déployé (service web, fichiers de bureau)
     tools = h_tools({tname: tool} if tool else {}, s, on_drift=lambda *_: None)   # déclarations seulement
 
     client = h.client(s.hai_api_key)
     push_skill(client, run, s, tool, skill_body(run, s, tool))
+    push_read_skill(client, s)
     item = target.vault_item(meta, s, client)
     # web : navigateur cloud avec le vault de l'utilisateur (ou Chrome de cette machine en localhost) ; bureau : H ou le PC
     env = target.environment(meta, s, item.vault_id if item else None)
     spec = dict(
-        description=f"{meta.task}, appris d'une démonstration de {meta.owner} ({meta.software_kind}).",
-        environments=[env],
+        description=f"{meta.task}, appris d'une démonstration ({meta.software_kind}).",
+        environments=[env, target.WORKSTATION],
         instructions=INSTRUCTIONS.format(
-            rule=rule_for(tool, tname),
-            task=meta.task, owner=meta.owner, where=target.where(meta), skill=sname, dossier_rule=target.DOSSIER_RULE),
-        skills=[sname],
+            rule=rule_for(tool, tname), task=meta.task, where=target.where(meta), skill=sname,
+            read_skill=read_skill_name(s), dossier_rule=target.DOSSIER_RULE),
+        skills=[sname, read_skill_name(s)],
         tools=[ToolDefinition(**d) for d in definitions(tools)],
         answer_format=RunReport.model_json_schema(),
     )

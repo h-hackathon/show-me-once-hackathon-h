@@ -8,7 +8,7 @@ Un agent H par type, avec ses propres tools : les noms d'agent, de Skill et de t
 """
 from __future__ import annotations
 
-from hai_agents import Agent, Environment_Desktop
+from hai_agents import Agent, Environment_Desktop, Environment_Workstation, WorkstationStorage
 
 from ..clients import h, vault
 from ..config import MissingConfig, Settings
@@ -16,6 +16,12 @@ from ..models import CaptureMeta
 
 
 LOCAL_DESKTOP = Environment_Desktop(id="desktop", host="user_device")   # le bureau de la machine où tourne SMO
+# Les pièces jointes d'une demande arrivent dans files/ de cette workstation, lues au shell (pdftotext). Elle ne se
+# connecte jamais au logiciel : les identifiants restent dans le vault (navigateur) ou passent par le tool.
+# Machine neuve à chaque session : le disque par défaut ne sert qu'à une session à la fois (« volume attached to
+# another session » dès que deux agents tournent).
+WORKSTATION = Environment_Workstation(id="workstation", host="cloud", lazy=True,
+                                      storage=WorkstationStorage(ephemeral=True))
 
 
 def is_desktop(meta: CaptureMeta) -> bool:

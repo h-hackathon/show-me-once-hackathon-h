@@ -171,6 +171,9 @@ def build_trace(h: Client, session_id: str, out_dir: Path, api_key: str, events:
     agent = session.request.agent
     answer = next((e["data"].get("answer") for e in reversed(raw)
                    if (e.get("data") or {}).get("kind") == "answer_event"), None)
+    if answer is None:   # agent avec answer_format : la réponse arrive comme appel de son outil « answer »
+        answer = next((d["tool_req"].get("args") for e in reversed(raw) if (d := e.get("data") or {}).get("kind")
+                       == "tool_result" and (d.get("tool_req") or {}).get("tool_name") == "answer"), None)
     return Trace(session_id=session_id, agent=agent if isinstance(agent, str) else agent.name,
                  status=str(session.status.status if hasattr(session.status, "status") else session.status),
                  steps=steps, answer=answer, agent_view_url=session.agent_view_url)

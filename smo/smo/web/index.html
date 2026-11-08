@@ -49,16 +49,6 @@
             <label for="software_name">Nom du logiciel <span class="optional">pour chercher sa documentation</span></label>
             <input id="software_name" name="software_name" placeholder="Qonta, Odoo, Pennylane…">
           </div>
-          <div class="row">
-            <div class="field">
-              <label for="sample">Pièce traitée</label>
-              <input id="sample" name="sample" placeholder="INV-001">
-            </div>
-            <div class="field">
-              <label for="owner">Votre prénom</label>
-              <input id="owner" name="owner" placeholder="Catherine">
-            </div>
-          </div>
           <button class="btn primary" type="submit">Choisir l'écran et enregistrer</button>
           <p class="error" id="prepare-error" role="alert" hidden></p>
         </form>
@@ -129,6 +119,13 @@
             <p class="note" id="review-note">C'est la méthode que votre agent va suivre. Corrigez ce qui est faux, ajoutez une règle oubliée, puis validez.</p>
             <label for="skill" class="sr-only">Skill</label>
             <textarea id="skill" spellcheck="false"></textarea>
+            <h3>Demande d'essai</h3>
+            <p class="note">Ce que l'agent recevra pendant ses essais, comme une vraie demande, avec ses pièces jointes.</p>
+            <label for="trial-message" class="sr-only">Demande d'essai</label>
+            <textarea id="trial-message" class="short" spellcheck="false"></textarea>
+            <label for="trial-files" class="note">Pièces jointes (PDF ou images, 10 fichiers et 7 Mo au plus)</label>
+            <input id="trial-files" type="file" multiple accept=".pdf,image/*">
+            <p class="note" id="trial-files-note"></p>
             <div class="actions">
               <button class="btn primary" id="approve" type="button">Valider la Skill</button>
             </div>

@@ -5,7 +5,7 @@ $method
 ## La tâche
 
 - Tâche : « $task ». Type de logiciel : $kind. Logiciel : $url.
-- Pièce de la démonstration : $sample.
+- Demande que l'agent a reçue pendant l'essai réussi : « $request ». Le tool traite une pièce par appel : ses paramètres sont les valeurs lues sur la pièce, jamais un numéro de pièce à aller chercher.
 - Nom du tool et du dossier : `tools/$tool_name/`, dans $repo.
 - Accès au logiciel : tes secrets de session `SITE_URL`, `SITE_USERNAME`, `SITE_PASSWORD`, lus dans le vault H de l'utilisateur. Ils ne sont pas dans ce brief : ne les écris nulle part (code, commit, PR, message).
 
