@@ -187,7 +187,8 @@ def choisir_fournisseur(page, nom: str) -> str:
     """Autocomplétion : taper le nom comme un humain, puis choisir le compte fournisseur dans la liste."""
     champ = page.get_by_role("combobox", name="Fournisseur")
     liste = page.get_by_role("listbox", name="Fournisseurs proposés")
-    vus: list[str] = []
+    proposes: list[str] = []
+    exacts: list[str] = []
     for query in dict.fromkeys([nom, sans_forme(nom), sans_forme(nom).split()[0]]):
         if len(query) < 2:
             continue
@@ -196,7 +197,7 @@ def choisir_fournisseur(page, nom: str) -> str:
         expect(liste).to_be_visible()
         options = [o.strip() for o in liste.get_by_role("option").all_inner_texts()]
         comptes = [o for o in options if not o.startswith("+")]   # « + Créer le fournisseur … » : jamais par le tool
-        vus = comptes or vus
+        proposes += [c for c in comptes if c not in proposes]
         exacts = [o for o in comptes if meme_nom(o.split(" — ")[0], nom)]
         if len(exacts) == 1:
             liste.get_by_role("option", name=exacts[0], exact=True).click()
@@ -205,10 +206,22 @@ def choisir_fournisseur(page, nom: str) -> str:
             return compte
         if len(exacts) > 1:
             break
-    raise Stop({"status": "error", "fournisseur": nom, "reason": (
-        f"fournisseur « {nom} » introuvable ou ambigu dans la liste des comptes"
-        + (f" (proposés : {', '.join(vus)})" if vus else "")
-        + " : le tool ne crée pas de fournisseur, un humain doit le choisir ou le créer")})
+    raise Stop(fournisseur_non_choisi(nom, proposes, exacts))
+
+
+def fournisseur_non_choisi(nom: str, proposes: list[str], ambigus: list[str]) -> dict:
+    """Aucun compte unique au nom de la pièce : le tool ne crée ni ne devine un fournisseur."""
+    if len(ambigus) > 1:
+        return {"status": "error", "fournisseur": nom, "reason": (
+            f"plusieurs comptes correspondent à « {nom} » ({', '.join(ambigus)}) : choisir le bon compte à l'écran")}
+    if proposes:
+        return {"status": "error", "fournisseur": nom, "reason": (
+            f"aucun compte au nom exact de « {nom} » (proposés : {', '.join(proposes)}) : vérifier à l'écran s'il "
+            "s'agit du même fournisseur ; sinon, un humain doit le créer")}
+    return {"status": "flagged", "fournisseur": nom, "reason": (
+        f"fournisseur « {nom} » absent des comptes du dossier (Qonta ne propose que « + Créer le fournisseur ») : "
+        "le tool ne crée pas de fournisseur, un humain doit le créer avant de ressaisir la facture ; "
+        "rien n'a été enregistré")}
 
 
 def ligne_ecran(page, i: int):

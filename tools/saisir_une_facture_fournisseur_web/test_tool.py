@@ -112,7 +112,23 @@ def test_reverse_charge_adds_no_vat():
     assert m.rules(p) is None
 
 
-# Formats de l'écran
+# Étape 5 : ne pas choisir « + Créer le fournisseur … » ; s'il est absent de la liste, s'arrêter et prévenir un humain.
+def test_a_supplier_absent_from_the_accounts_is_flagged():
+    out = m.fournisseur_non_choisi("Bürotechnik Weber GmbH", [], [])
+    assert out["status"] == "flagged" and "créer" in out["reason"]
+
+
+def test_a_supplier_with_only_other_accounts_proposed_goes_back_to_the_screen():
+    out = m.fournisseur_non_choisi("Bureau Express", ["CAFE BUREAU EXPRESS — 401CAFEB"], [])
+    assert out["status"] == "error" and "CAFE BUREAU EXPRESS" in out["reason"]
+
+
+def test_an_ambiguous_supplier_goes_back_to_the_screen():
+    ambigus = ["NETCLOUD SERVICES — 401NETCL", "NETCLOUD SERVICES — 401NETC2"]
+    out = m.fournisseur_non_choisi("NetCloud Services", ambigus, ambigus)
+    assert out["status"] == "error" and "401NETC2" in out["reason"]
+
+
 def test_fr_amount():
     assert m.fr_amount(Decimal("1234.5")) == "1 234,50"
     assert m.fr_amount(Decimal("208.8")) == "208,80"
