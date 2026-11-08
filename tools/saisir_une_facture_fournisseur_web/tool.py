@@ -183,22 +183,37 @@ def doublon(params: Params, numero: str | None, statut: str | None, fournisseur:
     return result
 
 
+FORMES_ETRANGERES = {"GMBH", "AG", "KG", "LTD", "LIMITED", "PLC", "LLC", "INC", "BV", "NV", "SRL", "SPA", "SL", "SPRL"}
+
+
+def nom_compte(text: str) -> str:
+    """« Bürotechnik Weber GmbH » → « BUROTECHNIK WEBER » : sans accents ni forme juridique, française ou étrangère."""
+    return " ".join(w for w in sans_forme(text).split() if w not in FORMES_ETRANGERES)
+
+
+def meme_fournisseur(compte: str, nom: str) -> bool:
+    return meme_nom(compte, nom) or nom_compte(compte) == nom_compte(nom)
+
+
 def choisir_fournisseur(page, nom: str) -> str:
     """Autocomplétion : taper le nom comme un humain, puis choisir le compte fournisseur dans la liste."""
     champ = page.get_by_role("combobox", name="Fournisseur")
     liste = page.get_by_role("listbox", name="Fournisseurs proposés")
     proposes: list[str] = []
     exacts: list[str] = []
-    for query in dict.fromkeys([nom, sans_forme(nom), sans_forme(nom).split()[0]]):
+    cherches: list[str] = []
+    # Qonta cherche sans accents dans tout le nom : chaque mot du nom retrouve un compte qui le contient.
+    for query in dict.fromkeys([nom, nom_compte(nom), *nom_compte(nom).split()]):
         if len(query) < 2:
             continue
+        cherches.append(query)
         champ.fill("")
         champ.press_sequentially(query, delay=50)
         expect(liste).to_be_visible()
         options = [o.strip() for o in liste.get_by_role("option").all_inner_texts()]
         comptes = [o for o in options if not o.startswith("+")]   # « + Créer le fournisseur … » : jamais par le tool
         proposes += [c for c in comptes if c not in proposes]
-        exacts = [o for o in comptes if meme_nom(o.split(" — ")[0], nom)]
+        exacts = [o for o in comptes if meme_fournisseur(o.split(" — ")[0], nom)]
         if len(exacts) == 1:
             liste.get_by_role("option", name=exacts[0], exact=True).click()
             compte = exacts[0].split(" — ")[0]
@@ -206,10 +221,10 @@ def choisir_fournisseur(page, nom: str) -> str:
             return compte
         if len(exacts) > 1:
             break
-    raise Stop(fournisseur_non_choisi(nom, proposes, exacts))
+    raise Stop(fournisseur_non_choisi(nom, proposes, exacts, cherches))
 
 
-def fournisseur_non_choisi(nom: str, proposes: list[str], ambigus: list[str]) -> dict:
+def fournisseur_non_choisi(nom: str, proposes: list[str], ambigus: list[str], cherches: list[str]) -> dict:
     """Aucun compte unique au nom de la pièce : le tool ne crée ni ne devine un fournisseur."""
     if len(ambigus) > 1:
         return {"status": "error", "fournisseur": nom, "reason": (
@@ -219,7 +234,8 @@ def fournisseur_non_choisi(nom: str, proposes: list[str], ambigus: list[str]) ->
             f"aucun compte au nom exact de « {nom} » (proposés : {', '.join(proposes)}) : vérifier à l'écran s'il "
             "s'agit du même fournisseur ; sinon, un humain doit le créer")}
     return {"status": "flagged", "fournisseur": nom, "reason": (
-        f"fournisseur « {nom} » absent des comptes du dossier (Qonta ne propose que « + Créer le fournisseur ») : "
+        f"fournisseur « {nom} » absent des comptes du dossier (recherches {', '.join(f'« {q} »' for q in cherches)} : "
+        "Qonta ne propose que « + Créer le fournisseur ») : "
         "le tool ne crée pas de fournisseur, un humain doit le créer avant de ressaisir la facture ; "
         "rien n'a été enregistré")}
 
