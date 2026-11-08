@@ -106,3 +106,12 @@ class Run:
             status = self.status()
             status[stage] = {"state": state, "at": datetime.now().isoformat(timespec="seconds"), **extra}
             self.write_json("status.json", status)
+
+    # --- arrêt demandé depuis la page (fichier « stop »), vérifié entre deux étapes et entre deux essais
+    def check_stop(self) -> None:
+        if self.has("stop"):
+            raise Stopped("arrêté depuis la page")
+
+
+class Stopped(Exception):
+    """L'humain a arrêté le run : l'étape en cours finit en échec, « Relancer » reprend où on en était."""

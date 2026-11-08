@@ -59,6 +59,9 @@ def run_pipeline(run: Run, s: Settings, *, start: str | None = None, stop: str |
     last = NAMES.index(stop) + 1 if stop else len(STAGES)
     selected = [st for st in STAGES[first:last] if not only or st.name in only]
     extras = {"review": {"auto": auto}, "compile": {"wait": wait}, "trial": {"guided": guided}}
+    if run.has("stop"):                                # « Arrêter » sur la page : rien ne repart, même en fond
+        log("■ arrêté depuis la page")
+        return "failed"
 
     background: dict[str, list[tuple[Stage, threading.Thread]]] = {}
     for stage in selected:
@@ -77,6 +80,9 @@ def run_pipeline(run: Run, s: Settings, *, start: str | None = None, stop: str |
         if stage.done(run) and not force:
             log(f"✓ {stage.name}")
             continue
+        if run.has("stop"):                            # « Arrêter » sur la page : on ne lance plus rien
+            log("■ arrêté depuis la page")
+            return "failed"
         state = _execute(stage, run, s, log, extras.get(stage.name, {}))
         if state in ("blocked", "failed", "waiting"):
             return state

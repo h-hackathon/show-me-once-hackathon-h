@@ -116,10 +116,13 @@ def attempt(run: Run, s: Settings, n: int, agent: Provisioned, task: str, files:
     handle = client.start_session(agent=agent.agent_name, messages=messages, timezone="Europe/Paris")
     log(f"essai {n} : session H {handle.id}")
     SERVED_ELSEWHERE.add(handle.id)   # c'est nous qui servons ses tools, pas le worker du serveur
+    run.write_text("session.active", handle.id)   # « Arrêter » sur la page annule cette session
     try:
         events = list(h.stream_turn(handle, tools=tools, timeout_s=1800))   # session neuve : pas d'ancien « idle »
     finally:
         SERVED_ELSEWHERE.discard(handle.id)
+        run.file("session.active").unlink(missing_ok=True)
+    run.check_stop()
     return h.build_trace(client, handle.id, run.file(f"trials/{n}"), s.hai_api_key, events=events)
 
 
@@ -151,6 +154,7 @@ def run(run: Run, s: Settings, log: Callable[[str], None], guided: bool = False)
                        dossier_rule=target.DOSSIER_RULE)
     trial = Trial()
     for n in range(1, MAX_ATTEMPTS + 1):
+        run.check_stop()
         log(f"essai {n} : « {request.message} »" + (f" + {', '.join(f.name for f in files)}" if files else ""))
         trace = attempt(run, s, n, agent, task, files, log)
         verdict = judge(run, s, trace, request)

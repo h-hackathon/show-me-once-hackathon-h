@@ -299,12 +299,14 @@ function render(run) {
     $("review-note").textContent = "Ses leçons sont à la fin de la Skill. Corrigez ce qui bloque, puis relancez les essais.";
     $("approve").textContent = "Relancer les essais";
   }
-  $("resume-box").hidden = run.busy || !["failed", "waiting", "idle"].includes(run.state) || Boolean(mode);
+  $("resume").hidden = run.busy || !["failed", "waiting", "idle"].includes(run.state) || Boolean(mode);
+  $("stop-run").hidden = !run.busy;
 
   renderLinks(run.links || {}, run.attempts || []);
   $("log").textContent = run.log.length ? run.log.join("\n") : "—";
   $("approve").onclick = () => (mode === "retry" ? retry(run.id) : approve(run.id));
   $("resume").onclick = () => resume(run.id);
+  $("stop-run").onclick = () => stopRun(run.id);
 }
 
 function renderLinks(links, attempts) {
@@ -385,6 +387,20 @@ async function resume(runId) {
   try { await api(`/api/runs/${encodeURIComponent(runId)}/resume`, { method: "POST" }); poll(runId); }
   catch (err) { $("log").textContent = `Relance impossible : ${err.message}`; }
 }
+
+async function stopRun(runId) {
+  if (!confirm("Arrêter ce run ? La session H en cours est annulée ; « Relancer » reprendra où il en était.")) return;
+  try { await api(`/api/runs/${encodeURIComponent(runId)}/stop`, { method: "POST" }); poll(runId); }
+  catch (err) { $("log").textContent = `Arrêt impossible : ${err.message}`; }
+}
+
+// Retour au formulaire : le run suivi reste tel quel (son lien ?run=… le rouvre).
+$("new-demo").addEventListener("click", () => {
+  clearTimeout(pollId);
+  editorMode = null;
+  history.replaceState(null, "", location.pathname);
+  show("prepare", "prepare");
+});
 
 // --- démarrage -----------------------------------------------------------------------------------
 

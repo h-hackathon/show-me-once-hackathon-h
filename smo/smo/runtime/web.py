@@ -8,7 +8,8 @@
     PUT  /api/runs/{id}/skill         Skill corrigée par l'humain
     PUT  /api/runs/{id}/trial-request demande d'essai (texte + pièces jointes) corrigée par l'humain
     POST /api/runs/{id}/approve       Skill validée → le pipeline continue
-    POST /api/runs/{id}/resume        relance après une attente (PR à fusionner) ou un échec
+    POST /api/runs/{id}/resume        relance après une attente (PR à fusionner), un échec ou un arrêt
+    POST /api/runs/{id}/stop          arrête le run et annule la session H en cours
 """
 from __future__ import annotations
 
@@ -22,7 +23,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from ..clients import gladia
+from ..clients import gladia, h
 from ..config import Settings
 from ..models import CaptureMeta, CompileResult, Provisioned, SoftwareMap, Trace, Trial, TrialRequest
 from ..pipeline import target
@@ -68,6 +69,7 @@ class Runner:
         with self.lock:
             if self.busy(run.id):
                 return False
+            run.file("stop").unlink(missing_ok=True)   # relancer après un « Arrêter »
             thread = threading.Thread(target=self._go, args=(run,), daemon=True)
             self.threads[run.id] = thread
             thread.start()
@@ -216,5 +218,18 @@ def router_for(s: Settings) -> tuple[APIRouter, Runner]:
     @router.post("/runs/{run_id}/resume", dependencies=[Depends(check_token)])
     def resume(run_id: str) -> dict:
         return {"started": runner.start(open_run(run_id))}
+
+    @router.post("/runs/{run_id}/stop", dependencies=[Depends(check_token)])
+    def stop(run_id: str) -> dict:
+        """Arrête le run : plus aucune étape ni aucun essai, et la session H en cours est annulée."""
+        run = open_run(run_id)
+        run.write_text("stop", "ok\n")
+        session = run.file("session.active").read_text().strip() if run.has("session.active") else None
+        if session and s.hai_api_key:
+            try:
+                h.client(s.hai_api_key).sessions.cancel_session(session)
+            except Exception as err:   # déjà finie : rien à annuler
+                return {"stopped": True, "session": session, "cancel": f"{type(err).__name__}: {err}"}
+        return {"stopped": True, "session": session}
 
     return router, runner

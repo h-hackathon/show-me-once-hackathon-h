@@ -66,6 +66,20 @@ def test_capture_review_and_approve(client, s):
     assert run.has("skill.approved") and client.started == [run_id, run_id]
 
 
+def test_stop_cancels_the_h_session_and_the_pipeline_stops(client, s, monkeypatch):
+    from smo.pipeline import orchestrator
+    from smo.runtime import web
+    run = Run.create(s.runs_dir, CaptureMeta(task="Saisir", software_url="https://qonta.example"), [])
+    run.write_text("session.active", "sess-42")
+    cancelled = []
+    fake = type("C", (), {"sessions": type("S", (), {"cancel_session": lambda self, sid: cancelled.append(sid)})()})()
+    monkeypatch.setattr(web.h, "client", lambda key: fake)
+    assert client.post(f"/api/runs/{run.id}/stop").json() == {"stopped": True, "session": "sess-42"}
+    assert cancelled == ["sess-42"] and run.has("stop")
+    assert orchestrator.run_pipeline(run, s, log=lambda _: None) == "failed"   # plus aucune étape lancée
+    assert run.status() == {}
+
+
 def test_online_desktop_capture_needs_the_h_desktop_environment(s, monkeypatch):
     monkeypatch.setenv("RAILWAY_ENVIRONMENT", "production")
     data = {"task": "t", "url": "COMPTAREX Cabinet 6.2", "software_kind": "desktop"}
