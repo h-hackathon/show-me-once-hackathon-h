@@ -24,10 +24,6 @@ jobs:
       RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
       SMO_SERVER_URL: ${{ secrets.SMO_SERVER_URL }}
       SMO_SERVER_TOKEN: ${{ secrets.SMO_SERVER_TOKEN }}
-      SITE_URL: ${{ secrets.SITE_URL }}
-      SITE_LOGIN: ${{ secrets.SITE_LOGIN }}
-      SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
-      SITE_ADMIN_TOKEN: ${{ secrets.SITE_ADMIN_TOKEN }}
     steps:
       - uses: actions/checkout@v5
         with:

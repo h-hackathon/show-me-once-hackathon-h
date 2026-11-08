@@ -1,4 +1,4 @@
-"""Charger un tool (tools/<nom>/tool.py) et l'exécuter dans un navigateur neuf."""
+"""Charger un tool (tools/<nom>/tool.py) et l'exécuter : dans un navigateur neuf (web) ou sur le bureau (desktop)."""
 from __future__ import annotations
 
 import importlib.util
@@ -9,7 +9,7 @@ from typing import Any, Callable
 
 from pydantic import BaseModel, ValidationError
 
-from .ui import contract_of
+from .config import Context
 
 
 @dataclass(frozen=True)
@@ -19,10 +19,11 @@ class Tool:
     params: type[BaseModel]
     module: ModuleType
     path: Path
-    kind: str = "web"   # web : precheck(page, cfg) / run(page, params, cfg) ; desktop : sans page, sur le Mac (pas de Railway)
+    kind: str = "web"   # web : precheck(page, cfg) / run(page, params, cfg) ; desktop : sans page, lancé par l'agent
 
     @property
     def contract(self) -> dict:
+        from .ui import contract_of   # Playwright n'est pas installé sur le poste d'un tool de bureau
         return getattr(self.module, "CONTRACT", None) or contract_of(str(self.path / "tool.py"))
 
     @property
@@ -33,22 +34,22 @@ class Tool:
 
     def describe(self) -> dict:
         """Ce que SMO déclare dans l'agent H : precheck_<nom> et run_<nom>, avec ce schéma de paramètres."""
-        return {"name": self.name, "description": self.description, "params": input_schema(self.params),
-                "skill": self.skill}
+        return {"name": self.name, "description": self.description, "kind": self.kind,
+                "params": input_schema(self.params), "skill": self.skill}
 
-    def precheck(self, cfg) -> dict:
+    def precheck(self, cfg: Context) -> dict:
         if self.kind == "desktop":
-            return guarded(lambda _: self.module.precheck(cfg), None)
-        return with_page(lambda page: self.module.precheck(page, cfg))
+            return cfg.scrub(guarded(lambda _: self.module.precheck(cfg), None))
+        return cfg.scrub(with_page(lambda page: self.module.precheck(page, cfg)))
 
-    def run(self, cfg, **values: Any) -> dict:
+    def run(self, cfg: Context, **values: Any) -> dict:
         try:
             params = self.params(**values)
         except ValidationError as err:
-            return {"ok": False, "status": "error", "error": f"paramètres invalides : {err}"}
+            return cfg.scrub({"ok": False, "status": "error", "error": f"paramètres invalides : {err}"})
         if self.kind == "desktop":
-            return guarded(lambda _: self.module.run(params, cfg), None)
-        return with_page(lambda page: self.module.run(page, params, cfg))
+            return cfg.scrub(guarded(lambda _: self.module.run(params, cfg), None))
+        return cfg.scrub(with_page(lambda page: self.module.run(page, params, cfg)))
 
 
 def with_page(fn: Callable) -> dict:

@@ -25,15 +25,23 @@ def locate(page: Page, anchor: dict) -> Locator:
 
 
 def login(page: Page, cfg, dossier: str | None = None, *, path: str = "/login", email: str = "E-mail",
-          password: str = "Mot de passe", submit: str = "Se connecter") -> None:
+          password: str = "Mot de passe", submit: str = "Se connecter", code: str | None = None) -> None:
     """Connexion par les libellés visibles (ceux du logiciel cible : à adapter), puis ouverture du dossier de la pièce.
 
-    Aucun dossier n'est imposé : le tool le reçoit en paramètre (le client indiqué sur la pièce)."""
+    Les identifiants viennent du contexte de l'appel (le vault H) ; `code` : le libellé du champ de double
+    authentification, rempli avec le code TOTP du moment. Aucun dossier n'est imposé : le tool le reçoit en paramètre
+    (le client indiqué sur la pièce)."""
+    if not (cfg.site_url and cfg.username and cfg.password):
+        raise RuntimeError("identifiants absents du contexte : ajouter le site dans le vault H de l'agent")
     page.goto(f"{cfg.site_url}{path}")
-    page.get_by_label(email).fill(cfg.site_login)
-    page.get_by_label(password).fill(cfg.site_password)
+    page.get_by_label(email).fill(cfg.username)
+    page.get_by_label(password).fill(cfg.password)
     page.get_by_role("button", name=submit).click()
     page.wait_for_load_state()
+    if code and cfg.totp:
+        page.get_by_label(code).fill(cfg.totp)
+        page.keyboard.press("Enter")
+        page.wait_for_load_state()
     if dossier:
         page.get_by_text(dossier, exact=False).first.click()
         page.wait_for_load_state()

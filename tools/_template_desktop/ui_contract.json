@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "screens": [
+    {
+      "name": "Nouvelle facture",
+      "window": "Nom de l'appli",
+      "via": [{"role": "push button", "label": "Nouvelle facture"}],
+      "anchors": [
+        {"label": "Fournisseur"},
+        {"label": "Référence fournisseur"},
+        {"role": "push button", "label": "Enregistrer le brouillon"}
+      ]
+    }
+  ]
+}

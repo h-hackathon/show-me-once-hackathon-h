@@ -1,4 +1,5 @@
-# Tests d'une PR : le runtime et les tools modifiés. Devin attend ce check vert avant de fusionner.
+# Tests d'une PR : le runtime et les tools modifiés, hors ligne (aucun identifiant dans GitHub).
+# Devin attend ce check vert avant de fusionner.
 name: tests
 
 on:
@@ -12,11 +13,6 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    env:
-      SITE_URL: ${{ secrets.SITE_URL }}
-      SITE_LOGIN: ${{ secrets.SITE_LOGIN }}
-      SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
-      SITE_ADMIN_TOKEN: ${{ secrets.SITE_ADMIN_TOKEN }}
     steps:
       - uses: actions/checkout@v5
         with:
