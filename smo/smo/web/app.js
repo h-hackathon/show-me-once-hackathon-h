@@ -36,6 +36,7 @@ const STEPS = ["prepare", "record", "learn", "agent"];
 // step : l'étape en cours du bandeau, ou "end" quand tout est fait.
 function show(view, step) {
   for (const section of document.querySelectorAll(".view")) section.hidden = section.id !== `view-${view}`;
+  $("new-demo").hidden = view !== "follow";   // dans le bandeau, sur tous les écrans de suivi
   const current = step === "end" ? STEPS.length : STEPS.indexOf(step);
   for (const li of document.querySelectorAll(".stepper li")) {
     const i = STEPS.indexOf(li.dataset.step);
