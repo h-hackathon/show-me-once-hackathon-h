@@ -32,7 +32,12 @@ cd "$build"
 
 # 2. Nouveau tool : on crée son service. Deux variables seulement : PORT, et SMO_SERVER_TOKEN (variable partagée du
 #    projet) pour que le tool n'accepte que les appels de SMO.
-railway link --project "$RAILWAY_PROJECT_ID" --environment "${RAILWAY_ENV_NAME:-production}"
+#    Un jeton d'équipe (workspace) ne lit pas `me` : sans --workspace, railway link répond « Unauthorized ».
+workspace=$(curl -sS --max-time 20 https://backboard.railway.com/graphql/v2 -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RAILWAY_API_TOKEN" \
+  -d "$(printf '{"query":"query($id: String!) { project(id: $id) { workspaceId } }","variables":{"id":"%s"}}' "$RAILWAY_PROJECT_ID")" \
+  | sed -n 's/.*"workspaceId":"\([^"]*\)".*/\1/p')
+railway link --project "$RAILWAY_PROJECT_ID" --environment "${RAILWAY_ENV_NAME:-production}" ${workspace:+--workspace "$workspace"}
 if ! railway variables --service "$service" --kv >/dev/null 2>&1; then
   echo "nouveau service : $service"
   railway add --service "$service" --variables "PORT=8080" --variables "SMO_SERVER_TOKEN=\${{shared.SMO_SERVER_TOKEN}}"
