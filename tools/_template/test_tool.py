@@ -11,7 +11,6 @@ import pytest
 from h_tools.config import Context
 from h_tools.loader import load_tool
 
-
 cfg = Context.from_env()
 tool = load_tool(Path(__file__).parent)
 pytestmark = pytest.mark.skipif(tool.name.startswith("nom_du_tool"), reason="modèle non rempli")

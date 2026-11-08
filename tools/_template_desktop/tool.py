@@ -13,7 +13,6 @@ from pydantic import BaseModel, Field
 
 from h_tools import desk
 
-
 NAME = "nom_du_tool_desktop"             # = nom du dossier ; finit par _desktop
 DESCRIPTION = "Saisit une pièce dans l'application de bureau à partir des valeurs lues dessus."
 KIND = "desktop"

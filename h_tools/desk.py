@@ -17,7 +17,6 @@ import shutil
 import subprocess
 from dataclasses import dataclass
 
-
 # Une ligne de `cua state` :  36 spin button "Decimal places:" value='0.0' @424,593-486,625
 LINE = re.compile(r"^\s*(?P<n>\d+) (?P<role>.+?) \"(?P<label>.*?)\"(?: value='(?P<value>.*?)')?(?: |$)")
 

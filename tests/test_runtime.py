@@ -13,7 +13,6 @@ from fastapi.testclient import TestClient
 from h_tools import cli, desk, loader, server
 from h_tools.config import MASK, Context
 
-
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 import announce  # noqa: E402
@@ -52,6 +51,7 @@ def fake_tool(tmp_path, monkeypatch) -> Path:
     (folder / "VERSION").write_text("abc123\n")
     monkeypatch.setattr(loader, "with_page", lambda fn: loader.guarded(fn, None))   # pas de navigateur
     monkeypatch.delenv("SMO_SERVER_TOKEN", raising=False)   # ouvert, sauf dans le test du jeton
+    monkeypatch.delenv("SMO_AUTH_REQUIRED", raising=False)
     for var in ("SITE_URL", "SITE_USERNAME", "SITE_PASSWORD"):
         monkeypatch.delenv(var, raising=False)
     return folder
@@ -101,6 +101,14 @@ def test_server_only_answers_smo_when_a_token_is_set(fake_tool, monkeypatch):
     assert client.post("/run", json={"params": {"reference": "A"}}).status_code == 401
     ok = client.get("/describe", headers={"X-SMO-Token": "x" * 24})
     assert ok.status_code == 200 and ok.json()["sha"] == "abc123"
+
+
+def test_a_deployed_tool_without_token_refuses_every_call(fake_tool, monkeypatch):
+    monkeypatch.setenv("SMO_AUTH_REQUIRED", "1")                          # posé par le Dockerfile
+    client = TestClient(server.build_app(fake_tool))
+    assert client.get("/health").status_code == 200
+    assert client.get("/describe").status_code == 503
+    assert client.post("/run", json={"params": {"reference": "A"}, "context": CONTEXT}).status_code == 503
 
 
 def test_failures_become_results_without_secrets(fake_tool):
@@ -182,6 +190,17 @@ def test_desktop_bundle_holds_what_the_agent_runs():
             "tool/skill.md"} <= set(files)
     assert files["tool/VERSION"] == "abc123\n" and "tool/test_tool.py" not in files
     assert not any(name.startswith("h_tools/") and name.endswith(("server.py", "ui.py")) for name in files)
+
+
+def test_desktop_bundle_runs_on_its_own(tmp_path):
+    """Le paquet posé chez l'agent se suffit : aucun module du runtime ne manque (ex. steps.py, importé par loader)."""
+    for name, text in announce.bundle("_template_desktop", "abc123").items():
+        (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / name).write_text(text, encoding="utf-8")
+    done = subprocess.run([sys.executable, "-m", "h_tools.cli", "tool", "run", '{"reference": "F-1"}'], cwd=tmp_path,
+                          env={"PYTHONPATH": str(tmp_path), "PATH": ""}, capture_output=True, text=True)
+    assert done.returncode == 0, done.stderr
+    assert json.loads(done.stdout)["status"] == "draft_saved"
 
 
 def git(repo: Path, *args: str) -> str:

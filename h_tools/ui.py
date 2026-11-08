@@ -10,7 +10,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from playwright.sync_api import Locator, Page, TimeoutError as PlaywrightTimeout
+from playwright.sync_api import Locator, Page
+from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 from .steps import StepError, step  # noqa: F401  (les tools importent leurs helpers depuis h_tools.ui)
 
@@ -68,6 +69,17 @@ def contract_of(tool_file: str) -> dict:
     """Le ui_contract.json posé à côté du tool.py."""
     path = Path(tool_file).with_name("ui_contract.json")
     return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {"screens": []}
+
+
+def table_rows(page: Page) -> list[dict]:
+    """Les lignes du tableau principal de l'écran, en dictionnaires {en-tête: valeur}."""
+    table = page.get_by_role("main").get_by_role("table")
+    headers = [h.strip() for h in table.get_by_role("columnheader").all_inner_texts()]
+    rows = []
+    for row in table.get_by_role("row").all()[1:]:   # la première ligne est celle des en-têtes
+        cells = [c.strip() for c in row.get_by_role("cell").all_inner_texts()]
+        rows.append(dict(zip(headers, cells, strict=False)))
+    return rows
 
 
 def check_contract(page: Page, contract: dict, cfg, timeout_ms: int = 5000) -> dict:

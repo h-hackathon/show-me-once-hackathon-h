@@ -11,7 +11,6 @@ import pytest
 from h_tools.config import Context
 from h_tools.loader import load_tool
 
-
 cfg = Context.from_env()
 tool = load_tool(Path(__file__).parent)
 m = tool.module
@@ -36,7 +35,7 @@ def demo(**changes):
 
 
 def line(i, **changes):
-    lignes = [dict(l) for l in DEMO["lignes"]]
+    lignes = [dict(ligne) for ligne in DEMO["lignes"]]
     lignes[i].update(changes)
     return lignes
 

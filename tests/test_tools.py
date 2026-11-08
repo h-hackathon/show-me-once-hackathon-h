@@ -8,7 +8,6 @@ import pytest
 
 from h_tools.loader import load_tool
 
-
 ROOT = Path(__file__).resolve().parent.parent
 FOLDERS = sorted(p.parent for p in (ROOT / "tools").glob("*/tool.py"))
 ANCHOR_KEYS = {"role", "label", "name", "text"}
@@ -37,6 +36,7 @@ def test_tool_is_well_formed(folder: Path):
 
 def test_no_credentials_in_the_repo():
     """Les identifiants viennent du vault H : aucun fichier de tool ne doit en contenir."""
-    pattern = re.compile(r"(password|mot_de_passe|passwd|secret|token)\s*=\s*['\"][^'\"]{4,}", re.I)
-    leaks = [str(p.relative_to(ROOT)) for p in (ROOT / "tools").rglob("*.py") if pattern.search(p.read_text("utf-8"))]
+    pattern = re.compile(r"(password|mot_de_passe|passwd|secret|token|api_key)['\"]?\s*[:=]\s*['\"][^'\"]{4,}", re.I)
+    files = [p for p in (ROOT / "tools").rglob("*") if p.suffix in (".py", ".json", ".md", ".txt")]
+    leaks = [str(p.relative_to(ROOT)) for p in files if pattern.search(p.read_text("utf-8"))]
     assert not leaks, f"identifiants en dur : {leaks}"
