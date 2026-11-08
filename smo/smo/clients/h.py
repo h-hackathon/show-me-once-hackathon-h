@@ -5,6 +5,7 @@ import base64
 import json
 import subprocess
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -212,16 +213,34 @@ def wait_active(handle, timeout_s: float = 30) -> None:
 
 
 def upsert_skill(h: Client, name: str, description: str, body: str, files: dict[str, str] | None = None,
-                 executable_files: list[str] | None = None):
+                 executable_files: list[str] | None = None, archive_dir: Path | None = None):
     """Crée ou remplace la Skill. files : des fichiers livrés avec elle (le tool d'un agent bureau), posés par H dans
-    l'environnement de l'agent ; executable_files : ceux qu'il peut lancer (run.sh)."""
+    l'environnement de l'agent ; executable_files : ceux qu'il peut lancer (run.sh).
+
+    H ne garde pas l'historique d'une Skill : avec archive_dir, la version remplacée y est gardée si elle change
+    (<archive_dir>/<nom>/<date>.md pour le corps, .json pour le reste)."""
     extra = {"files": files, "executable_files": executable_files or []} if files else {}
     try:
         return h.skills.create_skill(name=name, description=description, body=body, **extra)
     except ApiError as err:
         if err.status_code != 409:   # le SDK lève un ApiError nu (pas ConflictError) pour le 409 des Skills
             raise
-        return h.skills.update_skill(name, name=name, description=description, body=body, **extra)
+    if archive_dir is not None:
+        archive_skill(h.skills.get_skill(name), archive_dir, new=(description, body, files or {}))
+    return h.skills.update_skill(name, name=name, description=description, body=body, **extra)
+
+
+def archive_skill(old, archive_dir: Path, new: tuple[str, str, dict] | None = None) -> Path | None:
+    """Garde une version de Skill avant de la remplacer ; rien si elle ne change pas."""
+    if new is not None and (old.description, old.body, old.files or {}) == new:
+        return None
+    folder = archive_dir / old.name
+    folder.mkdir(parents=True, exist_ok=True)
+    stem = folder / f"{datetime.now():%Y%m%d-%H%M%S-%f}"
+    stem.with_suffix(".md").write_text(old.body or "", encoding="utf-8")
+    meta = old.model_dump(mode="json", exclude={"body"})
+    stem.with_suffix(".json").write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+    return stem.with_suffix(".md")
 
 
 def upsert_agent(h: Client, name: str, **spec):

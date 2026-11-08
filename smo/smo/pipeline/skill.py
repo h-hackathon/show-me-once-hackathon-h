@@ -22,11 +22,14 @@ VERB = {"navigate": "Aller sur", "click": "Cliquer sur", "type": "Remplir", "sel
         "check": "Vérifier", "read": "Lire"}
 
 
-def skill_name(run: Run, prefix: str = "smo-") -> str:
+def name_for(task: str, kind: str, prefix: str = "smo-") -> str:
     """Un agent, une Skill et un tool par tâche et type de logiciel (web, desktop) : le nom porte le type. Le préfixe
     est celui des agents (SMO_AGENT_PREFIX) : un SMO de test ne réécrit pas les Skills de celui de Railway."""
-    meta = run.meta
-    return f"{prefix}{slug(meta.task, max_len=40)}-{meta.software_kind}"
+    return f"{prefix}{slug(task, max_len=40)}-{kind}"
+
+
+def skill_name(run: Run, prefix: str = "smo-") -> str:
+    return name_for(run.meta.task, run.meta.software_kind, prefix)
 
 
 def tool_name(run: Run) -> str:

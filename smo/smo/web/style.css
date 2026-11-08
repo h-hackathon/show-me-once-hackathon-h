@@ -70,6 +70,11 @@ main.wrap { padding-block: 28px 56px; display: grid; gap: 22px; }
 label, .label { font-size: 13px; font-weight: 500; color: var(--text-2); }
 fieldset.kind { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; }
 fieldset.kind legend { font-size: 13px; font-weight: 500; color: var(--text-2); padding: 0; margin-bottom: 6px; width: 100%; }
+fieldset.existing { border: 1px solid var(--iris-light); border-radius: var(--r-md); margin: 0; padding: 12px 14px;
+                    display: grid; gap: 8px; }
+fieldset.existing legend { font-size: 13px; font-weight: 500; color: var(--text-2); padding: 0 6px; }
+#existing-choices { display: grid; gap: 8px; }
+#existing-choices .note { margin: 0 0 0 26px; }
 .choice { display: inline-flex; align-items: center; gap: 8px; color: var(--text); font-weight: 400; cursor: pointer; }
 .choice input { width: auto; accent-color: var(--iris); }
 .optional { color: var(--muted); font-weight: 400; }

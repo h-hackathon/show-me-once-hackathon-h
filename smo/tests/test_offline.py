@@ -706,3 +706,41 @@ def test_desktop_tool_ships_inside_the_skill(run, s, monkeypatch):
     assert pushed[0]["files"] == tool.files and pushed[0]["executable_files"] == ["run.sh"]
     assert "./run.sh run" in pushed[0]["body"] and '"reference"' in pushed[0]["body"]
     assert "./run.sh" in provision.rule_for(tool, "saisir_desktop")
+
+
+def test_a_replaced_skill_is_archived_only_when_it_changes(tmp_path):
+    from types import SimpleNamespace as NS
+    from hai_agents.core.api_error import ApiError
+    stored = NS(name="smo-x-web", description="d", body="# Ancienne", files={},
+                model_dump=lambda **kw: {"name": "smo-x-web", "description": "d", "files": {}})
+
+    def create_skill(**kw):
+        raise ApiError(status_code=409, body="exists")
+    updates = []
+    fake = NS(skills=NS(create_skill=create_skill, get_skill=lambda name: stored,
+                        update_skill=lambda name_, **kw: updates.append(kw)))
+    h.upsert_skill(fake, "smo-x-web", "d", "# Ancienne", archive_dir=tmp_path)    # inchangée : rien d'archivé
+    assert not (tmp_path / "smo-x-web").exists()
+    h.upsert_skill(fake, "smo-x-web", "d", "# Nouvelle", archive_dir=tmp_path)
+    archived = list((tmp_path / "smo-x-web").glob("*.md"))
+    assert [p.read_text() for p in archived] == ["# Ancienne"] and len(updates) == 2
+    assert json.loads(archived[0].with_suffix(".json").read_text())["description"] == "d"
+
+
+def test_improving_a_task_waits_for_the_tool_that_follows_the_demo(run, s, monkeypatch):
+    from types import SimpleNamespace as NS
+    from smo.models import Provisioned
+    run.write_model("meta.json", run.meta.model_copy(update={"improves": "smo-saisir-une-facture-fournisseur-web"}))
+    run.write_text("skill.md", "# Nouvelle démo\n")
+    old = NS(sha="aaa", skill="# Skill d'avant (Devin)\n", kind="web")
+    provision.note_base_tool(run, old)
+    assert provision.skill_body(run, s, old) == "# Nouvelle démo\n"          # pas la Skill d'avant la démo
+    run.write_model("agent.json", Provisioned(agent_name="a", skill_name="a", tools=[], tool_ready=True,
+                                              environment={}, tool_sha="aaa"))
+    assert not provision.tool_ready(run)                                     # l'étape upgrade reste à faire
+    monkeypatch.setattr(provision, "find", lambda s_, name: old)
+    assert provision.upgrade(run, s, log=lambda _: None) == "waiting"       # la PR de Devin n'est pas déployée
+    new = NS(sha="bbb", skill="# Skill mise à jour par Devin\n", kind="web")
+    assert provision.skill_body(run, s, new) == new.skill
+    provision.note_base_tool(run, new)                                       # noté une seule fois
+    assert provision.awaits_new_tool(run, "aaa") and not provision.awaits_new_tool(run, "bbb")

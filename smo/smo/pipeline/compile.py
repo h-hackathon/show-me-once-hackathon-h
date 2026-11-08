@@ -16,6 +16,7 @@ from ..clients import h, vault
 from ..config import ROOT, Settings
 from ..models import CompileResult, Context, DevinReport, Trace
 from ..runs import Run
+from ..runtime.tools import find
 from . import docs, mapping
 from .skill import tool_name
 from .trial import trial_request
@@ -61,6 +62,13 @@ def checks_text(context: Context) -> str:
 # Les règles fixes vivent dans h-tools, à côté du code, comme skill Devin (ce compte Devin n'a plus de playbooks)
 METHOD = ("Applique la skill Devin `smo-tool` du repo h-tools : lis `.agents/skills/smo-tool/SKILL.md` en entier "
           "avant de commencer (procédure, règles du tool, interdits, sortie structurée obligatoire).")
+
+# Amélioration d'une tâche qui a déjà son tool : la nouvelle démo met à jour le tool, elle n'en crée pas un second.
+IMPROVE = """**Le tool existe déjà** : `tools/{tool}/` est dans le repo, et des agents H l'appellent déjà. Cette
+démonstration est une nouvelle version de la même tâche : mets à jour ce tool et sa Skill (`tools/{tool}/skill.md`)
+pour qu'ils la suivent, dans le même dossier, sans repartir de zéro. Garde son nom et, si possible, ses paramètres.
+
+"""
 REPORT_SCHEMA = DevinReport.model_json_schema()
 
 
@@ -100,13 +108,17 @@ def run(run: Run, s: Settings, log: Callable[[str], None], wait: bool = True) ->
             trace=trace_text(trace), checks=checks_text(context),
             map=mapping.summary(soft_map) if (soft_map := mapping.load(run)) else "Pas de carte.",
             docs=docs.summary(run) or "Pas de documentation publique trouvée.", kind=meta.software_kind)
+        improves = bool(run.meta.improves) and find(s, name) is not None
+        if improves:
+            prompt = IMPROVE.format(tool=name) + prompt
         run.write_text("devin_prompt.md", prompt)
         # les sorties JSON complètes de chaque étape (rien n'est perdu par le résumé du brief), puis des captures
         outputs = [run.file(n) for n in ("trace.json", "trial.json", "procedure.json", "notes.json", "map.json",
                                          "docs.json") if run.has(n)]
         urls = _attachments(api, [*outputs, *trace_shots(trace, MAX_ATTACHMENTS - len(outputs))])
         secrets = {} if meta.software_kind == "desktop" else session_secrets(s, meta.software_url, log)
-        session = api.create_session(prompt, tags=["smo", run.id], max_acu=s.devin_max_acu, attachment_urls=urls,
+        tags = ["smo", run.id] + (["improve"] if improves else [])
+        session = api.create_session(prompt, tags=tags, max_acu=s.devin_max_acu, attachment_urls=urls,
                                      output_schema=REPORT_SCHEMA, secrets=secrets)
         result = CompileResult(tool_name=name, devin_id=devin_api.session_id(session), url=session.get("url"))
         run.write_model("compile.json", result)

@@ -6,6 +6,8 @@ Une fois le tool là, la Skill de référence est celle du repo (tools/<nom>/ski
 """
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Callable
 
 from hai_agents.types.tool_definition import ToolDefinition
@@ -66,9 +68,32 @@ def skill_description(run: Run) -> str:
             f"la méthode, les contrôles, quand s'arrêter.")
 
 
+# Amélioration d'une tâche qui a déjà son tool : le commit de ce tool au moment de la démo. Tant qu'h-tools n'a pas
+# déployé le suivant (la PR de Devin pour cette démo), la Skill de référence reste celle relue par l'humain.
+BASE_TOOL = "base_tool.json"
+
+
+def note_base_tool(run: Run, tool) -> None:
+    """Sans commit connu (clone local d'h-tools), on ne peut pas voir arriver le suivant : rien n'est noté."""
+    if run.meta.improves and getattr(tool, "sha", None) and not run.has(BASE_TOOL):
+        run.write_text(BASE_TOOL, json.dumps({"sha": getattr(tool, "sha", None)}))
+
+
+def awaits_new_tool(run: Run, sha: str | None) -> bool:
+    """La démo améliore un tool existant, et `sha` est encore celui d'avant la démo."""
+    return run.has(BASE_TOOL) and json.loads(run.file(BASE_TOOL).read_text())["sha"] == sha
+
+
 def skill_body(run: Run, s: Settings, tool=None) -> str:
     """La Skill d'h-tools si Devin l'a écrite ou corrigée (tools/<nom>/skill.md), sinon celle relue par l'humain."""
-    return (tool.skill if tool is not None and tool.skill else None) or run.file("skill.md").read_text(encoding="utf-8")
+    if tool is None or not tool.skill or awaits_new_tool(run, getattr(tool, "sha", None)):
+        return run.file("skill.md").read_text(encoding="utf-8")
+    return tool.skill
+
+
+def skill_archive(s: Settings) -> Path:
+    """Les versions de Skills remplacées dans H (H n'en garde pas l'historique)."""
+    return s.runs_dir / "_archive" / "skills"
 
 
 def push_skill(client, run: Run, s: Settings, tool, body: str):
@@ -77,21 +102,23 @@ def push_skill(client, run: Run, s: Settings, tool, body: str):
     tname, sname = tool_name(run), skill_name(run, s.agent_prefix)
     if not is_desktop_tool(tool):
         return h.upsert_skill(client, sname, description=skill_description(run),
-                              body=with_common_block(body, tname if tool else None))
+                              body=with_common_block(body, tname if tool else None), archive_dir=skill_archive(s))
     return h.upsert_skill(client, sname, description=skill_description(run),
                           body=with_common_block(body, tname, desktop_schema=tool.schema),
-                          files=desktop_files(tool), executable_files=["run.sh"])
+                          files=desktop_files(tool), executable_files=["run.sh"], archive_dir=skill_archive(s))
 
 
 def push_read_skill(client, s: Settings):
     """La petite Skill commune à tous les agents SMO : lire les pièces jointes sur la workstation."""
     body = (ROOT / "skills" / "lire_pieces_jointes.md").read_text(encoding="utf-8")
-    return h.upsert_skill(client, read_skill_name(s), description=READ_SKILL_DESCRIPTION, body=body)
+    return h.upsert_skill(client, read_skill_name(s), description=READ_SKILL_DESCRIPTION, body=body,
+                          archive_dir=skill_archive(s))
 
 
 def create(run: Run, s: Settings, log: Callable[[str], None]) -> None:
     meta, tname, sname = run.meta, tool_name(run), skill_name(run, s.agent_prefix)
     tool = find(s, tname)   # clone local d'h-tools, sinon ce qu'h-tools a déployé (service web, fichiers de bureau)
+    note_base_tool(run, tool)
     tools = h_tools({tname: tool} if tool else {}, s, on_drift=lambda *_: None)   # déclarations seulement
 
     client = h.client(s.hai_api_key)
@@ -115,7 +142,8 @@ def create(run: Run, s: Settings, log: Callable[[str], None]) -> None:
     name = agent_name(run, s)
     h.upsert_agent(client, name, **spec)
     run.write_model("agent.json", Provisioned(agent_name=name, skill_name=sname, tools=[t.name for t in tools],
-                                              tool_ready=tool is not None, environment=target.as_dict(env)))
+                                              tool_ready=tool is not None, environment=target.as_dict(env),
+                                              tool_sha=getattr(tool, "sha", None)))
     log(f"agent {name} : {'tool ' + tname if tool else 'computer use (tool pas encore déployé)'}")
 
 
@@ -125,9 +153,11 @@ def upgrade(run: Run, s: Settings, log: Callable[[str], None]) -> str | None:
     Appelé tout seul quand h-tools prévient SMO (POST /hooks/tool-deployed), ou à la main :
     `smo run <id> --only upgrade --force`.
     """
-    if find(s, tool_name(run)) is None:
+    tool = find(s, tool_name(run))
+    if tool is None or awaits_new_tool(run, getattr(tool, "sha", None)):
         pr = run.read_model("compile.json", CompileResult).pr_url if run.has("compile.json") else None
-        log(f"tool pas encore déployé : PR {pr or '(voir compile.json)'} → fusion dans h-tools → déploiement "
+        state = "pas encore déployé" if tool is None else "encore dans sa version d'avant la démo"
+        log(f"tool {state} : PR {pr or '(voir compile.json)'} → fusion dans h-tools → déploiement "
             f"automatique, qui prévient SMO")
         return "waiting"
     return create(run, s, log)
@@ -147,4 +177,8 @@ def runs_with_tool(s: Settings, tool: str) -> list[Run]:
 
 
 def tool_ready(run: Run) -> bool:
-    return run.has("agent.json") and run.read_model("agent.json", Provisioned).tool_ready
+    """L'agent a son tool, et pour une amélioration, celui qui suit la démo."""
+    if not run.has("agent.json"):
+        return False
+    agent = run.read_model("agent.json", Provisioned)
+    return agent.tool_ready and not awaits_new_tool(run, agent.tool_sha)

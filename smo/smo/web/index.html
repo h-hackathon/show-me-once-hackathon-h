@@ -68,7 +68,12 @@
           <label for="software_name">Nom du logiciel <span class="optional">pour chercher sa documentation</span></label>
           <input id="software_name" name="software_name" placeholder="Qonta, Odoo, Pennylane…">
         </div>
-        <button class="btn primary big" type="submit">Choisir l'écran et enregistrer</button>
+        <input type="hidden" name="improves" value="">
+        <fieldset class="field existing" id="existing" hidden>
+          <legend>Cette tâche a déjà une automatisation dans H</legend>
+          <div id="existing-choices"></div>
+        </fieldset>
+        <button class="btn primary big" type="submit" id="record-btn">Choisir l'écran et enregistrer</button>
         <p class="note">Chrome vous demandera l'écran à partager, puis le micro.</p>
         <p class="error" id="prepare-error" role="alert" hidden></p>
       </form>

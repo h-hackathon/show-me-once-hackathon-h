@@ -84,10 +84,68 @@ function syncKind() {
 }
 for (const radio of form.querySelectorAll('input[name="software_kind"]')) radio.addEventListener("change", syncKind);
 
-form.addEventListener("submit", (e) => {
+// Une automatisation existe déjà pour cette tâche (même nom ou proche) : l'améliorer, ou en faire une nouvelle.
+// La page le demande avant d'enregistrer, sinon la démo écraserait l'agent existant sans le dire.
+let existing = null;   // null : pas encore vérifié pour ce titre et ce type ; sinon la liste trouvée dans H
+
+async function findExisting() {
+  const query = new URLSearchParams({ task: form.task.value.trim(), kind: form.software_kind.value });
+  const timeout = new AbortController();
+  setTimeout(() => timeout.abort(), 2500);   // le partage d'écran doit partir dans la foulée du clic
+  try {
+    return (await api(`/api/existing?${query}`, { signal: timeout.signal })).candidates;
+  } catch {
+    return [];   // H injoignable : on n'empêche pas d'enregistrer
+  }
+}
+
+function existingChoice(value, title, detail, checked) {
+  const label = el("label", "choice");
+  const radio = el("input");
+  radio.type = "radio"; radio.name = "existing-choice"; radio.value = value; radio.checked = checked;
+  label.append(radio, title);
+  return detail ? [label, el("p", "note", detail)] : [label];
+}
+
+function showExisting(candidates) {
+  const exact = candidates.find((c) => c.exact);
+  const nodes = candidates.flatMap((c) => existingChoice(c.name, `Améliorer « ${c.task} »`,
+    `${c.name} · ${c.has_tool ? "avec son tool" : "à l'écran, sans tool"}. La démo met à jour cet agent et sa Skill` +
+    (c.has_tool ? " ; Devin met à jour son tool." : "."), c === (exact || candidates[0])));
+  nodes.push(...existingChoice("", "Nouvelle tâche",
+    exact ? "Changez alors le titre ci-dessus : ce nom est déjà pris." : "Un autre agent, à côté de l'existant.", false));
+  $("existing-choices").replaceChildren(...nodes);
+  $("existing").hidden = false;
+  $("record-btn").textContent = "Continuer et enregistrer";
+}
+
+function resetExisting() {
+  existing = null;
+  form.improves.value = "";
+  $("existing").hidden = true;
+  $("record-btn").textContent = "Choisir l'écran et enregistrer";
+}
+form.task.addEventListener("input", resetExisting);
+for (const radio of form.querySelectorAll('input[name="software_kind"]')) radio.addEventListener("change", resetExisting);
+
+form.addEventListener("submit", async (e) => {
   e.preventDefault();
   $("prepare-error").hidden = true;
   if (!form.reportValidity()) return;
+  if (existing === null) {
+    existing = await findExisting();
+    if (existing.length) return showExisting(existing);   // le choix d'abord ; le clic suivant lance l'enregistrement
+  }
+  const picked = form.querySelector('input[name="existing-choice"]:checked')?.value || "";
+  const chosen = existing.find((c) => c.name === picked);
+  if (chosen) {
+    form.task.value = chosen.task;   // même titre, donc même agent, même Skill, même tool
+  } else if (existing.some((c) => c.exact)) {
+    $("prepare-error").textContent = "Nouvelle tâche : donnez-lui un autre titre, celui-ci est déjà pris.";
+    $("prepare-error").hidden = false;
+    return form.task.focus();
+  }
+  form.improves.value = chosen ? chosen.name : "";
   startRecording().catch((err) => fail(`Impossible de démarrer : ${err.message}`));
 });
 
@@ -139,7 +197,8 @@ async function startRecording() {
   voice.addEventListener("ended", () => liveStatus("micro perdu, arrêtez et recommencez", false));
   recorder.start(1000);
 
-  $("rec-task").textContent = [form.task.value, form.software_name.value.trim()].filter(Boolean).join(" · ");
+  $("rec-task").textContent = [form.task.value, form.software_name.value.trim(), form.improves.value && "amélioration"]
+    .filter(Boolean).join(" · ");
   $("share-label").textContent = shareLabel(screen.label);
   $("live-text").replaceChildren(el("li", "placeholder", "Parlez : vos phrases apparaissent ici."));
   $("live-count").textContent = "";
@@ -235,7 +294,7 @@ function upload() {
   const blob = new Blob(chunks, { type: "video/webm" });
   const body = new FormData();
   body.append("video", blob, "capture.webm");
-  for (const name of ["task", "url", "software_kind", "software_name"]) body.append(name, form[name].value);
+  for (const name of ["task", "url", "software_kind", "software_name", "improves"]) body.append(name, form[name].value);
   show("upload", "record");
   $("upload-note").textContent = `${(blob.size / 1e6).toFixed(1)} Mo`;
 
@@ -623,6 +682,7 @@ for (const button of document.querySelectorAll(".js-new-demo")) {
     clearTimeout(pollId);
     editorMode = null;
     history.replaceState(null, "", location.pathname);
+    resetExisting();   // l'agent de la démo précédente existe peut-être maintenant
     show("prepare", "prepare");
   });
 }
