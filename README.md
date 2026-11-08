@@ -2,7 +2,7 @@
 
 > **Until now, you learned from AI. With Show me once, you teach the AI.**
 
-H Company × 42AI hackathon — November 7–8, 2026.
+H Company × 42AI hackathon — November 7–8, 2026. · **[▶ Demo video](https://www.loom.com/share/25c8a67e44874b6a9565442cce927eb0)** (~5 min, watch at 1.5×)
 
 You do a task **once** on your screen while explaining it out loud — the way a manager shows an intern.
 Show me once turns that recording into an **H custom agent** that works through the screen with **your rules**.
@@ -80,7 +80,7 @@ Here, an analyst shows **one** dispute, and the agent defends the whole queue **
 
 ## 5. Demo and results
 
-- **Demo video**: _link to add_
+- **Demo video**: [watch on Loom](https://www.loom.com/share/25c8a67e44874b6a9565442cce927eb0) (~5 min, best watched at **1.5× speed**)
 
 **Benchmark** — same disputes, two conditions (A: agent alone, classic prompt; B: agent + Skill learned from the demo).
 A handled dispute cannot be replayed, so each condition gets its own identical batch created in Stripe.
