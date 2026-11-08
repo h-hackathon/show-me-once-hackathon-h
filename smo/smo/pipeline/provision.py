@@ -28,13 +28,16 @@ Les pièces jointes à la demande sont sur ta workstation : lis-les avec ta Skil
 Si une règle de la Skill demande l'arrêt (incohérence, cas inconnu), n'enregistre rien et explique pourquoi.
 """ + NEVER_FINALIZE + " Réponds au format demandé."
 
+# report_drift relance Devin : seulement pour une interface changée, jamais pour un refus métier du tool.
+DRIFT_RULE = ("Tu ne travailles à l'écran que s'il renvoie une erreur. N'appelle `report_drift` que si l'interface a "
+              "changé (un élément introuvable à l'écran, un écran différent de la Skill), jamais pour un cas métier "
+              "(fournisseur absent ou ambigu, doublon, total incohérent).")
 RULE_WITH_TOOL = ("Règle absolue, avant tout le reste : appelle d'abord `run_{tool}` avec les valeurs lues sur la pièce. "
                   "Il fait toute la tâche sur un serveur et renvoie le résultat final : tu n'as rien à faire à l'écran. "
-                  "Tu ne travailles à l'écran que s'il renvoie une erreur, puis tu appelles `report_drift`.")
+                  + DRIFT_RULE)
 RULE_WITH_DESKTOP_TOOL = ("Règle absolue, avant tout le reste : lance d'abord le tool livré avec ta Skill, depuis ton shell, "
                           "dans le dossier de la Skill : `./run.sh run '<valeurs lues sur la pièce, en JSON>'`. Il fait "
-                          "toute la tâche et affiche le résultat final : tu n'as rien à faire à l'écran. Tu ne travailles "
-                          "à l'écran que s'il renvoie une erreur, puis tu appelles `report_drift`.")
+                          "toute la tâche et affiche le résultat final : tu n'as rien à faire à l'écran. " + DRIFT_RULE)
 RULE_WITHOUT_TOOL = "Règle absolue : pas encore de tool pour cette tâche, fais-la toi-même à l'écran en suivant ta Skill."
 
 
