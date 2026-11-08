@@ -40,7 +40,7 @@ STAGES = [
     Stage("frames", capture.frames, (), lambda r: r.has("frames.json")),
     Stage("read", understand.read, ("hai_api_key",), lambda r: r.has("notes.json") or r.has("procedure.json")),
     Stage("understand", understand.synthesize, ("hai_api_key",), lambda r: r.has("procedure.json")),
-    Stage("enrich", enrich.run, ("linkup_api_key",), lambda r: r.has("context.json"), optional=True),
+    Stage("enrich", enrich.run, ("linkup_api_key",), lambda r: r.has("context.json")),
     Stage("skill", skill.run, (), lambda r: r.has("skill.md")),
     Stage("review", skill.review, (), lambda r: r.has("skill.approved")),
     Stage("provision", provision.create, ("hai_api_key",), lambda r: r.has("agent.json")),

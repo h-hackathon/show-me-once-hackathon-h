@@ -72,7 +72,7 @@ On peut refaire une étape : `uv run smo run <id> --only understand --force`.
 
 `uv run smo serve` lance un seul programme qui fait trois choses :
 1. **La page d'enregistrement** (`/`) et son API (`/api/...`) : reçoit la vidéo, fait tourner le pipeline, montre l'avancement.
-2. **Le worker des tools** : quand un agent `smo-*` appelle un tool, sa session H attend. Le serveur le voit en interrogeant H toutes les 5 s, se rattache à la session et exécute le tool (`precheck_*`, `run_*`, `report_drift`, `check_supplier`…), même si la session a été lancée depuis l'interface H. Le webhook H (`/webhooks/h`) est facultatif : plus rapide, mais il demande une adresse publique et un secret.
+2. **Le worker des tools** : quand un agent `smo-*` appelle un tool, sa session H attend. Le serveur le voit en interrogeant H toutes les 5 s, se rattache à la session et exécute le tool (`precheck_*`, `run_*`, `report_drift`, `verify_entry`), même si la session a été lancée depuis l'interface H. Le webhook H (`/webhooks/h`) est facultatif : plus rapide, mais il demande une adresse publique et un secret.
 3. **Le relais vers h-tools** : les tools écrits par Devin vivent dans le repo h-tools, et chacun tourne dans son propre service Railway, dans le projet Railway d'h-tools. À chaque déploiement, h-tools annonce le tool à SMO (`POST /hooks/tool-deployed` : nom, commit, adresse publique). SMO retient l'adresse, appelle le tool (`/describe`, `/precheck`, `/run`) avec le mot de passe commun `SMO_SERVER_TOKEN`, et remet à jour les agents H qui l'attendent, avec la Skill du repo et le bloc commun.
 
 Où il tourne : **un seul serveur SMO, sur Railway, gère tout**. Sur la page, on choisit l'agent :

@@ -111,10 +111,8 @@ class RuleCheck(BaseModel):
 
 
 class Context(BaseModel):
-    """Ce que Linkup a vérifié ou ajouté (context.json)."""
+    """Ce que Linkup a vérifié (context.json)."""
     rule_checks: list[RuleCheck] = []
-    software_notes: list[str] = []
-    sources: list[str] = []
 
 
 class TraceStep(BaseModel):

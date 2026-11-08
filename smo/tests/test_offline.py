@@ -98,6 +98,29 @@ def test_skill_applies_linkup_correction():
     assert "1. Cliquer sur « Nouvelle facture »" in md
 
 
+def test_enrich_checks_every_rule_with_its_sources(run, s, monkeypatch):
+    import httpx
+    from smo.clients import linkup
+    from smo.pipeline import enrich
+    bodies = []
+
+    def fake_post(url, json, **kw):
+        bodies.append(json)
+        wrong = "étranger" in json["q"]
+        data = {"verdict": "corrected" if wrong else "confirmed", "explanation": "…",
+                "correction": "Fournisseur UE : autoliquidation" if wrong else ""}
+        return httpx.Response(200, json={"data": data, "sources": [{"url": "https://bofip.impots.gouv.fr/x"}]},
+                              request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(linkup.httpx, "post", fake_post)
+    enrich.run(run, dataclasses.replace(s, linkup_api_key="k"), lambda _: None)
+    checks = run.read_model("context.json", Context).rule_checks
+    assert [c.verdict for c in checks] == ["confirmed", "corrected"]
+    assert checks[1].correction == "Fournisseur UE : autoliquidation" and checks[0].correction is None
+    assert checks[0].sources == ["https://bofip.impots.gouv.fr/x"]
+    assert all(b["depth"] == "standard" and b["includeSources"] for b in bodies) and len(bodies) == 2
+
+
 def test_replay_instructions_quote_the_human(run):
     msgs = replay.instructions(PROCEDURE, run.read_model("transcript.json", Transcript))
     assert msgs[0].startswith("Étape 1/2 : clique sur « Nouvelle facture »")
@@ -105,10 +128,13 @@ def test_replay_instructions_quote_the_human(run):
     assert "Ne valide rien" in msgs[-1]
 
 
-def test_real_stages_wait_for_review_then_block_on_keys(run, s):
-    # transcript + procedure déjà là : frames et skill tournent, enrich est sautée, la relecture attend l'humain
+def test_real_stages_block_on_linkup_then_wait_for_review(run, s):
+    # transcript + procedure déjà là : frames tourne, puis enrich (obligatoire) bloque sans clé Linkup
+    assert orchestrator.run_pipeline(run, s, log=lambda _: None) == "blocked"
+    assert run.status()["enrich"]["missing"] == ["LINKUP_API_KEY"] and not run.has("skill.md")
+    run.write_model("context.json", Context())         # règles vérifiées : la Skill s'écrit, la relecture attend l'humain
     assert orchestrator.run_pipeline(run, s, log=lambda _: None) == "waiting"
-    assert run.has("skill.md") and run.status()["enrich"]["state"] == "skipped"
+    assert run.has("skill.md")
     run.write_text("skill.approved", "ok\n")
     assert orchestrator.run_pipeline(run, s, log=lambda _: None) == "blocked"
     assert run.status()["provision"]["missing"] == ["HAI_API_KEY"]
@@ -177,7 +203,7 @@ def test_tool_registry_and_h_definitions(s):
     tools = runtime_tools.h_tools(compiled, s, on_drift=lambda *_: None)
     names = [t.name for t in tools]
     assert names == ["precheck_saisir_une_facture_fournisseur", "run_saisir_une_facture_fournisseur",
-                     "report_drift", "check_supplier", "verify_entry"]
+                     "report_drift", "verify_entry"]
     run_def = runtime_tools.definitions(tools)[1]
     assert set(run_def["input_schema"]["required"]) == {"reference", "total_ttc"}
     drifts = []
@@ -485,7 +511,7 @@ def test_provision_environment_and_definitions():
     assert h.web_environment("http://localhost:3000").host == "user_device"
     assert h.web_environment("https://compta.example").host == "cloud"
     defs = runtime_tools.definitions(runtime_tools.h_tools({}, config.load(), on_drift=lambda *_: None))
-    assert [ToolDefinition(**d).name for d in defs] == ["report_drift", "check_supplier", "verify_entry"]
+    assert [ToolDefinition(**d).name for d in defs] == ["report_drift", "verify_entry"]
 
 
 def test_devin_brief_renders(run, s):

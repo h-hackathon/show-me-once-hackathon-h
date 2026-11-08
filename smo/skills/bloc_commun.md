@@ -7,7 +7,6 @@ Cette règle passe avant tout le reste de la Skill, pour chaque pièce :
 3. `$run` renvoie `flagged` : n'enregistre rien et explique pourquoi dans ta réponse.
 4. `$run` renvoie `error`, ou ne répond pas : fais la tâche toi-même à l'écran (computer use) en suivant la méthode
    ci-dessous, puis appelle `report_drift` avec l'erreur du tool.
-5. Fournisseur inconnu ou douteux : vérifie-le avec `check_supplier` avant de le créer.
 
 Toujours : ne jamais cliquer sur « Valider ». Réponds au format demandé, avec mode = "tool" si le tool a fait la tâche,
 "computer_use" si tu l'as faite à l'écran.

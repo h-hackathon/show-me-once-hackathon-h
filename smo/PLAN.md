@@ -50,7 +50,7 @@ Les mêmes étapes, telles que les enchaîne `uv run smo` :
 
 ```
 1. Capture          vidéo + voix (1 fois)
-2. Mise en forme    transcribe (Gladia) · frames (ffmpeg) · understand (LLM : Holo, Models API) · enrich (Linkup, option)
+2. Mise en forme    transcribe (Gladia) · frames (ffmpeg) · understand (LLM : Holo, Models API) · enrich (Linkup)
                     → une info digeste (procedure.json) + skill.md                                 [review : relecture, --auto pour sauter]
 3. Test par Holo    provision : l'agent custom est créé dans SON H avec la Skill, sans tool
                     trial     : il traite la pièce de la démo en computer use → trace + ce qui est réellement enregistré
@@ -69,7 +69,7 @@ Les mêmes étapes, telles que les enchaîne `uv run smo` :
 2. Si le precheck est OK, il lit la pièce et appelle `run_<tâche>` : saisie déterministe, arrêt en brouillon, idempotente, règles codées en dur.
 3. Sinon, ou si le tool échoue, il fait la saisie en computer use avec la Skill, puis appelle `report_drift`. Sa session repart chez Devin (`SMO_AUTO_REPAIR=1`, ou `smo repair`), qui ouvre une PR corrigeant le tool et `skill.md`.
 4. Après la fusion, `smo run <id> --only upgrade --force` repousse le tool et la Skill dans H.
-5. Il vérifie toujours avec `verify_entry` (on ne croit jamais l'agent sur parole) et peut vérifier un fournisseur avec `check_supplier` (Linkup).
+5. Il vérifie toujours avec `verify_entry` (on ne croit jamais l'agent sur parole).
 
 **Qui exécute les tools ?** Chez H, un custom tool est exécuté par le programme qui suit la session. C'est le **serveur SMO** (Railway) :
 - il est prévenu par un webhook H (`session.status_updated` → `awaiting_tool_results`) ;
