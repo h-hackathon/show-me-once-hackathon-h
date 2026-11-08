@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "screens": [
+    {
+      "name": "Nouvelle facture",
+      "path": "/factures/nouvelle",
+      "anchors": [
+        {"label": "Fournisseur"},
+        {"label": "Référence fournisseur"},
+        {"label": "Date de facture"},
+        {"role": "button", "name": "Enregistrer le brouillon"}
+      ]
+    }
+  ]
+}

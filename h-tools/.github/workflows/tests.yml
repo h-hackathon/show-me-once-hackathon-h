@@ -1,0 +1,31 @@
+# Tests d'une PR : le runtime et les tools modifiés, hors ligne (aucun identifiant dans GitHub).
+# Devin attend ce check vert avant de fusionner.
+name: tests
+
+on:
+  pull_request:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --frozen
+      - run: uv run playwright install --with-deps chromium
+      - name: Tools modifiés
+        id: changed
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: echo "tools=$(bash scripts/changed_tools.sh "$(git merge-base "origin/$BASE_REF" HEAD)" | xargs)" >> "$GITHUB_OUTPUT"
+      - name: Tests
+        env:
+          TOOLS: ${{ steps.changed.outputs.tools }}
+        run: uv run pytest tests $(for n in $TOOLS; do printf 'tools/%s ' "$n"; done)
