@@ -80,12 +80,12 @@ def cmd_repair(a, s):
 
 
 def cmd_tools(a, s):
-    from .runtime.tools import input_schema, load_tools
+    from .runtime.tools import call_tool, for_site, input_schema, load_tools
     for t in load_tools(s.tools_dir).values():
         print(f"{t.name} : {t.description}")
         print(f"  params : {json.dumps(input_schema(t.params).get('properties', {}), ensure_ascii=False)[:300]}")
-        if a.precheck:
-            print(f"  precheck : {t.precheck(s)}")
+        if a.precheck:   # avec l'élément du vault H de SITE_URL, comme un appel de l'agent
+            print(f"  precheck : {call_tool('precheck', t, for_site(s, s.site_url))}")
     return 0
 
 
@@ -112,7 +112,7 @@ def main(argv: list[str] | None = None) -> int:
     sub = p.add_subparsers(dest="cmd", required=True)
 
     d = sub.add_parser("doctor", help="vérifie les clés et les API ; --probe teste les capacités (crédits H)")
-    d.add_argument("--probe", nargs="*", choices=["skill", "guided", "tool", "devin", "all"])
+    d.add_argument("--probe", nargs="*", choices=["skill", "guided", "tool", "devin", "desktop-tool", "all"])
     d.set_defaults(fn=cmd_doctor)
 
     def pipeline_flags(sp):

@@ -33,8 +33,13 @@ class Devin:
         return data if isinstance(data, str) else data.get("url") or data.get("attachment_url")
 
     def create_session(self, prompt: str, *, tags: list[str] = (), max_acu: int | None = None,
-                       attachment_urls: list[str] = (), output_schema: dict | None = None) -> dict:
+                       attachment_urls: list[str] = (), output_schema: dict | None = None,
+                       secrets: dict[str, str] | None = None) -> dict:
+        """secrets : secrets de cette session seulement (session_secrets de l'API v3), jamais dans le prompt ni
+        dans les secrets de l'organisation ; Devin les a en variables d'environnement, le temps de la session."""
         body: dict = {"prompt": prompt}
+        if secrets:
+            body["session_secrets"] = [{"key": k, "value": v, "sensitive": True} for k, v in secrets.items() if v]
         if output_schema:                  # JSON Schema autonome (sans $ref) : Devin doit rendre ce JSON
             body["structured_output_schema"] = output_schema
             body["structured_output_required"] = True

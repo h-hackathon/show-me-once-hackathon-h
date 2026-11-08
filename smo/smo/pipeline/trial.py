@@ -20,18 +20,18 @@ from ..clients import h, holo
 from ..config import Settings
 from ..models import Attempt, FrameSet, Provisioned, Trace, Trial, Verdict
 from ..runs import Run
-from ..runtime.tools import find, h_tools
+from ..runtime.tools import find, for_site, h_tools
 from ..runtime.worker import SERVED_ELSEWHERE
 from . import replay, target
-from .provision import skill_description
-from .skill import tool_name, with_common_block
+from .provision import push_skill
+from .skill import tool_name
 
 
 MAX_ATTEMPTS = 3
 LESSONS = "## Leçons des essais"
 
 TASK = """Traite la pièce {piece} en suivant ta Skill, du début à la fin, en computer use, dans {where}.
-Connexion : e-mail « {login} », mot de passe « {password} ».
+{login_hint}
 {dossier_rule}
 Ne clique jamais sur « Valider » : la pièce reste en brouillon."""
 
@@ -87,7 +87,8 @@ def attempt(run: Run, s: Settings, n: int, agent: Provisioned, task: str, log: C
     """Un essai : nouvelle session de l'agent, ses tools servis ici, trace dans trials/<n>/."""
     tname = tool_name(run)
     tool = find(s, tname) if agent.tool_ready else None
-    tools = h_tools({tname: tool} if tool else {}, s, on_drift=lambda *_: None)
+    tools = h_tools({tname: tool} if tool else {}, s, on_drift=lambda *_: None,
+                    context=for_site(s, run.meta.software_url))
     client = h.client(s.hai_api_key)
     target.prepare(run.meta)
     handle = client.start_session(agent=agent.agent_name, messages=task, timezone="Europe/Paris")
@@ -115,17 +116,17 @@ def run(run: Run, s: Settings, log: Callable[[str], None], guided: bool = False)
     if guided:
         return replay.run(run, s, log)
     meta, agent = run.meta, run.read_model("agent.json", Provisioned)
-    login, password = target.credentials(meta, s)
-    tool = tool_name(run) if agent.tool_ready else None
+    tool = find(s, tool_name(run)) if agent.tool_ready else None
     client = h.client(s.hai_api_key)
+    # l'agent a le vault sur son navigateur (provision) : la consigne ne contient aucun mot de passe
+    login_hint = target.login_hint(meta, s, target.vault_item(meta, s, client))
     # La Skill a pu être corrigée par l'humain depuis la création de l'agent : H doit avoir la dernière version.
-    h.upsert_skill(client, agent.skill_name, description=skill_description(run),
-                   body=with_common_block(run.file("skill.md").read_text(encoding="utf-8"), tool))
+    push_skill(client, run, s, tool, run.file("skill.md").read_text(encoding="utf-8"))
 
     trial = Trial()
     for n in range(1, MAX_ATTEMPTS + 1):
         piece = trial_piece(meta.sample, n)
-        task = TASK.format(piece=piece, where=target.where(meta), login=login, password=password,
+        task = TASK.format(piece=piece, where=target.where(meta), login_hint=login_hint,
                            dossier_rule=target.DOSSIER_RULE)
         log(f"essai {n} sur la pièce {piece}")
         trace = attempt(run, s, n, agent, task, log)
@@ -140,7 +141,7 @@ def run(run: Run, s: Settings, log: Callable[[str], None], guided: bool = False)
             return None
         log(f"essai {n} raté : {verdict.gap or 'résultat différent de la démo'}")
         body = add_lesson(run, n, verdict)
-        h.upsert_skill(client, agent.skill_name, description=skill_description(run), body=with_common_block(body, tool))
+        push_skill(client, run, s, tool, body)
         if verdict.lesson:
             log(f"leçon ajoutée à la Skill : {verdict.lesson}")
     log(f"{MAX_ATTEMPTS} essais sans réussite : relis la Skill (leçons comprises), puis relance")

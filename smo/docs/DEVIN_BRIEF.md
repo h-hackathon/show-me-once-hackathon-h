@@ -7,6 +7,7 @@ $method
 - Tâche : « $task ». Type de logiciel : $kind. Logiciel : $url.
 - Pièce de la démonstration : $sample.
 - Nom du tool et du dossier : `tools/$tool_name/`, dans $repo.
+- Accès au logiciel : tes secrets de session `SITE_URL`, `SITE_USERNAME`, `SITE_PASSWORD`, lus dans le vault H de l'utilisateur. Ils ne sont pas dans ce brief : ne les écris nulle part (code, commit, PR, message).
 
 ## 1. La Skill validée par l'humain (référence métier, prioritaire sur tout le reste)
 

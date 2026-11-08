@@ -16,7 +16,7 @@ from datetime import datetime
 
 from ..clients import h
 from ..config import Settings
-from .tools import find, h_tools
+from .tools import find, for_site, h_tools
 
 
 log = logging.getLogger("smo.worker")
@@ -24,6 +24,14 @@ log = logging.getLogger("smo.worker")
 # Sessions dont les tools sont déjà servis dans ce programme (ex. l'étape trial lancée depuis la page) :
 # le worker ne s'y rattache pas, pour ne pas répondre deux fois au même appel.
 SERVED_ELSEWHERE: set[str] = set()
+
+
+def site_of(spec) -> str | None:
+    """L'adresse du logiciel d'un agent : la start_url de son navigateur (None pour un agent bureau)."""
+    for env in (getattr(spec, "environments", None) or []):
+        if url := getattr(env, "start_url", None):
+            return url
+    return None
 
 
 class Worker:
@@ -39,9 +47,9 @@ class Worker:
         return (bool(agent) and agent.startswith(self.s.agent_prefix)
                 and any(agent.endswith(f"-{kind}") for kind in self.s.worker_kinds))
 
-    def tools_for(self, agent: str | None) -> dict:
+    def tools_for(self, spec) -> dict:
         """Les tools que l'agent déclare dans H (precheck_<nom>, run_<nom>), trouvés en local ou en ligne."""
-        declared = [t.name for t in (self.h.agents.get_agent(agent).tools or [])] if agent else []
+        declared = [t.name for t in (spec.tools or [])] if spec else []
         names = {d.removeprefix("run_") for d in declared if d.startswith("run_")}
         found = {name: tool for name in names if (tool := find(self.s, name))}
         for missing in names - set(found):
@@ -67,7 +75,10 @@ class Worker:
 
         log.info("session %s : rattachée", session_id)
         try:
-            tools = h_tools(self.tools_for(self.agent_of(session_id)), self.s, on_drift)
+            agent = self.agent_of(session_id)
+            spec = self.h.agents.get_agent(agent) if agent else None
+            # le contexte de chaque appel : le logiciel de l'agent, et son élément du vault H relu à chaque appel
+            tools = h_tools(self.tools_for(spec), self.s, on_drift, context=for_site(self.s, site_of(spec)))
             for _ in self.h.session(session_id).stream(tools=tools, until="settled", timeout_seconds=3600):
                 pass
         except Exception:

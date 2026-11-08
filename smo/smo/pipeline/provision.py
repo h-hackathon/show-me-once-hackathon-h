@@ -14,7 +14,7 @@ from ..clients import h
 from ..config import Settings
 from ..models import CompileResult, Provisioned, RunReport
 from ..runs import Run, slug
-from ..runtime.tools import definitions, find, h_tools
+from ..runtime.tools import definitions, desktop_files, find, h_tools
 from . import target
 from .skill import skill_name, tool_name, with_common_block
 
@@ -28,7 +28,21 @@ Ne clique jamais sur « Valider ». Réponds au format demandé."""
 RULE_WITH_TOOL = ("Règle absolue, avant tout le reste : appelle d'abord `run_{tool}` avec les valeurs lues sur la pièce. "
                   "Il fait toute la tâche sur un serveur et renvoie le résultat final : tu n'as rien à faire à l'écran. "
                   "Tu ne travailles à l'écran que s'il renvoie une erreur, puis tu appelles `report_drift`.")
+RULE_WITH_DESKTOP_TOOL = ("Règle absolue, avant tout le reste : lance d'abord le tool livré avec ta Skill, depuis ton shell, "
+                          "dans le dossier de la Skill : `./run.sh run '<valeurs lues sur la pièce, en JSON>'`. Il fait "
+                          "toute la tâche et affiche le résultat final : tu n'as rien à faire à l'écran. Tu ne travailles "
+                          "à l'écran que s'il renvoie une erreur, puis tu appelles `report_drift`.")
 RULE_WITHOUT_TOOL = "Règle absolue : pas encore de tool pour cette tâche, fais-la toi-même à l'écran en suivant ta Skill."
+
+
+def is_desktop_tool(tool) -> bool:
+    return tool is not None and tool.kind == "desktop"
+
+
+def rule_for(tool, tname: str) -> str:
+    if tool is None:
+        return RULE_WITHOUT_TOOL
+    return RULE_WITH_DESKTOP_TOOL if is_desktop_tool(tool) else RULE_WITH_TOOL.format(tool=tname)
 
 
 def agent_name(run: Run, s: Settings) -> str:
@@ -48,20 +62,33 @@ def skill_body(run: Run, s: Settings, tool=None) -> str:
     return (tool.skill if tool is not None and tool.skill else None) or run.file("skill.md").read_text(encoding="utf-8")
 
 
+def push_skill(client, run: Run, s: Settings, tool, body: str):
+    """La Skill dans H, règle absolue en tête. Tool de bureau : ses fichiers sont posés dans la Skill (API Skills de H),
+    l'agent le lance depuis son shell ; rien n'est installé chez l'utilisateur."""
+    tname = tool_name(run)
+    if not is_desktop_tool(tool):
+        return h.upsert_skill(client, skill_name(run), description=skill_description(run),
+                              body=with_common_block(body, tname if tool else None))
+    return h.upsert_skill(client, skill_name(run), description=skill_description(run),
+                          body=with_common_block(body, tname, desktop_schema=tool.schema),
+                          files=desktop_files(tool), executable_files=["run.sh"])
+
+
 def create(run: Run, s: Settings, log: Callable[[str], None]) -> None:
     meta, tname, sname = run.meta, tool_name(run), skill_name(run)
-    tool = find(s, tname)   # clone local d'h-tools, sinon le service déployé
-    tools = h_tools({tname: tool} if tool else {}, s, on_drift=lambda *_: None)
+    tool = find(s, tname)   # clone local d'h-tools, sinon ce qu'h-tools a déployé (service web, fichiers de bureau)
+    tools = h_tools({tname: tool} if tool else {}, s, on_drift=lambda *_: None)   # déclarations seulement
 
     client = h.client(s.hai_api_key)
-    h.upsert_skill(client, sname, description=skill_description(run),
-                   body=with_common_block(skill_body(run, s, tool), tname if tool else None))
-    env = target.environment(meta, s)   # web : navigateur (cloud, ou Chrome de cette machine en localhost) ; bureau : le Mac
+    push_skill(client, run, s, tool, skill_body(run, s, tool))
+    item = target.vault_item(meta, s, client)
+    # web : navigateur cloud avec le vault de l'utilisateur (ou Chrome de cette machine en localhost) ; bureau : H ou le PC
+    env = target.environment(meta, s, item.vault_id if item else None)
     spec = dict(
         description=f"{meta.task}, appris d'une démonstration de {meta.owner} ({meta.software_kind}).",
         environments=[env],
         instructions=INSTRUCTIONS.format(
-            rule=RULE_WITH_TOOL.format(tool=tname) if tool else RULE_WITHOUT_TOOL,
+            rule=rule_for(tool, tname),
             task=meta.task, owner=meta.owner, where=target.where(meta), skill=sname, dossier_rule=target.DOSSIER_RULE),
         skills=[sname],
         tools=[ToolDefinition(**d) for d in definitions(tools)],

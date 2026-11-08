@@ -11,7 +11,7 @@ from typing import Callable
 
 import httpx
 
-from .clients import devin, gladia, h, holo, linkup
+from .clients import devin, gladia, h, holo, linkup, vault
 from .clients.site import Site
 from .config import ENV, Settings
 
@@ -91,6 +91,18 @@ def checks(s: Settings) -> list[Check]:
                 return Check("Site compta", "warn", f"{detail} · jeton admin refusé (HTTP {err.response.status_code}, facultatif)")
         return Check("Site compta", "ok", detail)
 
+    def vault_item() -> Check:
+        """L'élément du site dans le vault H, sans lire ses valeurs (ni journal d'accès, ni secret affiché)."""
+        client = h.client(s.hai_api_key)
+        vaults = vault.vault_ids(client, s.h_vault_id)
+        item = vault.find_item(client, s.site_url, s.h_vault_id)
+        if item is None:
+            return Check("Vault H", "warn", f"{len(vaults)} vault(s), aucun élément pour {vault.host(s.site_url)} : "
+                                            "ajoute le site dans le vault H (adresse, identifiant, mot de passe)")
+        fields = next((i.fields for i in client.vaults.list_vault_items(item.vault_id, limit=200).items
+                       if i.id == item.item_id), [])
+        return Check("Vault H", "ok", f"« {item.name} » ({', '.join(map(str, fields))}) dans le vault {item.vault_id}")
+
     def server() -> Check:
         r = httpx.get(f"{s.server_url}/health", timeout=20)
         r.raise_for_status()
@@ -103,6 +115,7 @@ def checks(s: Settings) -> list[Check]:
         _guard("Linkup", ("linkup_api_key",), s, linkup_key),
         _guard("Devin API", ("devin_api_key", "devin_org_id"), s, devin_key),
         _guard("Site compta", ("site_url",), s, site),
+        _guard("Vault H", ("hai_api_key", "site_url"), s, vault_item),
         _guard("Serveur SMO", ("server_url",), s, server),
     ]
 
@@ -183,7 +196,34 @@ def probe_devin(s: Settings, log) -> Check:
     return Check("probe devin", "ok", f"session créée ({status}), 1 crédit au plus : {session.get('url') or devin_id}")
 
 
-PROBES = {"skill": probe_skill, "guided": probe_guided, "tool": probe_tool, "devin": probe_devin}
+def probe_desktop_tool(s: Settings, log) -> Check:
+    """Un tool de bureau livré avec la Skill : l'agent bureau trouve-t-il les fichiers de sa Skill, et peut-il lancer
+    run.sh depuis son shell ? (là où un vrai tool de bureau tournera, sans rien installer chez l'utilisateur)"""
+    from .pipeline import target
+
+    client, name = h.client(s.hai_api_key), f"{s.agent_prefix}probe-desktop-tool"
+    h.upsert_skill(client, "smo-probe-files", "Skill de test SMO : un fichier exécutable livré avec la Skill.",
+                   "# Test\nLance `./run.sh` depuis le dossier de cette Skill et rapporte sa sortie exacte.\n",
+                   files={"run.sh": "#!/bin/sh\necho \"pong depuis $(pwd)\"\ncommand -v cua python3\n"},
+                   executable_files=["run.sh"])
+    h.upsert_agent(client, name, description="Agent de test SMO : lance un fichier de sa Skill.",
+                   environments=[target.desktop_environment(s)], skills=["smo-probe-files"],
+                   instructions="Charge ta Skill smo-probe-files, lance ./run.sh depuis son dossier avec ton shell, "
+                                "puis réponds avec le chemin du dossier et la sortie exacte de la commande.")
+    try:
+        session = client.sessions.create_session(agent=name, messages="Lance le run.sh de ta Skill smo-probe-files.")
+        for _ in client.session(session.id).stream(timeout_seconds=600):
+            pass
+        answer = client.sessions.get_session(session.id).latest_answer
+    finally:
+        client.agents.delete_agent(name)
+        client.skills.delete_skill("smo-probe-files")
+    text = json.dumps(answer, ensure_ascii=False, default=str)
+    return Check("probe desktop-tool", "ok" if "pong" in text else "fail", text[:300])
+
+
+PROBES = {"skill": probe_skill, "guided": probe_guided, "tool": probe_tool, "devin": probe_devin,
+          "desktop-tool": probe_desktop_tool}
 NEEDS = {"devin": ("devin_api_key", "devin_org_id")}
 
 

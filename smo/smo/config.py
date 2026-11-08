@@ -42,6 +42,7 @@ ENV = {
     "worker_kinds": "SMO_WORKER_KINDS",
     "h_desktop_env": "H_DESKTOP_ENV",
     "h_desktop_bridge": "H_DESKTOP_BRIDGE",
+    "h_vault_id": "H_VAULT_ID",
 }
 
 DEFAULTS = {
@@ -73,7 +74,7 @@ class Settings:
     devin_repo: str | None         # ex. "owner/smo" : le repo où Devin ouvre ses PR
     devin_max_acu: int
     site_url: str | None           # logiciel cible (site compta)
-    site_login: str | None
+    site_login: str | None         # localhost (développement) seulement : en ligne, les identifiants sont dans le vault H
     site_password: str | None
     site_admin_token: str | None
     desktop_login: str | None      # appli de bureau (base locale) : identifiants propres, sinon ceux du site
@@ -88,6 +89,7 @@ class Settings:
     worker_kinds: tuple[str, ...]  # agents servis par ce serveur (défaut : web et desktop)
     h_desktop_env: str | None      # l'environnement desktop de test configuré dans H (son identifiant)
     h_desktop_bridge: str | None   # sinon, le relais `holo local desktop` du PC du live (son identifiant)
+    h_vault_id: str | None         # le vault H où chercher les identifiants (défaut : tous ceux de l'organisation)
 
     def require(self, *names: str) -> None:
         missing = [ENV[n] for n in names if not getattr(self, n)]
@@ -138,6 +140,7 @@ def load() -> Settings:
         worker_kinds=worker_kinds(env("worker_kinds")),
         h_desktop_env=env("h_desktop_env"),
         h_desktop_bridge=bridge_id(env("h_desktop_bridge")),
+        h_vault_id=env("h_vault_id"),
     )
 
 

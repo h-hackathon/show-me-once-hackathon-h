@@ -33,7 +33,7 @@ class Stage:
 
 
 STAGES = [
-    Stage("map", mapping.run, ("hai_api_key", "site_login", "site_password"), lambda r: r.has("map.json"),
+    Stage("map", mapping.run, ("hai_api_key",), lambda r: r.has("map.json"),
           optional=True, join_before="understand"),
     Stage("docs", docs.run, ("linkup_api_key",), lambda r: r.has("docs.json"), optional=True, join_before="understand"),
     Stage("transcribe", capture.transcribe, ("gladia_api_key",), lambda r: r.has("transcript.json")),
@@ -44,7 +44,7 @@ STAGES = [
     Stage("skill", skill.run, (), lambda r: r.has("skill.md")),
     Stage("review", skill.review, (), lambda r: r.has("skill.approved")),
     Stage("provision", provision.create, ("hai_api_key",), lambda r: r.has("agent.json")),
-    Stage("trial", trial.run, ("hai_api_key", "site_login", "site_password"), lambda r: r.has("trace.json")),
+    Stage("trial", trial.run, ("hai_api_key",), lambda r: r.has("trace.json")),
     Stage("compile", compile.run, ("devin_api_key", "devin_org_id"), compile.is_done),
     Stage("upgrade", provision.upgrade, ("hai_api_key",), provision.tool_ready),
 ]

@@ -21,7 +21,7 @@ from . import target
 
 
 PROMPT = """Tu cartographies un logiciel avant qu'un agent apprenne la tâche « {task} ».
-Tu travailles dans {where}. Connexion : e-mail « {login} », mot de passe « {password} ».
+Tu travailles dans {where}. {login_hint}
 Parcours les écrans nécessaires à cette tâche, en LECTURE SEULE : ne crée, ne modifie, n'enregistre et ne valide
 rien ; si un formulaire s'ouvre, n'y saisis rien et quitte-le.
 Pour chaque écran utile, note : son nom (titre visible), son adresse (URL) si tu la vois, comment y arriver depuis
@@ -54,11 +54,11 @@ def run(run: Run, s: Settings, log: Callable[[str], None]) -> None:
         log(f"carte déjà connue pour ce logiciel et cette tâche : {cached.name}")
         return
 
-    login, password = target.credentials(meta, s)
-    prompt = PROMPT.format(task=meta.task, where=target.where(meta), login=login, password=password)
     client = h.client(s.hai_api_key)
+    item = target.vault_item(meta, s, client)   # le navigateur reçoit le vault : aucun mot de passe dans le prompt
+    prompt = PROMPT.format(task=meta.task, where=target.where(meta), login_hint=target.login_hint(meta, s, item))
     target.prepare(meta)
-    handle = client.start_session(agent=target.session_agent(meta, s), messages=prompt, answer_schema=MapAnswer,
+    handle = client.start_session(agent=target.session_agent(meta, s, item), messages=prompt, answer_schema=MapAnswer,
                                   timezone="Europe/Paris")
     log(f"cartographe : session H {handle.id}")
     events = list(h.stream_turn(handle, timeout_s=900))

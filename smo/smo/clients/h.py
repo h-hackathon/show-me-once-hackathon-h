@@ -22,9 +22,14 @@ def is_local(url: str) -> bool:
     return "localhost" in url or "127.0.0.1" in url
 
 
-def web_environment(start_url: str) -> Environment_Web:
-    """Site en ligne → navigateur cloud H ; localhost → Chrome sur cette machine (le cloud H ne voit pas localhost)."""
-    return Environment_Web(id="web", host="user_device" if is_local(start_url) else "cloud", start_url=start_url)
+def web_environment(start_url: str, vault_id: str | None = None) -> Environment_Web:
+    """Site en ligne → navigateur cloud H ; localhost → Chrome sur cette machine (le cloud H ne voit pas localhost).
+
+    vault_id : le vault H de l'utilisateur, rattaché au navigateur ; H y remplit les identifiants sans que le modèle
+    voie les valeurs. H ne le prend que sur un navigateur cloud."""
+    if is_local(start_url):
+        return Environment_Web(id="web", host="user_device", start_url=start_url)
+    return Environment_Web(id="web", host="cloud", start_url=start_url, vault_id=vault_id)
 
 
 CHROME_DEBUG_PORT = 9222   # le port où le SDK H cherche un Chrome local
@@ -59,17 +64,18 @@ def prepare_local_browser(url: str) -> None:
         time.sleep(0.25)
 
 
-def session_agent(agent: str, url: str, model: str | None = None) -> str | Agent:
+def session_agent(agent: str, url: str, model: str | None = None, vault_id: str | None = None) -> str | Agent:
     """L'agent à lancer pour travailler sur `url`.
 
-    En ligne : l'agent du catalogue tel quel (ex. h/web-surfer-pro). En localhost : un agent inline dont le
+    En ligne sans vault : l'agent du catalogue tel quel (ex. h/web-surfer-pro). En ligne avec le vault de
+    l'utilisateur : un agent inline dont le navigateur cloud porte ce vault. En localhost : un agent inline dont le
     navigateur est déclaré user_device. Le SDK ne lance le Chrome local que s'il lit user_device dans la spec
     de l'agent : un `overrides` sur l'hôte est ignoré (et la session attend un navigateur qui ne vient jamais).
     """
-    if not is_local(url):
+    if not is_local(url) and not vault_id:
         return agent
-    spec = Agent(name="smo-local-web", description="Agent web SMO sur un site en localhost.",
-                 environments=[web_environment(url)])
+    spec = Agent(name="smo-local-web" if is_local(url) else "smo-web", description="Agent web SMO.",
+                 environments=[web_environment(url, vault_id)])
     return spec.model_copy(update={"model": model}) if model else spec
 
 
@@ -201,11 +207,15 @@ def wait_active(handle, timeout_s: float = 30) -> None:
         time.sleep(1)
 
 
-def upsert_skill(h: Client, name: str, description: str, body: str):
+def upsert_skill(h: Client, name: str, description: str, body: str, files: dict[str, str] | None = None,
+                 executable_files: list[str] | None = None):
+    """Crée ou remplace la Skill. files : des fichiers livrés avec elle (le tool d'un agent bureau), posés par H dans
+    l'environnement de l'agent ; executable_files : ceux qu'il peut lancer (run.sh)."""
+    extra = {"files": files, "executable_files": executable_files or []} if files else {}
     try:
-        return h.skills.create_skill(name=name, description=description, body=body)
+        return h.skills.create_skill(name=name, description=description, body=body, **extra)
     except ConflictError:
-        return h.skills.update_skill(name, name=name, description=description, body=body)
+        return h.skills.update_skill(name, name=name, description=description, body=body, **extra)
 
 
 def upsert_agent(h: Client, name: str, **spec):

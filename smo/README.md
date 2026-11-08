@@ -99,7 +99,7 @@ Trois projets Railway séparés : Qonta (le logiciel de test), SMO (ce serveur),
    - Le reste vient de `railway.toml` : construction par le `Dockerfile`, vérification de santé sur `/health`, redémarrage en cas d'échec.
 2. **Volume** : clic droit sur le service › Attach Volume, monté sur **`/data`**. Sans lui, les runs et les cartes sont effacés à chaque redéploiement.
 3. **Variables** (Raw Editor : coller le `.env`, puis ajuster) :
-   - toutes les clés et les `SITE_*` du `.env` ;
+   - toutes les clés et `SITE_URL` du `.env`. Pas d'identifiant du site : ils sont dans le **vault H** (un élément avec l'adresse du site, l'identifiant et le mot de passe), que SMO retrouve par l'adresse (`smo doctor`, ligne « Vault H ») ;
    - **`SMO_RUNS_DIR=/data/runs`** ;
    - **`SMO_SERVER_TOKEN`** : 16 caractères minimum, par exemple `openssl rand -hex 24`. Sans lui, le serveur refuse de démarrer en ligne.
    - agent bureau : **`H_DESKTOP_BRIDGE`**, l'identifiant du relais du PC du live (voir « Agent bureau sur le PC du live »), ou `H_DESKTOP_ENV`, un environnement desktop configuré dans H ;
@@ -110,6 +110,20 @@ Trois projets Railway séparés : Qonta (le logiciel de test), SMO (ce serveur),
 6. **Vérifier** : `uv run smo doctor` (ligne « Serveur SMO »), puis ouvrir l'adresse dans Chrome ; la page demande le jeton.
 
 En local, pour essayer un tool d'h-tools sans le déployer : `gh repo clone Tomoroshimaru/h-tools ~/h-tools`, puis `H_TOOLS_DIR=~/h-tools` dans le `.env`.
+
+## Identifiants : le vault H, et nulle part ailleurs
+
+L'utilisateur range le site dans son vault H : un élément avec son adresse, l'identifiant, le mot de passe et, si besoin, le TOTP. SMO retrouve cet élément par l'hôte de l'adresse (`clients/vault.py`) et ne garde rien, ni sur disque ni dans un prompt.
+
+```
+vault H ─┬─ vault_id sur le navigateur cloud de l'agent ─▶ H remplit la connexion, le modèle ne voit pas les valeurs
+         ├─ lu à chaque appel de tool ─▶ corps HTTPS de /run ─▶ tool (Railway) ; résultat nettoyé avant l'agent
+         └─ lu au lancement de Devin ─▶ session_secrets SITE_URL, SITE_USERNAME, SITE_PASSWORD (pas dans le brief)
+```
+
+- Pas d'élément pour le site : la cartographie et les essais s'arrêtent, avec un message qui demande de l'ajouter. En localhost seulement (développement), `SITE_LOGIN` et `SITE_PASSWORD` passent encore dans les consignes, car H ne rattache pas de vault à un navigateur local.
+- Un tool de bureau ne passe pas par Railway. h-tools envoie ses fichiers au hook. SMO les pose dans la Skill de l'agent bureau (`files` de l'API Skills), et l'agent le lance depuis son shell : `./run.sh run '{...}'`. `smo doctor --probe desktop-tool` vérifie qu'un agent bureau trouve et lance un fichier de sa Skill.
+- Après chaque déploiement d'un tool, le hook fait un precheck avec le vault de chaque agent qui attend ce tool. Si c'est OK, l'agent reçoit le tool. Sinon, il reste à l'écran et le déploiement d'h-tools passe au rouge.
 
 ## Autres commandes
 

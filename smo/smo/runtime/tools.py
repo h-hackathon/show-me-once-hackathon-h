@@ -1,9 +1,12 @@
-"""Les tools écrits par Devin dans h-tools, exposés à l'agent H comme custom tools.
+"""Les tools écrits par Devin dans h-tools, exposés à l'agent H.
 
-Côté H, un custom tool est exécuté par le programme qui suit la session : ici le worker SMO.
-Chaque tool donne deux custom tools : precheck_<nom> (l'interface a-t-elle changé ?) et run_<nom>.
-Où on le trouve (find) : dans un clone local d'h-tools (H_TOOLS_DIR, obligatoire pour les tools de bureau, qui
-tournent sur le Mac), sinon déployé par h-tools sur Railway (remote.py, réseau privé du projet).
+Tool web : deux custom tools, precheck_<nom> (l'interface a-t-elle changé ?) et run_<nom>, exécutés par le programme
+qui suit la session (le worker SMO). Le tool tourne sur Railway (remote.py), ou depuis un clone local d'h-tools
+(H_TOOLS_DIR). À chaque appel, SMO lit le vault H (le contexte) et passe l'adresse du logiciel et les identifiants
+au tool ; le résultat renvoyé à l'agent n'en contient aucun (scrub).
+
+Tool de bureau : pas de custom tool. Ses fichiers sont posés dans la Skill de l'agent bureau, qui le lance depuis son
+shell, dans son propre environnement (desktop_files).
 """
 from __future__ import annotations
 
@@ -18,10 +21,30 @@ from typing import Any, Callable
 from hai_agents import Tool
 from pydantic import BaseModel
 
+from ..clients.vault import Secrets
 from . import builtins
 from . import remote
-from .remote import RemoteTool
+from .remote import DesktopTool, RemoteTool
 from .ui import contract_of
+
+
+# Le contexte d'un appel : (valeurs envoyées au tool, secrets à effacer du résultat), lu au moment de l'appel.
+ContextProvider = Callable[[], tuple[dict, Secrets]]
+
+
+def no_context() -> tuple[dict, Secrets]:
+    return {}, Secrets({})
+
+
+def for_site(s, site_url: str | None) -> ContextProvider:
+    """Le contexte des appels de tools sur ce logiciel : son adresse et son élément du vault H, relu à chaque appel
+    (mot de passe changé, code TOTP du moment). Rien n'est gardé entre deux appels."""
+    def provide() -> tuple[dict, Secrets]:
+        if not (s.hai_api_key and site_url):
+            return {"site_url": site_url}, Secrets({})
+        from ..clients import h, vault
+        return vault.tool_context(h.client(s.hai_api_key), site_url, s.h_vault_id)
+    return provide
 
 
 @dataclass(frozen=True)
@@ -31,7 +54,7 @@ class CompiledTool:
     params: type[BaseModel]
     module: ModuleType
     path: Path
-    kind: str = "web"   # web : precheck(page, cfg) / run(page, params, cfg) ; desktop : sans page (accessibilité macOS)
+    kind: str = "web"   # web : precheck(page, cfg) / run(page, params, cfg) ; desktop : lancé par l'agent
 
     @property
     def contract(self) -> dict:
@@ -47,16 +70,33 @@ class CompiledTool:
         path = self.path / "skill.md"
         return path.read_text(encoding="utf-8") if path.exists() else None
 
-    def precheck(self, cfg) -> dict:
+    def precheck(self, context: dict) -> dict:
+        cfg = tool_context(context)
         if self.kind == "desktop":
             return guarded(lambda: self.module.precheck(cfg))
         return with_page(lambda page: self.module.precheck(page, cfg))
 
-    def run(self, cfg, **values: Any) -> dict:
-        params = self.params(**values)
+    def run(self, context: dict, **values: Any) -> dict:
+        params, cfg = self.params(**values), tool_context(context)
         if self.kind == "desktop":
             return guarded(lambda: self.module.run(params, cfg))
         return with_page(lambda page: self.module.run(page, params, cfg))
+
+
+class _Context(dict):
+    """Repli si le clone d'h-tools n'a pas h_tools.config.Context : champ absent → None."""
+
+    def __getattr__(self, name: str):
+        return self.get(name)
+
+
+def tool_context(values: dict):
+    """Le contexte tel que l'attend un tool d'h-tools (cfg.site_url, cfg.username…)."""
+    try:
+        from h_tools.config import Context
+    except ImportError:
+        return _Context(values)
+    return Context(values)
 
 
 def guarded(fn: Callable) -> dict:
@@ -103,13 +143,32 @@ def kind_of(name: str) -> str:
 
 
 def find(s, name: str):
-    """Le tool `name`, s'il existe : clone local d'h-tools d'abord, sinon le service déployé par h-tools
-    (adresse annoncée à SMO, appelée avec le mot de passe commun)."""
+    """Le tool `name`, s'il existe : clone local d'h-tools d'abord, sinon ce qu'h-tools a déployé (service Railway
+    appelé avec le mot de passe commun, ou fichiers d'un tool de bureau)."""
     folder = s.tools_dir / name
     if (folder / "tool.py").exists():
         return load_tool(folder)
+    if kind_of(name) == "desktop":
+        return DesktopTool.load(s, name)
     url = remote.tool_url(s, name)
     return RemoteTool.fetch(name, url, s.server_token) if url else None
+
+
+DESKTOP_RUNTIME = ("__init__.py", "config.py", "loader.py", "desk.py", "cli.py")
+
+
+def desktop_files(tool) -> dict[str, str]:
+    """Les fichiers d'un tool de bureau, tels que l'agent les lance (./run.sh run '{...}') : ceux annoncés par h-tools,
+    ou, depuis un clone local, le dossier du tool et le runtime sans Playwright (comme scripts/announce.py)."""
+    if isinstance(tool, DesktopTool):
+        return tool.files
+    repo = tool.path.resolve().parent.parent
+    files = {"run.sh": (repo / "scripts" / "run.sh").read_text(encoding="utf-8")}
+    files |= {f"h_tools/{m}": (repo / "h_tools" / m).read_text(encoding="utf-8") for m in DESKTOP_RUNTIME}
+    files |= {f"tool/{p.relative_to(tool.path).as_posix()}": p.read_text(encoding="utf-8")
+              for p in sorted(tool.path.rglob("*"))
+              if p.is_file() and "__pycache__" not in p.parts and not p.name.startswith("test_")}
+    return files
 
 
 def input_schema(model: type[BaseModel]) -> dict:
@@ -118,28 +177,34 @@ def input_schema(model: type[BaseModel]) -> dict:
     return schema
 
 
-def _precheck(tool, cfg) -> dict:
-    return tool.precheck(cfg)
+def call_tool(method: str, tool, context: ContextProvider, **values: Any) -> dict:
+    """Un appel de l'agent : le vault est lu maintenant, les secrets sont effacés du résultat avant qu'il reparte."""
+    try:
+        sent, secrets = context()
+    except Exception as err:
+        return {"ok": False, "status": "error", "error": f"vault H illisible ({type(err).__name__}) : fais-le à l'écran"}
+    result = tool.precheck(sent) if method == "precheck" else tool.run(sent, **values)
+    return secrets.scrub(result)
 
 
-def _run(tool, cfg, **values: Any) -> dict:
-    return tool.run(cfg, **values)
-
-
-def h_tools(compiled: dict, cfg, on_drift: Callable[[str, str], None]) -> list[Tool]:
-    """compiled : {nom: CompiledTool (local) ou RemoteTool (déployé)} ; tous ont name, description, schema."""
+def h_tools(compiled: dict, cfg, on_drift: Callable[[str, str], None],
+            context: ContextProvider = no_context) -> list[Tool]:
+    """compiled : {nom: CompiledTool (local) ou RemoteTool (déployé)} ; tous ont name, description, schema.
+    Les tools de bureau n'en font pas partie : l'agent les lance depuis son shell."""
     out: list[Tool] = []
     for t in compiled.values():
+        if t.kind == "desktop":
+            continue
         out.append(Tool(
             name=f"precheck_{t.name}",
             description=f"Vérifie, sans rien modifier, que l'interface utilisée par « {t.description} » n'a pas changé. "
                         "Renvoie ok (true/false) et la liste des éléments manquants.",
-            input_schema={"type": "object", "properties": {}}, fn=partial(_precheck, t, cfg)))
+            input_schema={"type": "object", "properties": {}}, fn=partial(call_tool, "precheck", t, context)))
         out.append(Tool(
             name=f"run_{t.name}",
             description=f"{t.description} Saisie automatique et déterministe, qui s'arrête en brouillon. "
                         "Renvoie status = draft_saved | duplicate | flagged | error.",
-            input_schema=t.schema, fn=partial(_run, t, cfg)))
+            input_schema=t.schema, fn=partial(call_tool, "run", t, context)))
     return out + builtins.tools(cfg, on_drift)
 
 

@@ -4,6 +4,7 @@ L'humain la relit et la corrige avant la suite (« l'agent apprend votre méthod
 """
 from __future__ import annotations
 
+import json
 from string import Template
 from typing import Callable
 
@@ -28,15 +29,20 @@ def tool_name(run: Run) -> str:
     return f"{slug(run.meta.task, sep='_', max_len=36)}_{run.meta.software_kind}"
 
 
-def with_common_block(body: str, tool: str | None) -> str:
+def with_common_block(body: str, tool: str | None, desktop_schema: dict | None = None) -> str:
     """La Skill envoyée à H : le titre, puis la règle absolue SMO (skills/), puis la méthode de la tâche.
 
     La règle vient en premier : le tool fait la tâche, l'écran n'est qu'un secours. Elle n'est ni montrée à la
-    relecture ni écrite par Devin : SMO l'insère à chaque envoi dans H.
+    relecture ni écrite par Devin : SMO l'insère à chaque envoi dans H. Tool de bureau (desktop_schema) : la règle
+    dit de le lancer depuis le shell de l'agent (./run.sh), avec le schéma de ses valeurs.
     """
-    name = "bloc_commun.md" if tool else "bloc_commun_sans_tool.md"
+    if desktop_schema is not None:
+        name = "bloc_commun_bureau.md"
+    else:
+        name = "bloc_commun.md" if tool else "bloc_commun_sans_tool.md"
     block = Template((ROOT / "skills" / name).read_text(encoding="utf-8"))
-    rule = block.substitute(precheck=f"precheck_{tool}", run=f"run_{tool}").strip()
+    rule = block.substitute(precheck=f"precheck_{tool}", run=f"run_{tool}",
+                            schema=json.dumps(desktop_schema or {}, ensure_ascii=False)).strip()
     title, _, rest = body.strip().partition("\n")
     if not title.startswith("# "):                     # pas de titre : la règle tout en haut
         title, rest = "", body.strip()

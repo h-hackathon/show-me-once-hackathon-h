@@ -6,6 +6,7 @@ $method
 
 - Tool : `tools/$tool_name/`, dans $repo. Logiciel : $url.
 - PR « fix: $tool_name ». Garde le même `NAME` et les mêmes `Params` si possible.
+- Accès au logiciel : tes secrets de session `SITE_URL`, `SITE_USERNAME`, `SITE_PASSWORD`, lus dans le vault H de l'utilisateur. Ils ne sont pas dans ce brief : ne les écris nulle part (code, commit, PR, message).
 - Mets aussi à jour `skill.md` si le chemin à l'écran a changé (nouvel onglet, bouton renommé, champ obligatoire). Ne touche pas aux règles métier.
 
 ## Ce qui a cassé

@@ -16,7 +16,7 @@ from . import target
 
 INTRO = """Tu vas refaire une tâche dans {where}, guidé pas à pas par la personne qui l'a montrée.
 Tâche : {task}.{sample}
-Connexion : e-mail « {login} », mot de passe « {password} ».
+{login_hint}
 {dossier_rule}
 Dans chaque message, fais uniquement l'étape demandée, puis arrête-toi et attends la suivante.
 Ne clique jamais sur « Valider » ni « Confirmer » : la pièce reste en brouillon.
@@ -44,14 +44,14 @@ def run(run: Run, s: Settings, log: Callable[[str], None]) -> None:
     meta = run.meta
     procedure = run.read_model("procedure.json", Procedure)
     transcript = run.read_model("transcript.json", Transcript)
-    login, password = target.credentials(meta, s)
-    intro = INTRO.format(where=target.where(meta), task=meta.task, login=login, password=password,
+    client = h.client(s.hai_api_key)
+    item = target.vault_item(meta, s, client)   # le navigateur reçoit le vault : aucun mot de passe dans le prompt
+    intro = INTRO.format(where=target.where(meta), task=meta.task, login_hint=target.login_hint(meta, s, item),
                          sample=f"\nPièce à traiter : {meta.sample}." if meta.sample else "",
                          dossier_rule=target.DOSSIER_RULE)
 
-    client = h.client(s.hai_api_key)
     target.prepare(meta)
-    handle = client.start_session(agent=target.session_agent(meta, s), messages=intro, idle_timeout_s=900,
+    handle = client.start_session(agent=target.session_agent(meta, s, item), messages=intro, idle_timeout_s=900,
                                   timezone="Europe/Paris")
     run.write_json("replay_session.json", {"session_id": handle.id})
     log(f"session H {handle.id}")

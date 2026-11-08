@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from smo import config
-from smo.clients import h, holo
+from smo.clients import h, holo, vault
 from smo.models import (CaptureMeta, Context, Procedure, Rule, RuleCheck, Step, Trace, TraceStep,
                         Transcript, Utterance)
 from smo.pipeline import compile as compile_stage
@@ -241,7 +241,8 @@ def _trial_setup(run, monkeypatch, verdicts):
                                               tools=[], tool_ready=False, environment={}))
     pushed, queue = [], [Verdict(**v) for v in verdicts]
     monkeypatch.setattr(trial.h, "client", lambda key: None)
-    monkeypatch.setattr(trial.h, "upsert_skill", lambda client, name, description, body: pushed.append(body))
+    monkeypatch.setattr(trial.target, "vault_item", lambda meta, s, client=None: vault.Item("v1", "i1", "Qonta"))
+    monkeypatch.setattr(trial.h, "upsert_skill", lambda client, name, description, body, **kw: pushed.append(body))
     monkeypatch.setattr(trial, "attempt", lambda run, s, n, agent, task, log: Trace(
         session_id=f"sess-{n}", agent="smo-catherine-x", status="idle", steps=[], answer=f"essai {n}"))
     monkeypatch.setattr(trial, "judge", lambda run, s, trace, piece: queue.pop(0))
@@ -406,22 +407,52 @@ def test_find_prefers_the_local_clone_then_the_announced_tool(s, monkeypatch):
     assert rt.find(s, "saisir_web") == "distant:https://tool-saisir-web.up.railway.app"
 
 
-def test_tool_announcement_upgrades_agents_only_once_the_new_commit_is_live(monkeypatch):
-    from fastapi.testclient import TestClient
+def _hook_setup(monkeypatch, live: dict, precheck: dict, kind: str = "web"):
     from smo.runtime import server
-    live = {"sha": "ancien"}
-    registered, upgraded = [], []
-    monkeypatch.setattr(server.remote, "register", lambda s, name, url, sha: registered.append(url))
-    monkeypatch.setattr(server, "find", lambda s, name: type("T", (), {"sha": live["sha"]})())
-    monkeypatch.setattr(server, "runs_with_tool", lambda s, name: [type("R", (), {"id": f"run-{name}"})()])
+    registered, upgraded, prechecked = [], [], []
+    monkeypatch.setattr(server.remote, "register", lambda s, name, url, sha, **kw: registered.append((url, kw)))
+    monkeypatch.setattr(server, "find", lambda s, name: type("T", (), {"sha": live["sha"], "kind": kind})())
+    meta = CaptureMeta(task="Saisir", software_url="https://qonta.example", owner="Catherine")
+    monkeypatch.setattr(server, "runs_with_tool", lambda s, name: [type("R", (), {"id": f"run-{name}", "meta": meta})()])
+    monkeypatch.setattr(server, "agent_name", lambda run_, s: "smo-catherine-saisir-web")
+    monkeypatch.setattr(server, "call_tool", lambda method, tool, context: prechecked.append(method) or precheck)
     monkeypatch.setattr(server, "_upgrade", lambda run_: upgraded.append(run_.id))
+    return server, registered, upgraded, prechecked
+
+
+def test_tool_announcement_upgrades_agents_only_once_live_and_prechecked_with_the_vault(monkeypatch):
+    from fastapi.testclient import TestClient
+    live = {"sha": "ancien"}
+    server, registered, upgraded, prechecked = _hook_setup(monkeypatch, live, {"ok": True, "missing": []})
     announce = {"tool": "saisir_web", "sha": "neuf", "url": "https://tool-saisir-web.up.railway.app"}
     with TestClient(server.app) as client:
         first = client.post("/hooks/tool-deployed", json=announce).json()
+        assert first == {"tool": "saisir_web", "live": False, "live_sha": "ancien"} and not prechecked
         live["sha"] = "neuf"                                                      # Railway a basculé
         second = client.post("/hooks/tool-deployed", json=announce).json()
-    assert first == {"tool": "saisir_web", "live": False, "live_sha": "ancien"} and upgraded == ["run-saisir_web"]
     assert second["live"] is True and second["live_sha"] == "neuf" and len(registered) == 2
+    assert prechecked == ["precheck"] and second["upgraded"] == ["smo-catherine-saisir-web"]
+    assert upgraded == ["run-saisir_web"]
+
+
+def test_failed_precheck_keeps_the_agent_on_screen(monkeypatch):
+    from fastapi.testclient import TestClient
+    missing = {"ok": False, "missing": [{"screen": "Saisie", "anchor": {"label": "Fournisseur"}}]}
+    server, _, upgraded, _ = _hook_setup(monkeypatch, {"sha": "neuf"}, missing)
+    with TestClient(server.app) as client:
+        answer = client.post("/hooks/tool-deployed", json={"tool": "saisir_web", "sha": "neuf", "url": "https://t"}).json()
+    assert answer["prechecks"] == {"smo-catherine-saisir-web": missing} and answer["upgraded"] == [] and not upgraded
+
+
+def test_desktop_tool_announcement_keeps_its_files_and_skips_the_precheck(monkeypatch):
+    from fastapi.testclient import TestClient
+    server, registered, upgraded, prechecked = _hook_setup(monkeypatch, {"sha": "neuf"}, {}, kind="desktop")
+    body = {"tool": "saisir_desktop", "sha": "neuf", "kind": "desktop", "files": {"run.sh": "#!/bin/sh"},
+            "describe": {"description": "Saisit"}}
+    with TestClient(server.app) as client:
+        answer = client.post("/hooks/tool-deployed", json=body).json()
+    assert registered == [(None, {"kind": "desktop", "files": {"run.sh": "#!/bin/sh"}, "describe": {"description": "Saisit"}})]
+    assert not prechecked and answer["prechecks"] == {} and upgraded == ["run-saisir_desktop"]
 
 
 def test_one_server_serves_both_kinds_unless_restricted():
@@ -494,3 +525,123 @@ def test_server_health_without_keys(monkeypatch):
     with TestClient(server.app) as client:
         body = client.get("/health").json()
     assert body["ok"] is True and isinstance(body["local_tools"], list)
+
+
+# --- identifiants : le vault H, jamais un prompt, un fichier ni un résultat ------------------------------------
+
+class FakeVaults:
+    """Le vault H simulé : un élément pour qonta.example, révélé avec un mot de passe et un code TOTP."""
+
+    def __init__(self):
+        self.revealed = 0
+
+    def list_vaults(self, limit=100):
+        return type("L", (), {"vaults": [type("V", (), {"id": "v-ext"})(), type("V", (), {"id": "v1"})()]})()
+
+    def list_vault_items(self, vault_id, limit=200):
+        if vault_id == "v-ext":
+            raise RuntimeError("vault 1Password : pas d'éléments listables")
+        items = [type("I", (), {"id": "autre", "name": "Autre", "urls": ["https://ailleurs.example"],
+                                "fields": ["password"]})(),
+                 type("I", (), {"id": "i1", "name": "Qonta", "urls": ["https://www.qonta.example/login"],
+                                "fields": ["email", "password", "totp"]})()]
+        return type("L", (), {"items": items})()
+
+    def reveal_vault_item(self, vault_id, item_id):
+        self.revealed += 1
+        return type("R", (), {"values": {"email": "catherine@cabinet.fr", "password": "s3cret-pass"},
+                              "totp_code": "123456"})()
+
+
+def test_vault_item_is_found_by_host_and_revealed_at_call_time():
+    client = type("C", (), {"vaults": FakeVaults()})()
+    item = vault.find_item(client, "https://qonta.example/factures")
+    assert item == vault.Item("v1", "i1", "Qonta") and client.vaults.revealed == 0     # trouvé sans rien lire
+    assert vault.find_item(client, "https://inconnu.example") is None
+    values, secrets = vault.tool_context(client, "https://qonta.example")
+    assert values == {"site_url": "https://qonta.example", "username": "catherine@cabinet.fr",
+                      "password": "s3cret-pass", "totp": "123456"} and client.vaults.revealed == 1
+    assert "s3cret-pass" not in repr(secrets) and "123456" not in repr(secrets)
+    assert secrets.scrub({"error": "tapé s3cret-pass puis 123456"}) == {"error": "tapé ••• puis •••"}
+
+
+def test_tool_call_reads_the_vault_each_time_and_never_returns_a_secret():
+    seen = []
+
+    class Echo:
+        kind = "web"
+
+        def run(self, context, **values):
+            seen.append(context)
+            return {"status": "error", "error": f"refusé pour {context['password']}", "ref": values["reference"]}
+
+    secrets = vault.Secrets({"username": "c@x", "password": "s3cret-pass"})
+    provider = lambda: ({"site_url": "https://qonta.example", **secrets.as_dict()}, secrets)
+    result = runtime_tools.call_tool("run", Echo(), provider, reference="F-1")
+    assert seen[0]["password"] == "s3cret-pass" and result == {"status": "error", "error": "refusé pour •••", "ref": "F-1"}
+    broken = runtime_tools.call_tool("run", Echo(), lambda: (_ for _ in ()).throw(RuntimeError("403")), reference="F")
+    assert broken["status"] == "error" and "vault H illisible" in broken["error"] and len(seen) == 1
+
+
+def test_remote_tool_sends_params_and_context_in_the_body(monkeypatch):
+    import httpx
+    from smo.runtime import remote
+    sent = []
+
+    def handler(request):
+        sent.append((request.url.path, json.loads(request.content), request.headers.get("X-SMO-Token")))
+        return httpx.Response(200, json={"status": "draft_saved"})
+
+    real = httpx.Client
+    monkeypatch.setattr(remote.httpx, "Client", lambda **kw: real(transport=httpx.MockTransport(handler), **kw))
+    tool = remote.RemoteTool(name="saisir_web", description="", schema={}, skill=None, sha="a", base_url="https://t",
+                             token="x" * 24)
+    tool.run({"site_url": "https://q", "password": "p"}, reference="F-1")
+    tool.precheck({"site_url": "https://q"})
+    assert sent == [("/run", {"params": {"reference": "F-1"}, "context": {"site_url": "https://q", "password": "p"}}, "x" * 24),
+                    ("/precheck", {"context": {"site_url": "https://q"}}, "x" * 24)]
+
+
+def test_agent_logs_in_through_the_vault_never_through_the_prompt(run, s):
+    from smo.pipeline import target
+    item = vault.Item("v1", "i1", "Qonta")
+    hint = target.login_hint(run.meta, s, item)
+    assert hint == target.LOGIN_WITH_VAULT
+    env = target.environment(run.meta, s, item.vault_id)
+    assert env.host == "cloud" and env.vault_id == "v1"
+    with pytest.raises(config.MissingConfig, match="vault H"):
+        target.login_hint(run.meta, dataclasses.replace(s, site_login="c@x", site_password="pw"), None)
+    local = run.meta.model_copy(update={"software_url": "http://localhost:8042"})
+    dev = dataclasses.replace(s, site_login="c@x", site_password="pw")
+    assert "pw" in target.login_hint(local, dev, None)                    # localhost (développement) seulement
+    assert h.web_environment("http://localhost:8042", "v1").vault_id is None   # H : vault sur navigateur cloud seulement
+    assert h.session_agent("h/web-surfer-pro", "https://qonta.example", vault_id="v1").environments[0].vault_id == "v1"
+
+
+def test_devin_gets_the_site_as_session_secrets_never_in_the_brief(s, monkeypatch):
+    from smo.clients import devin
+    monkeypatch.setattr(compile_stage.h, "client", lambda key: type("C", (), {"vaults": FakeVaults()})())
+    secrets = compile_stage.session_secrets(dataclasses.replace(s, hai_api_key="k"), "https://qonta.example")
+    assert secrets == {"SITE_URL": "https://qonta.example", "SITE_USERNAME": "catherine@cabinet.fr",
+                       "SITE_PASSWORD": "s3cret-pass"}
+    api, posted = devin.Devin("k", "org"), []
+    monkeypatch.setattr(api.http, "post", lambda path, json: posted.append(json) or type(
+        "R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"session_id": "d1"}})())
+    api.create_session("brief sans secret", secrets=secrets)
+    assert posted[0]["prompt"] == "brief sans secret" and "s3cret-pass" not in posted[0]["prompt"]
+    assert {"key": "SITE_PASSWORD", "value": "s3cret-pass", "sensitive": True} in posted[0]["session_secrets"]
+
+
+def test_desktop_tool_ships_inside_the_skill(run, s, monkeypatch):
+    from smo.runtime.remote import DesktopTool, register
+    register(s, "saisir_desktop", None, "abc", kind="desktop", files={"run.sh": "#!/bin/sh", "tool/skill.md": "# Skill"},
+             describe={"description": "Saisit", "params": {"type": "object", "properties": {"reference": {"type": "string"}}}})
+    tool = runtime_tools.find(s, "saisir_desktop")
+    assert isinstance(tool, DesktopTool) and tool.sha == "abc" and tool.skill == "# Skill"
+    assert [t.name for t in runtime_tools.h_tools({"saisir_desktop": tool}, s, lambda *_: None)][:1] == ["report_drift"]
+    pushed = []
+    monkeypatch.setattr(provision.h, "upsert_skill", lambda client, name, **kw: pushed.append(kw))
+    provision.push_skill(None, run, s, tool, "# Méthode\nÉtapes")
+    assert pushed[0]["files"] == tool.files and pushed[0]["executable_files"] == ["run.sh"]
+    assert "./run.sh run" in pushed[0]["body"] and '"reference"' in pushed[0]["body"]
+    assert "./run.sh" in provision.rule_for(tool, "saisir_desktop")
