@@ -123,6 +123,8 @@ def test_a_foreign_legal_form_is_not_part_of_the_account_name():
     assert m.meme_fournisseur("BUROTECHNIK WEBER", "Bürotechnik Weber GmbH")
     assert m.meme_fournisseur("NETCLOUD SERVICES", "NetCloud Services SAS")
     assert not m.meme_fournisseur("WEBER", "Bürotechnik Weber GmbH")
+    assert not m.meme_fournisseur("ACME AG", "ACME GmbH")
+    assert m.meme_fournisseur("ACME GMBH", "Acme GmbH")
 
 
 def test_a_supplier_with_only_other_accounts_proposed_goes_back_to_the_screen():
