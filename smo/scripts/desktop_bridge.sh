@@ -18,6 +18,7 @@ from_env_file() {   # valeur de $1 dans .env, guillemets retirés
 HAI_API_KEY="${HAI_API_KEY:-$(from_env_file HAI_API_KEY)}"
 H_DESKTOP_BRIDGE="${H_DESKTOP_BRIDGE:-$(from_env_file H_DESKTOP_BRIDGE)}"
 export HAI_API_KEY
+PATH="$PATH:$HOME/.local/bin"   # là où uv tool install met holo, absent du PATH de certains terminaux
 
 if ! command -v holo >/dev/null 2>&1; then
   echo "holo introuvable. Installe-le : uv tool install \"hai-agents[cli,desktop]==1.4.3\"" >&2
@@ -34,13 +35,19 @@ fi
 
 trap 'echo; echo "Relais arrêté."; exit 0' INT TERM
 echo "Relais bureau $H_DESKTOP_BRIDGE : un seul agent à la fois pilote cette machine. Ctrl-C pour arrêter."
+OUT="$(mktemp)"
 while true; do
   started=$SECONDS
-  holo local desktop --session-id "$H_DESKTOP_BRIDGE"
-  code=$?
+  holo local desktop --session-id "$H_DESKTOP_BRIDGE" 2>&1 | tee "$OUT"
+  code=${PIPESTATUS[0]}
   if [ "$code" -ne 0 ] && [ $((SECONDS - started)) -lt 5 ]; then
     # échec immédiat (autorisations macOS, clé) : relancer n'y changerait rien
     echo "Le relais n'a pas démarré (code $code) : corrige le message ci-dessus, puis relance ce script." >&2
+    if grep -q "Privacy & Security" "$OUT"; then   # macOS ne redemande rien : on ouvre les réglages où ajouter ce terminal
+      echo "Ajoute ce terminal dans Accessibilité et Enregistrement de l'écran, puis quitte-le (Cmd-Q) et relance." >&2
+      open "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+      open "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
+    fi
     exit "$code"
   fi
   sleep 2   # fin de session H : on rouvre le relais pour la session suivante
