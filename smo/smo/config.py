@@ -25,7 +25,6 @@ ENV = {
     "devin_org_id": "DEVIN_ORG_ID",
     "devin_repo": "DEVIN_REPO",
     "devin_max_acu": "DEVIN_MAX_ACU",
-    "devin_playbook_id": "DEVIN_PLAYBOOK_ID",
     "site_url": "SITE_URL",
     "site_login": "SITE_LOGIN",
     "site_password": "SITE_PASSWORD",
@@ -71,7 +70,6 @@ class Settings:
     devin_org_id: str | None
     devin_repo: str | None         # ex. "owner/smo" : le repo où Devin ouvre ses PR
     devin_max_acu: int
-    devin_playbook_id: str | None  # le playbook « SMO » créé dans Devin (docs/DEVIN_PLAYBOOK.md)
     site_url: str | None           # logiciel cible (site compta)
     site_login: str | None
     site_password: str | None
@@ -121,7 +119,6 @@ def load() -> Settings:
         devin_org_id=env("devin_org_id"),
         devin_repo=env("devin_repo"),
         devin_max_acu=int(env("devin_max_acu")),
-        devin_playbook_id=env("devin_playbook_id"),
         site_url=url(env("site_url")),
         site_login=env("site_login"),
         site_password=env("site_password"),

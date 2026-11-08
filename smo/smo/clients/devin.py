@@ -33,10 +33,11 @@ class Devin:
         return data if isinstance(data, str) else data.get("url") or data.get("attachment_url")
 
     def create_session(self, prompt: str, *, tags: list[str] = (), max_acu: int | None = None,
-                       attachment_urls: list[str] = (), playbook_id: str | None = None) -> dict:
+                       attachment_urls: list[str] = (), output_schema: dict | None = None) -> dict:
         body: dict = {"prompt": prompt}
-        if playbook_id:
-            body["playbook_id"] = playbook_id
+        if output_schema:                  # JSON Schema autonome (sans $ref) : Devin doit rendre ce JSON
+            body["structured_output_schema"] = output_schema
+            body["structured_output_required"] = True
         if tags:
             body["tags"] = list(tags)
         if max_acu:

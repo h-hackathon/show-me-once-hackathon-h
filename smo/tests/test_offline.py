@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import dataclasses
+import json
 from pathlib import Path
 
 import pytest
@@ -446,6 +447,22 @@ def test_devin_brief_renders(run, s):
         method="m", task="t", repo="r", tool_name="x", url="u", sample="s", skill="k", trace=text, checks="c",
         map="m", docs="d", kind="web")
     assert "tools/x/" in prompt and "$" not in prompt.replace("$tool", "")
+
+
+def test_devin_session_requires_the_json_report():
+    import httpx
+    from smo.clients.devin import Devin
+    sent = {}
+
+    def handler(request):
+        sent.update(json.loads(request.content))
+        return httpx.Response(200, json={"session_id": "devin-1"})
+
+    api = Devin("cog_x", "org-x")
+    api.http = httpx.Client(base_url="https://devin.test", transport=httpx.MockTransport(handler))
+    api.create_session("brief", output_schema=compile_stage.REPORT_SCHEMA)
+    assert sent["structured_output_required"] is True and "$ref" not in json.dumps(sent["structured_output_schema"])
+    assert {"tool", "tests_passed", "merged"} <= set(sent["structured_output_schema"]["required"])
 
 
 def test_server_health_without_keys(monkeypatch):

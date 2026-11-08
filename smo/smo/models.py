@@ -140,6 +140,15 @@ class Trace(BaseModel):
     agent_view_url: str | None = None
 
 
+class DevinReport(BaseModel):
+    """La sortie structurée exigée de Devin (son schéma est envoyé à la création de la session)."""
+    tool: str
+    pr_url: str | None = None
+    tests_passed: bool
+    merged: bool
+    issues: list[str] = []
+
+
 class CompileResult(BaseModel):
     """La session Devin qui écrit le tool (compile.json)."""
     tool_name: str
@@ -148,7 +157,7 @@ class CompileResult(BaseModel):
     status: str | None = None
     pr_url: str | None = None
     mode: Literal["create", "repair"] = "create"
-    report: dict | None = None             # sortie structurée de Devin : tool, pr_url, tests_passed, merged, issues
+    report: dict | None = None             # sortie structurée de Devin (DevinReport), telle qu'il l'a rendue
 
 
 class Provisioned(BaseModel):
