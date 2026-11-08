@@ -54,9 +54,15 @@ jobs:
           uv sync --frozen
           uv run playwright install --with-deps chromium
           uv run pytest tests $(for n in $TOOLS; do printf 'tools/%s ' "$n"; done)
+      # Le paquet npm télécharge le binaire depuis les releases GitHub, qui ont renvoyé 504 pendant des heures le
+      # 08/11 : on le prend dans l'image du CLI sur ghcr.io (binaire statique).
       - name: CLI Railway
         if: steps.changed.outputs.tools != ''
-        run: npm install -g "@railway/cli@$RAILWAY_CLI_VERSION"
+        run: |
+          docker create --name railway-cli "ghcr.io/railwayapp/cli:$RAILWAY_CLI_VERSION" > /dev/null
+          sudo docker cp railway-cli:/usr/bin/railway /usr/local/bin/railway
+          docker rm railway-cli > /dev/null
+          railway --version
       - name: Déploiement
         if: steps.changed.outputs.tools != ''
         env:
