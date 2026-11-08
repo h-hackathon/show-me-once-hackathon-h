@@ -50,6 +50,9 @@ class Devin:
         if attachment_urls:
             body["attachment_urls"] = list(attachment_urls)
         r = self.http.post("/sessions", json=body)
+        if r.status_code in (400, 422) and "session_secrets" in body:   # champ refusé : la session part quand même,
+            body.pop("session_secrets")                                  # Devin code sans se connecter au site
+            r = self.http.post("/sessions", json=body)
         r.raise_for_status()
         return r.json()
 

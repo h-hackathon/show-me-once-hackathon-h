@@ -626,10 +626,15 @@ def test_devin_gets_the_site_as_session_secrets_never_in_the_brief(s, monkeypatc
                        "SITE_PASSWORD": "s3cret-pass"}
     api, posted = devin.Devin("k", "org"), []
     monkeypatch.setattr(api.http, "post", lambda path, json: posted.append(json) or type(
-        "R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"session_id": "d1"}})())
-    api.create_session("brief sans secret", secrets=secrets)
+        "R", (), {"status_code": 200, "raise_for_status": lambda self: None, "json": lambda self: {"session_id": "d1"}})())
+    api.create_session("brief sans secret", secrets=dict(secrets))
     assert posted[0]["prompt"] == "brief sans secret" and "s3cret-pass" not in posted[0]["prompt"]
     assert {"key": "SITE_PASSWORD", "value": "s3cret-pass", "sensitive": True} in posted[0]["session_secrets"]
+    codes = iter([422, 200])                                       # champ refusé par l'API : la session part sans
+    monkeypatch.setattr(api.http, "post", lambda path, json: posted.append(dict(json)) or type(
+        "R", (), {"status_code": next(codes), "raise_for_status": lambda self: None, "json": lambda self: {}})())
+    api.create_session("brief", secrets=dict(secrets))
+    assert "session_secrets" in posted[-2] and "session_secrets" not in posted[-1]
 
 
 def test_desktop_tool_ships_inside_the_skill(run, s, monkeypatch):
