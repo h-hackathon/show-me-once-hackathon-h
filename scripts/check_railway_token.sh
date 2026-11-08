@@ -23,7 +23,9 @@ ask() {   # ask <en-tête d'auth> <requête GraphQL> [id du projet]
 
 seen=$(ask "Authorization: Bearer $token" 'query($id: String!) { project(id: $id) { name } }' "$project")
 if printf '%s' "$seen" | grep -q '"name"'; then
-  echo "jeton Railway OK : il voit le projet $(printf '%s' "$seen" | sed -n 's/.*"name":"\([^"]*\)".*/\1/p')"
+  kind="jeton d'équipe (workspace)"
+  ask "Authorization: Bearer $token" '{ me { id } }' | grep -q '"id"' && kind="jeton de compte"
+  echo "jeton Railway OK ($kind) : il voit le projet $(printf '%s' "$seen" | sed -n 's/.*"name":"\([^"]*\)".*/\1/p')"
   exit 0
 fi
 
