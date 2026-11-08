@@ -41,6 +41,9 @@ jobs:
           fi
           echo "à déployer : ${tools:-aucun}"
           echo "tools=$tools" >> "$GITHUB_OUTPUT"
+      - name: Jeton Railway
+        if: steps.changed.outputs.tools != ''
+        run: bash scripts/check_railway_token.sh
       - name: uv depuis PyPI
         if: steps.changed.outputs.tools != ''
         run: pipx install uv
