@@ -14,5 +14,6 @@ RUN useradd --create-home --uid 10001 tool
 USER tool
 # Sans SMO_SERVER_TOKEN, le conteneur refuse tout appel (h_tools/server.py) : jamais public par erreur.
 ENV TOOL_DIR=/app/tool SMO_AUTH_REQUIRED=1 PATH=/app/.venv/bin:$PATH
-# « :: » écoute en IPv4 et IPv6, comme le demande le réseau privé Railway
-CMD ["sh", "-c", "uvicorn --factory h_tools.server:create_app --host :: --port ${PORT:-8080}"]
+# 0.0.0.0 (IPv4) : le proxy public de Railway arrive en IPv4. Uvicorn sur « :: » n'écoute qu'en IPv6 (asyncio pose
+# IPV6_V6ONLY) : le tool répondait 502. SMO est dans un autre projet et passe par l'adresse publique.
+CMD ["sh", "-c", "uvicorn --factory h_tools.server:create_app --host 0.0.0.0 --port ${PORT:-8080}"]
