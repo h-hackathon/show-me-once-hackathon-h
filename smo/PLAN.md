@@ -36,7 +36,7 @@ sequenceDiagram
     actor C as Catherine
     participant H as Agent custom (H)
     participant S as Serveur SMO
-    participant L as Logiciel (Comptarex)
+    participant L as Logiciel (Qonta)
     C->>H: lance l'agent depuis son interface H
     H->>S: demande un tool (webhook, le serveur se rattache)
     S->>L: precheck puis run_tool (Playwright)
@@ -50,7 +50,7 @@ Les mêmes étapes, telles que les enchaîne `uv run smo` :
 
 ```
 1. Capture          vidéo + voix (1 fois)
-2. Mise en forme    transcribe (Gladia) · frames (ffmpeg) · understand (LLM : Holo, Models API) · enrich (Linkup, option)
+2. Mise en forme    transcribe (Gladia) · frames (ffmpeg) · understand (LLM : Holo, Models API) · enrich (Linkup)
                     → une info digeste (procedure.json) + skill.md                                 [review : relecture, --auto pour sauter]
 3. Test par Holo    provision : l'agent custom est créé dans SON H avec la Skill, sans tool
                     trial     : il traite la pièce de la démo en computer use → trace + ce qui est réellement enregistré
@@ -66,10 +66,9 @@ Les mêmes étapes, telles que les enchaîne `uv run smo` :
 
 **À l'exécution** (Catherine lance son agent depuis H) :
 1. L'agent appelle `precheck_<tâche>`, qui vérifie que l'interface n'a pas changé, sans rien modifier.
-2. Si le precheck est OK, il lit la pièce et appelle `run_<tâche>` : saisie déterministe, arrêt en brouillon, idempotente, règles codées en dur.
+2. Si le precheck est OK, il lit la pièce et appelle `run_<tâche>` : saisie déterministe, jamais finalisée, idempotente, règles codées en dur.
 3. Sinon, ou si le tool échoue, il fait la saisie en computer use avec la Skill, puis appelle `report_drift`. Sa session repart chez Devin (`SMO_AUTO_REPAIR=1`, ou `smo repair`), qui ouvre une PR corrigeant le tool et `skill.md`.
 4. Après la fusion, `smo run <id> --only upgrade --force` repousse le tool et la Skill dans H.
-5. Il vérifie toujours avec `verify_entry` (on ne croit jamais l'agent sur parole) et peut vérifier un fournisseur avec `check_supplier` (Linkup).
 
 **Qui exécute les tools ?** Chez H, un custom tool est exécuté par le programme qui suit la session. C'est le **serveur SMO** (Railway) :
 - il est prévenu par un webhook H (`session.status_updated` → `awaiting_tool_results`) ;
@@ -96,7 +95,7 @@ Le SDK le prévoit explicitement : « for calls another process answers ».
 
 1. **Clés dans `smo/.env`**, puis `uv run smo doctor` : tout doit être ✅ ou ⏭️.
 2. **Les 2 tests qui valident le plan** : `uv run smo doctor --probe guided tool` (une à deux sessions H).
-3. ~~Site compta~~ ✅ **Comptarex** tourne en local (http://127.0.0.1:8042) et `SITE_*` est rempli dans `smo/.env`.
+3. ~~Site compta~~ ✅ **Qonta** tourne en local (http://127.0.0.1:8042) et `SITE_*` est rempli dans `smo/.env`.
    `doctor` est ✅ et le precheck réel v1/v2 est vérifié (`tests/test_site_live.py`).
    Reste à décider l'accès en ligne pour le navigateur cloud H : tunnel ou Railway. En attendant, le navigateur tourne sur cette machine (`host: "user_device"`).
 4. **Page d'enregistrement** ✅ (`uv run smo serve` → http://localhost:8000) : écran + voix dans Chrome, transcription Gladia en direct, suivi, relecture de la Skill, liens vers l'agent et la PR. Charte H (couleurs et polices relevées sur hcompany.ai), sans logo.
@@ -112,7 +111,7 @@ Le SDK le prévoit explicitement : « for calls another process answers ».
    - C : agent + tool ;
    - on mesure réussite, temps, coût et écart entre runs ;
    - le contrôle se fait par `GET /api/invoices`, comparé à `prep/factures/verite_terrain.csv`.
-8. **Desktop** (prototype) : Comptarex a aussi une vraie application Qt (`uv run --extra desktop comptarex-desktop`), sur la même base.
+8. **Desktop** (prototype) : Qonta a aussi une vraie application Qt (`uv run --extra desktop comptarex-desktop`), sur la même base.
    - L'agent H la pilote avec l'environnement `desktop` (extra `hai-agents[desktop]`, déjà installé).
    - Le script compilé passe par l'API d'accessibilité macOS, en Python, pas en Rust.
    - `/api/invoices` voit aussi les saisies faites dans l'application.

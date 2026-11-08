@@ -99,6 +99,11 @@ async function startRecording() {
   recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
   recorder.onstop = () => { stopLive(); tracks.forEach((t) => t.stop()); if (!cancelled) upload(); };
   display.getVideoTracks()[0].addEventListener("ended", stopRecording);   // « Arrêter le partage » de Chrome
+  // micro pris par une autre app ou casque déconnecté : la vidéo continue sans la voix, il faut le voir tout de suite
+  const voice = mic.getAudioTracks()[0];
+  voice.addEventListener("mute", () => liveStatus("micro coupé : votre voix n'est plus enregistrée", false));
+  voice.addEventListener("unmute", () => liveStatus("micro rétabli", true));
+  voice.addEventListener("ended", () => liveStatus("micro perdu : arrêtez et recommencez l'enregistrement", false));
   recorder.start(1000);
 
   $("rec-task").textContent = form.task.value;
@@ -187,7 +192,7 @@ function upload() {
   const blob = new Blob(chunks, { type: "video/webm" });
   const body = new FormData();
   body.append("video", blob, "capture.webm");
-  for (const name of ["task", "url", "owner", "sample", "software_kind", "software_name"]) body.append(name, form[name].value);
+  for (const name of ["task", "url", "software_kind", "software_name"]) body.append(name, form[name].value);
   show("upload", "record");
   $("upload-note").textContent = `${(blob.size / 1e6).toFixed(1)} Mo`;
 
@@ -247,7 +252,7 @@ function waitingLabel(run) {
 
 function render(run) {
   $("follow-title").textContent = run.meta.task;
-  $("follow-meta").textContent = [run.meta.owner, run.meta.sample, run.meta.software_url].filter(Boolean).join(" · ");
+  $("follow-meta").textContent = [run.meta.software_name, run.meta.software_url].filter(Boolean).join(" · ");
   const [label, tone] = run.state === "waiting" ? waitingLabel(run) : PILL[run.state] || [run.state, ""];
   const pill = $("follow-state");
   pill.textContent = label;
@@ -281,18 +286,27 @@ function render(run) {
   const retrying = !run.busy && run.status.trial?.state === "waiting" && run.skill;
   const mode = reviewing ? "review" : retrying ? "retry" : null;
   $("review").hidden = !mode;
-  if (mode && editorMode !== mode) { $("skill").value = run.skill; editorMode = mode; }
+  if (mode && editorMode !== mode) {
+    $("skill").value = run.skill;
+    $("trial-message").value = run.trial_request.message;
+    $("trial-files").value = "";
+    editorMode = mode;
+  }
+  const attached = run.trial_request.files;
+  $("trial-files-note").textContent = attached.length ? `Déjà jointes : ${attached.join(", ")}` : "";
   if (mode === "retry") {
     $("review-title").textContent = "L'agent n'a pas réussi en 3 essais";
     $("review-note").textContent = "Ses leçons sont à la fin de la Skill. Corrigez ce qui bloque, puis relancez les essais.";
     $("approve").textContent = "Relancer les essais";
   }
-  $("resume-box").hidden = run.busy || !["failed", "waiting", "idle"].includes(run.state) || Boolean(mode);
+  $("resume").hidden = run.busy || !["failed", "waiting", "idle"].includes(run.state) || Boolean(mode);
+  $("stop-run").hidden = !run.busy;
 
   renderLinks(run.links || {}, run.attempts || []);
   $("log").textContent = run.log.length ? run.log.join("\n") : "—";
   $("approve").onclick = () => (mode === "retry" ? retry(run.id) : approve(run.id));
   $("resume").onclick = () => resume(run.id);
+  $("stop-run").onclick = () => stopRun(run.id);
 }
 
 function renderLinks(links, attempts) {
@@ -308,6 +322,11 @@ function renderLinks(links, attempts) {
   }
   if (links.devin) rows.push(["Devin", anchor(links.devin, "voir la session")]);
   if (links.pr) rows.push(["Pull request", anchor(links.pr, links.pr.replace(/^https:\/\/github\.com\//, ""))]);
+  const report = links.devin_report;
+  if (report) {
+    const verdict = `tests ${report.tests_passed ? "verts" : "rouges"} · ${report.merged ? "fusionné, déploiement en cours" : "pas fusionné"}`;
+    rows.push(["Devin", document.createTextNode(report.issues?.length ? `${verdict} · ${report.issues.join(" ; ")}` : verdict)]);
+  }
   $("links").hidden = rows.length === 0;
   $("link-list").replaceChildren(...rows.flatMap(([term, value]) => {
     const dt = document.createElement("dt");
@@ -325,13 +344,22 @@ function anchor(href, text) {
   return a;
 }
 
+// La Skill et la demande d'essai (texte + pièces jointes) relues, avant de lancer ou relancer les essais.
+async function saveReview(runId) {
+  await api(`/api/runs/${encodeURIComponent(runId)}/skill`, {
+    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ skill: $("skill").value }),
+  });
+  const body = new FormData();
+  body.append("message", $("trial-message").value);
+  for (const file of $("trial-files").files) body.append("files", file);
+  await api(`/api/runs/${encodeURIComponent(runId)}/trial-request`, { method: "PUT", body });
+}
+
 async function approve(runId) {
   const button = $("approve");
   button.disabled = true;
   try {
-    await api(`/api/runs/${encodeURIComponent(runId)}/skill`, {
-      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ skill: $("skill").value }),
-    });
+    await saveReview(runId);
     await api(`/api/runs/${encodeURIComponent(runId)}/approve`, { method: "POST" });
     poll(runId);
   } catch (err) {
@@ -345,11 +373,11 @@ async function retry(runId) {
   const button = $("approve");
   button.disabled = true;
   try {
-    await api(`/api/runs/${encodeURIComponent(runId)}/skill`, {
-      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ skill: $("skill").value }),
-    });
+    await saveReview(runId);
     editorMode = null;
     await resume(runId);
+  } catch (err) {
+    $("log").textContent = `Relance impossible : ${err.message}`;
   } finally {
     button.disabled = false;
   }
@@ -359,6 +387,20 @@ async function resume(runId) {
   try { await api(`/api/runs/${encodeURIComponent(runId)}/resume`, { method: "POST" }); poll(runId); }
   catch (err) { $("log").textContent = `Relance impossible : ${err.message}`; }
 }
+
+async function stopRun(runId) {
+  if (!confirm("Arrêter ce run ? La session H en cours est annulée ; « Relancer » reprendra où il en était.")) return;
+  try { await api(`/api/runs/${encodeURIComponent(runId)}/stop`, { method: "POST" }); poll(runId); }
+  catch (err) { $("log").textContent = `Arrêt impossible : ${err.message}`; }
+}
+
+// Retour au formulaire : le run suivi reste tel quel (son lien ?run=… le rouvre).
+$("new-demo").addEventListener("click", () => {
+  clearTimeout(pollId);
+  editorMode = null;
+  history.replaceState(null, "", location.pathname);
+  show("prepare", "prepare");
+});
 
 // --- démarrage -----------------------------------------------------------------------------------
 

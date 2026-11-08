@@ -21,7 +21,7 @@ def cmd_new(a, s):
     if not (a.url or s.site_url):
         raise config.MissingConfig("Donne --url, ou SITE_URL dans smo/.env")
     meta = CaptureMeta(task=a.task, software_kind=a.kind, software_url=a.url or s.site_url, software_name=a.software_name,
-                       owner=a.owner, language=a.lang, sample=a.sample)
+                       language=a.lang)
     run = Run.create(s.runs_dir, meta, [Path(f) for f in a.files])
     print(run.id)
     if a.go:
@@ -80,12 +80,12 @@ def cmd_repair(a, s):
 
 
 def cmd_tools(a, s):
-    from .runtime.tools import input_schema, load_tools
+    from .runtime.tools import call_tool, for_site, input_schema, load_tools
     for t in load_tools(s.tools_dir).values():
         print(f"{t.name} : {t.description}")
         print(f"  params : {json.dumps(input_schema(t.params).get('properties', {}), ensure_ascii=False)[:300]}")
-        if a.precheck:
-            print(f"  precheck : {t.precheck(s)}")
+        if a.precheck:   # avec l'élément du vault H de SITE_URL, comme un appel de l'agent
+            print(f"  precheck : {call_tool('precheck', t, for_site(s, s.site_url))}")
     return 0
 
 
@@ -112,7 +112,7 @@ def main(argv: list[str] | None = None) -> int:
     sub = p.add_subparsers(dest="cmd", required=True)
 
     d = sub.add_parser("doctor", help="vérifie les clés et les API ; --probe teste les capacités (crédits H)")
-    d.add_argument("--probe", nargs="*", choices=["skill", "guided", "tool", "all"])
+    d.add_argument("--probe", nargs="*", choices=["skill", "guided", "tool", "devin", "desktop-tool", "all"])
     d.set_defaults(fn=cmd_doctor)
 
     def pipeline_flags(sp):
@@ -127,8 +127,6 @@ def main(argv: list[str] | None = None) -> int:
     n.add_argument("--url", help="web : l'adresse (défaut : SITE_URL) ; desktop : le nom de l'application ouverte")
     n.add_argument("--kind", choices=["web", "desktop"], default="web", help="un agent H par type de logiciel")
     n.add_argument("--software-name", help="nom public du logiciel, pour chercher sa doc (ex. Odoo)")
-    n.add_argument("--owner", default="demo")
-    n.add_argument("--sample", help="la pièce traitée pendant la démo (ex. INV-001)")
     n.add_argument("--lang", default="fr")
     n.add_argument("--go", action="store_true", help="enchaîne tout le pipeline")
     pipeline_flags(n)

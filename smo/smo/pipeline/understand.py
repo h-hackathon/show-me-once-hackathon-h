@@ -41,7 +41,8 @@ SCHEMA = """{"task": "...", "software": "...",
             "value_source": "d'où vient la valeur, ou null", "why": "la raison dite, ou null", "utterance_index": 0}],
  "rules": [{"text": "...", "kind": "check|exception|never|stop", "source": "voice|screen"}],
  "stop_conditions": ["quand s'arrêter et prévenir un humain"],
- "inputs": ["champ à lire sur la pièce à traiter"]}"""
+ "inputs": ["champ à lire sur la pièce à traiter"],
+ "request": "la demande qu'un utilisateur enverrait à un agent pour refaire cette tâche"}"""
 
 SYNTH_PROMPT = """Un humain a fait une fois la tâche « {task} » dans le logiciel {software} ({url}), en commentant à voix haute.
 Pour chaque phrase : ce qu'il a dit, puis ce qu'on voyait à l'écran à ce moment (lu sur la capture).
@@ -57,6 +58,8 @@ Consignes :
 - Si la documentation du logiciel est fournie, reprends son vocabulaire ; en cas de désaccord, ce qui est vu à l'écran l'emporte.
 - value_source : relie chaque valeur saisie au champ de la pièce d'où elle vient, quand c'est possible.
 - rules : les règles implicites (contrôles, exceptions, interdits), dites ou visibles.
+- request : une phrase à l'impératif, comme un utilisateur la tape avec la pièce en pièce jointe, sans aucune valeur
+  propre à la démo (ex. « Saisis la facture fournisseur jointe dans Qonta. »).
 - N'invente rien qui ne soit ni dit ni vu."""
 
 

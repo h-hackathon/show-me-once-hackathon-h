@@ -36,6 +36,6 @@ def run(page, params: Params, cfg) -> dict:
 
     # 4. Enregistrer en brouillon ; ne jamais cliquer sur « Valider ».
     # locate(page, {"role": "button", "name": "Enregistrer le brouillon"}).click()
-    # … sinon à l'écran : le logiciel refuse un doublon avec un message (Comptarex : « Doublon : … »).
+    # … sinon à l'écran : le logiciel refuse un doublon avec un message (Qonta : « Doublon : … »).
     # if page.get_by_text("Doublon", exact=False).count(): return {"status": "duplicate", "reference": params.reference}
     return {"status": "draft_saved", "reference": params.reference}

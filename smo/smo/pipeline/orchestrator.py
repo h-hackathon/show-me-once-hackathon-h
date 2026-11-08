@@ -33,18 +33,18 @@ class Stage:
 
 
 STAGES = [
-    Stage("map", mapping.run, ("hai_api_key", "site_login", "site_password"), lambda r: r.has("map.json"),
+    Stage("map", mapping.run, ("hai_api_key",), lambda r: r.has("map.json"),
           optional=True, join_before="understand"),
     Stage("docs", docs.run, ("linkup_api_key",), lambda r: r.has("docs.json"), optional=True, join_before="understand"),
     Stage("transcribe", capture.transcribe, ("gladia_api_key",), lambda r: r.has("transcript.json")),
     Stage("frames", capture.frames, (), lambda r: r.has("frames.json")),
     Stage("read", understand.read, ("hai_api_key",), lambda r: r.has("notes.json") or r.has("procedure.json")),
     Stage("understand", understand.synthesize, ("hai_api_key",), lambda r: r.has("procedure.json")),
-    Stage("enrich", enrich.run, ("linkup_api_key",), lambda r: r.has("context.json"), optional=True),
+    Stage("enrich", enrich.run, ("linkup_api_key",), lambda r: r.has("context.json")),
     Stage("skill", skill.run, (), lambda r: r.has("skill.md")),
     Stage("review", skill.review, (), lambda r: r.has("skill.approved")),
     Stage("provision", provision.create, ("hai_api_key",), lambda r: r.has("agent.json")),
-    Stage("trial", trial.run, ("hai_api_key", "site_login", "site_password"), lambda r: r.has("trace.json")),
+    Stage("trial", trial.run, ("hai_api_key",), lambda r: r.has("trace.json")),
     Stage("compile", compile.run, ("devin_api_key", "devin_org_id"), compile.is_done),
     Stage("upgrade", provision.upgrade, ("hai_api_key",), provision.tool_ready),
 ]
@@ -59,6 +59,9 @@ def run_pipeline(run: Run, s: Settings, *, start: str | None = None, stop: str |
     last = NAMES.index(stop) + 1 if stop else len(STAGES)
     selected = [st for st in STAGES[first:last] if not only or st.name in only]
     extras = {"review": {"auto": auto}, "compile": {"wait": wait}, "trial": {"guided": guided}}
+    if run.has("stop"):                                # « Arrêter » sur la page : rien ne repart, même en fond
+        log("■ arrêté depuis la page")
+        return "failed"
 
     background: dict[str, list[tuple[Stage, threading.Thread]]] = {}
     for stage in selected:
@@ -77,6 +80,9 @@ def run_pipeline(run: Run, s: Settings, *, start: str | None = None, stop: str |
         if stage.done(run) and not force:
             log(f"✓ {stage.name}")
             continue
+        if run.has("stop"):                            # « Arrêter » sur la page : on ne lance plus rien
+            log("■ arrêté depuis la page")
+            return "failed"
         state = _execute(stage, run, s, log, extras.get(stage.name, {}))
         if state in ("blocked", "failed", "waiting"):
             return state

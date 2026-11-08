@@ -1,20 +1,21 @@
-# Mission : compiler la tâche « $task » en tool déterministe
+# Tâche SMO : créer le tool `$tool_name`
 
-Repo : $repo. Crée le dossier `tools/$tool_name/` en copiant `tools/_template/`, et lis d'abord `tools/README.md`.
-Logiciel cible ($kind) : $url. Identifiants de test dans tes Secrets Devin : `SITE_URL`, `SITE_LOGIN`, `SITE_PASSWORD` (appli de bureau : `DESKTOP_LOGIN`, `DESKTOP_PASSWORD`).
-Type `web` : Playwright, comme `tools/_template/`. Type `desktop` : `KIND = "desktop"`, `precheck(cfg)` et `run(params, cfg)` sans page, en Python avec l'accessibilité macOS (pyobjc : ApplicationServices) ; les éléments se trouvent par rôle et nom accessible, comme sur le web.
-Aucun dossier n'est imposé : s'il faut en choisir un, c'est celui du client indiqué sur la pièce (un champ de `Params`).
-Pièce traitée pendant la démo : $sample.
-Détails du logiciel (écrans, libellés exacts, API technique, formats) : `docs/CONTRAT_SITE.md`. Les fournisseurs se comparent sans casse ni accents.
+$method
+
+## La tâche
+
+- Tâche : « $task ». Type de logiciel : $kind. Logiciel : $url.
+- Demande que l'agent a reçue pendant l'essai réussi : « $request ». Le tool traite une pièce par appel : ses paramètres sont les valeurs lues sur la pièce, jamais un numéro de pièce à aller chercher.
+- Nom du tool et du dossier : `tools/$tool_name/`, dans $repo.
+- Accès au logiciel : tes secrets de session `SITE_URL`, `SITE_USERNAME`, `SITE_PASSWORD`, lus dans le vault H de l'utilisateur. Ils ne sont pas dans ce brief : ne les écris nulle part (code, commit, PR, message).
 
 ## 1. La Skill validée par l'humain (référence métier, prioritaire sur tout le reste)
 
 $skill
 
-## 2. Ce que l'agent H a fait à l'écran en suivant cette Skill (trace condensée)
+## 2. Ce que l'agent H a fait à l'écran pour réussir la tâche (trace condensée)
 
-L'agent custom a traité la pièce de la démo une fois en computer use, sans tool. Chaque ligne : écran (URL, titre) → consigne en cours → actions de l'agent.
-Pièces jointes : `trace.json` (trace complète), `trial.json` (réponse de l'agent et ce qui est réellement enregistré dans le logiciel), captures d'écran.
+Chaque ligne : écran (URL, titre) → consigne en cours → actions de l'agent.
 
 $trace
 
@@ -22,7 +23,7 @@ $trace
 
 $checks
 
-## 4. Carte du logiciel (relevée par un agent H qui l'a parcouru en lecture seule)
+## 4. Carte du logiciel (relevée par un agent H en lecture seule)
 
 Écrans, chemin pour y arriver, libellés exacts : la base de `ui_contract.json`.
 
@@ -32,18 +33,6 @@ $map
 
 $docs
 
-## À livrer : une seule PR, titre « tool: $tool_name »
+## Pièces jointes
 
-1. `tools/$tool_name/tool.py` : `NAME = "$tool_name"`, `DESCRIPTION`, `Params` (pydantic, un champ par valeur lue sur la pièce, avec une description), `precheck(page, cfg)`, `run(page, params, cfg)`.
-2. `tools/$tool_name/ui_contract.json` : chaque écran traversé, avec ses éléments attendus (rôle + libellé visible).
-3. `tools/$tool_name/test_tool.py` : rejoue la pièce de la démo contre le site (interface v1) et vérifie le résultat par l'API technique (`GET /api/invoices?reference=...`).
-4. `tools/$tool_name/skill.md` : la Skill ci-dessus, corrigée seulement là où la trace montre le vrai chemin (libellés exacts, écran intermédiaire oublié). C'est elle que l'agent utilisera en reprise à l'écran : garde les règles métier telles quelles.
-
-## Contraintes
-
-- Sélecteurs par rôle et libellé visible uniquement (`get_by_role`, `get_by_label`, helpers de `smo.runtime.ui`). Jamais de coordonnées, jamais de sélecteur CSS.
-- `precheck` ne modifie rien.
-- `run` est idempotent : si la référence existe déjà, renvoie `{"status": "duplicate"}` sans rien créer.
-- Les règles de la Skill sont codées en dur (ex. HT + TVA = TTC) : en cas d'écart, renvoie `{"status": "flagged", "reason": ...}` sans enregistrer.
-- Ne jamais cliquer sur « Valider » : on s'arrête toujours en brouillon.
-- `uv run pytest tools/$tool_name` passe. Ne modifie rien en dehors de `tools/$tool_name/`.
+Les sorties complètes, en JSON, de chaque étape : `trace.json` (l'essai réussi), `trial.json` (tous les essais et le verdict de Holo), `procedure.json` (la méthode comprise par Holo), `notes.json` (ce que Holo a lu sur chaque capture), `map.json` (la carte), `docs.json` (la documentation), plus des captures d'écran.

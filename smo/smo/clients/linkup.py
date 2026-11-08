@@ -1,4 +1,4 @@
-"""Linkup : recherche web sourcée (vérifier les règles de l'humain, se renseigner sur un fournisseur).
+"""Linkup : recherche web sourcée (vérifier les règles dites par l'humain, chercher la doc publique du logiciel).
 
 Linkup ne voit pas les pages derrière une connexion : il ne sert pas à explorer le logiciel lui-même.
 """
@@ -18,6 +18,7 @@ def search(q: str, api_key: str, *, depth: str = "standard", output_type: str = 
     if schema is not None:
         body["outputType"] = "structured"
         body["structuredOutputSchema"] = json.dumps(schema)
+        body["includeSources"] = True          # sinon la réponse structurée n'a aucune source ; elle devient {data, sources}
     if include_domains:
         body["includeDomains"] = include_domains
     r = httpx.post(f"{API}/search", json=body, timeout=timeout_s,

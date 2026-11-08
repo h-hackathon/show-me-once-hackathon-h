@@ -1,7 +1,13 @@
-# Mission : réparer le tool `$tool_name`, l'interface du logiciel a changé
+# Tâche SMO : réparer le tool `$tool_name` (l'interface du logiciel a changé)
 
-Repo : $repo. Le tool est dans `tools/$tool_name/` (lis `tools/README.md`).
-Logiciel : $url (identifiants dans tes Secrets Devin, comme pour la création du tool).
+$method
+
+## La tâche
+
+- Tool : `tools/$tool_name/`, dans $repo. Logiciel : $url.
+- PR « fix: $tool_name ». Garde le même `NAME` et les mêmes `Params` si possible.
+- Accès au logiciel : tes secrets de session `SITE_URL`, `SITE_USERNAME`, `SITE_PASSWORD`, lus dans le vault H de l'utilisateur. Ils ne sont pas dans ce brief : ne les écris nulle part (code, commit, PR, message).
+- Mets aussi à jour `skill.md` si le chemin à l'écran a changé (nouvel onglet, bouton renommé, champ obligatoire). Ne touche pas aux règles métier.
 
 ## Ce qui a cassé
 
@@ -21,9 +27,4 @@ $skill
 
 $trace
 
-## À livrer : une PR, titre « fix: $tool_name »
-
-- Mets à jour `tool.py` et `ui_contract.json` pour la nouvelle interface ; garde le même `NAME` et les mêmes `Params` si possible.
-- Mets à jour `skill.md` si le chemin à l'écran a changé (nouvel onglet, bouton renommé, champ obligatoire), pour que la reprise à l'écran reste juste. Ne touche pas aux règles métier.
-- Mêmes contraintes qu'à la création : sélecteurs par rôle et libellé, `precheck` sans effet, `run` idempotent, jamais « Valider ».
-- `uv run pytest tools/$tool_name` passe sur l'interface actuelle.
+Pièce jointe : `trace.json`, la trace complète de cette reprise.

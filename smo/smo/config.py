@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -36,6 +37,12 @@ ENV = {
     "h_webhook_secret": "H_WEBHOOK_SECRET",
     "auto_repair": "SMO_AUTO_REPAIR",
     "runs_dir": "SMO_RUNS_DIR",
+    "h_tools_dir": "H_TOOLS_DIR",
+    "tool_url": "SMO_TOOL_URL",
+    "worker_kinds": "SMO_WORKER_KINDS",
+    "h_desktop_env": "H_DESKTOP_ENV",
+    "h_desktop_bridge": "H_DESKTOP_BRIDGE",
+    "h_vault_id": "H_VAULT_ID",
 }
 
 DEFAULTS = {
@@ -67,7 +74,7 @@ class Settings:
     devin_repo: str | None         # ex. "owner/smo" : le repo où Devin ouvre ses PR
     devin_max_acu: int
     site_url: str | None           # logiciel cible (site compta)
-    site_login: str | None
+    site_login: str | None         # localhost (développement) seulement : en ligne, les identifiants sont dans le vault H
     site_password: str | None
     site_admin_token: str | None
     desktop_login: str | None      # appli de bureau (base locale) : identifiants propres, sinon ceux du site
@@ -77,7 +84,12 @@ class Settings:
     h_webhook_secret: str | None
     auto_repair: bool              # interface changée → Devin relancé tout seul
     runs_dir: Path
-    tools_dir: Path
+    tools_dir: Path                # les tools d'h-tools : <H_TOOLS_DIR>/tools si un clone local existe
+    tool_url: str | None           # adresse des tools déployés (défaut : réseau privé Railway du projet)
+    worker_kinds: tuple[str, ...]  # agents servis par ce serveur (défaut : web et desktop)
+    h_desktop_env: str | None      # l'environnement desktop de test configuré dans H (son identifiant)
+    h_desktop_bridge: str | None   # sinon, le relais `holo local desktop` du PC du live (son identifiant)
+    h_vault_id: str | None         # le vault H où chercher les identifiants (défaut : tous ceux de l'organisation)
 
     def require(self, *names: str) -> None:
         missing = [ENV[n] for n in names if not getattr(self, n)]
@@ -123,5 +135,28 @@ def load() -> Settings:
         h_webhook_secret=env("h_webhook_secret"),
         auto_repair=env("auto_repair") == "1",
         runs_dir=Path(env("runs_dir")),
-        tools_dir=ROOT / "tools",
+        tools_dir=Path(env("h_tools_dir")) / "tools" if env("h_tools_dir") else ROOT / "tools",
+        tool_url=env("tool_url"),
+        worker_kinds=worker_kinds(env("worker_kinds")),
+        h_desktop_env=env("h_desktop_env"),
+        h_desktop_bridge=bridge_id(env("h_desktop_bridge")),
+        h_vault_id=env("h_vault_id"),
     )
+
+
+def worker_kinds(value: str | None) -> tuple[str, ...]:
+    """Un seul serveur sert les agents web et bureau ; SMO_WORKER_KINDS le restreint si deux serveurs tournent."""
+    if value:
+        return tuple(k.strip() for k in value.split(",") if k.strip())
+    return ("web", "desktop")
+
+
+def bridge_id(value: str | None) -> str | None:
+    """L'identifiant du relais bureau : un UUID, celui qu'affiche scripts/desktop_bridge.sh."""
+    if not value:
+        return None
+    try:
+        return str(uuid.UUID(value))
+    except ValueError:
+        raise MissingConfig(f"{ENV['h_desktop_bridge']} doit être un UUID (celui qu'affiche "
+                            f"scripts/desktop_bridge.sh), pas {value!r}") from None

@@ -47,17 +47,7 @@
           </div>
           <div class="field">
             <label for="software_name">Nom du logiciel <span class="optional">pour chercher sa documentation</span></label>
-            <input id="software_name" name="software_name" placeholder="Comptarex, Odoo, Pennylane…">
-          </div>
-          <div class="row">
-            <div class="field">
-              <label for="sample">Pièce traitée</label>
-              <input id="sample" name="sample" placeholder="INV-001">
-            </div>
-            <div class="field">
-              <label for="owner">Votre prénom</label>
-              <input id="owner" name="owner" placeholder="Catherine">
-            </div>
+            <input id="software_name" name="software_name" placeholder="Qonta, Odoo, Pennylane…">
           </div>
           <button class="btn primary" type="submit">Choisir l'écran et enregistrer</button>
           <p class="error" id="prepare-error" role="alert" hidden></p>
@@ -67,7 +57,7 @@
           <ul>
             <li><strong>Dites ce que vous faites, et pourquoi.</strong> « J'ouvre la facture, je recopie le numéro. »</li>
             <li><strong>Dites vos règles.</strong> « Je vérifie toujours que HT + TVA = TTC. » « Si le fournisseur est étranger, alors… »</li>
-            <li><strong>Laissez en brouillon.</strong> Ne cliquez pas sur « Valider ».</li>
+            <li><strong>Ne finalisez pas.</strong> Arrêtez-vous avant de valider, envoyer ou payer : l'agent fera de même.</li>
             <li><strong>Une erreur ?</strong> Continuez en disant « je corrige ».</li>
           </ul>
           <p class="note">Chrome vous demandera l'écran à partager, puis le micro.</p>
@@ -119,8 +109,10 @@
         <div class="card">
           <h2>Avancement</h2>
           <ol class="stages" id="stages"></ol>
-          <div class="actions" id="resume-box" hidden>
-            <button class="btn ghost" id="resume" type="button">Relancer</button>
+          <div class="actions">
+            <button class="btn ghost" id="resume" type="button" hidden>Relancer</button>
+            <button class="btn ghost" id="stop-run" type="button" hidden>Arrêter</button>
+            <button class="btn ghost" id="new-demo" type="button">Nouvelle démonstration</button>
           </div>
         </div>
         <div class="side">
@@ -129,6 +121,13 @@
             <p class="note" id="review-note">C'est la méthode que votre agent va suivre. Corrigez ce qui est faux, ajoutez une règle oubliée, puis validez.</p>
             <label for="skill" class="sr-only">Skill</label>
             <textarea id="skill" spellcheck="false"></textarea>
+            <h3>Demande d'essai</h3>
+            <p class="note">Ce que l'agent recevra pendant ses essais, comme une vraie demande, avec ses pièces jointes.</p>
+            <label for="trial-message" class="sr-only">Demande d'essai</label>
+            <textarea id="trial-message" class="short" spellcheck="false"></textarea>
+            <label for="trial-files" class="note">Pièces jointes (PDF ou images, 10 fichiers et 7 Mo au plus)</label>
+            <input id="trial-files" type="file" multiple accept=".pdf,image/*">
+            <p class="note" id="trial-files-note"></p>
             <div class="actions">
               <button class="btn primary" id="approve" type="button">Valider la Skill</button>
             </div>

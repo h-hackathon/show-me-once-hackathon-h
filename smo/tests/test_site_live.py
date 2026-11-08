@@ -1,7 +1,7 @@
-"""Contre le vrai site compta (Comptarex) : le precheck doit passer en v1 et détecter la v2.
+"""Contre le vrai site compta (Qonta) : le precheck doit passer en v1 et détecter la v2.
 
 Le test bascule le site en v2 quelques secondes (version d'origine remise à la fin) : il ne tourne que sur un
-Comptarex local, ou en ligne si SMO_LIVE_TESTS=1, pour ne pas gêner l'équipe sur un site partagé.
+Qonta local, ou en ligne si SMO_LIVE_TESTS=1, pour ne pas gêner l'équipe sur un site partagé.
 Sauté aussi si le site est éteint ou si le jeton admin est refusé.
 """
 import os
