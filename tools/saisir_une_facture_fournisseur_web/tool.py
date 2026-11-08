@@ -165,7 +165,8 @@ def chercher_doublon(page, cfg, params: Params) -> dict | None:
         while True:
             for row in table_rows(page):
                 tiers = row.get("Fournisseur", "")
-                if norm(row.get("Référence", "")) == norm(params.reference) and meme_nom(tiers, params.fournisseur):
+                if (norm(row.get("Référence", "")) == norm(params.reference)
+                        and meme_fournisseur(tiers, params.fournisseur)):
                     return doublon(params, row.get("N°"), row.get("Statut"), row.get("Fournisseur"))
             pages = re.search(r"Page (\d+)/(\d+)", page.get_by_role("main").inner_text())
             if not pages or int(pages.group(1)) >= int(pages.group(2)):
@@ -192,7 +193,11 @@ def nom_compte(text: str) -> str:
 
 
 def meme_fournisseur(compte: str, nom: str) -> bool:
-    return meme_nom(compte, nom) or nom_compte(compte) == nom_compte(nom)
+    """Une forme étrangère n'est ignorée que si l'un des deux noms n'en a pas : ACME AG n'est pas ACME GmbH."""
+    if meme_nom(compte, nom):
+        return True
+    formes = [{w for w in norm(t).split() if w in FORMES_ETRANGERES} for t in (compte, nom)]
+    return nom_compte(compte) == nom_compte(nom) and (formes[0] == formes[1] or not all(formes))
 
 
 def choisir_fournisseur(page, nom: str) -> str:
