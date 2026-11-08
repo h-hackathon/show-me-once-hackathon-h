@@ -52,7 +52,7 @@ function syncKind() {
   const desktop = form.software_kind.value === "desktop";
   $("url-label").textContent = desktop ? "Nom de l'application ouverte" : "Adresse du logiciel";
   form.url.type = desktop ? "text" : "url";
-  form.url.placeholder = desktop ? "COMPTAREX Cabinet 6.2" : "https://…";
+  form.url.placeholder = desktop ? "QONTA Cabinet 6.2" : "https://…";
   if (desktop && form.url.value === config.site_url) form.url.value = "";
   if (!desktop && !form.url.value && config.site_url) form.url.value = config.site_url;
 }

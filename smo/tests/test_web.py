@@ -84,7 +84,7 @@ def test_stop_cancels_the_h_session_and_the_pipeline_stops(s, monkeypatch):
 
 def test_online_desktop_capture_needs_the_h_desktop_environment(s, monkeypatch):
     monkeypatch.setenv("RAILWAY_ENVIRONMENT", "production")
-    data = {"task": "t", "url": "COMPTAREX Cabinet 6.2", "software_kind": "desktop"}
+    data = {"task": "t", "url": "QONTA Cabinet 6.2", "software_kind": "desktop"}
     s = dataclasses.replace(s, h_desktop_env=None, h_desktop_bridge=None)
     bridge = "3f2c1a9e-8b7d-4c6e-9f10-2a3b4c5d6e7f"
     cases = ((None, None, 422), ("qonta-desktop", None, 200), (None, bridge, 200))
