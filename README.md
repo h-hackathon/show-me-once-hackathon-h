@@ -1,30 +1,32 @@
 # Show me once
 
-> **Vos équipes n'ont pas besoin d'apprendre à automatiser. Elles font la tâche une fois, l'agent fait les 500 suivantes.**
+> **Jusqu'ici, vous appreniez avec l'IA. Avec Show me once, c'est vous qui apprenez à l'IA.**
 
 Hackathon H Company × 42AI — 7–8 novembre 2026.
 
-**TL;DR (EN).** An ops analyst handles **one** Stripe chargeback while talking out loud. Show me once turns that recording
-(Gladia + Holo) into an **H custom agent** with a reviewed **Skill**. The agent then defends the whole dispute queue in
-parallel through the screen (Stripe Dashboard, back-office, carrier portal, support tool — none of them have an API).
-**Devin** compiles each learned task into a deterministic **tool**; when the software UI changes, the tool's precheck fails,
-the **H agent takes over in computer use**, and its trace sends Devin to repair the tool. Results are scored from the
-**real dispute statuses in Stripe**, not from what the agent says.
+**TL;DR (EN).** Until now, people learned *from* AI. With Show me once, people teach the AI — the way a manager shows
+an intern how a task is done. You do the task **once** on your screen while explaining it out loud. Show me once turns
+that recording (Gladia + Holo) into an **H custom agent** with a **Skill** you review, then **Devin** compiles it into a
+deterministic **tool**. When the software changes, the tool detects it, the **H agent takes over in computer use**, and
+Devin repairs the tool. No technical skills needed to create the agent. Proof on a real case: defending **Stripe
+chargebacks**, scored from the real dispute statuses in Stripe.
 
 ---
 
-## 1. Le problème
+## 1. L'idée : montrer une fois, comme à un stagiaire
 
-Une contestation de paiement (**chargeback**) non défendue avant la date limite, c'est de l'argent perdu d'office.
-Une marketplace en reçoit des centaines par jour, à environ 15 minutes chacune.
+Quand un manager forme un stagiaire, il ne lui écrit pas un programme : **il fait la tâche devant lui en expliquant**
+ce qu'il fait et pourquoi. « Là je vérifie le montant. Si c'est moins de 15 €, on ne conteste pas, ça coûte plus cher. »
 
-Ce travail ne s'automatise pas par API :
-- **les preuves sont dans des outils sans API** : back-office maison, portail du transporteur, outil de support ;
-- **la décision dépend de règles que seule l'équipe connaît** : « moins de 15 €, on accepte », « carte volée confirmée, on accepte et on bloque le client »…
+Show me once fait exactement ça avec un agent IA :
+- **vous faites la tâche une fois**, sur votre écran, en parlant ;
+- Show me once en tire **un agent qui travaille à l'écran comme vous** (computer use), avec **vos règles** ;
+- **aucune compétence technique** : pas de prompt à écrire, pas de workflow à dessiner, pas de code.
 
-Les outils de contestation automatique existants ne voient que les données accessibles par API et appliquent *leurs* règles.
+Les agents computer use savent déjà utiliser un logiciel. Ce qui leur manque, c'est **votre façon de faire** :
+les règles implicites, les exceptions, ce qu'on ne fait jamais. C'est précisément ce qu'une démonstration commentée contient.
 
-## 2. Notre réponse : apprendre en regardant, une fois
+## 2. Comment ça marche
 
 ```mermaid
 flowchart LR
@@ -43,19 +45,38 @@ flowchart LR
 5. **Exploiter.** L'agent appelle le tool : rapide, reproductible, toujours arrêté avant l'action finale.
 6. **Reprendre.** Si le logiciel a changé, le *precheck* du tool échoue : **l'agent H finit la tâche en computer use** avec la Skill, et sa trace renvoie Devin corriger le tool.
 
+1. **Montrer.** Vous faites la tâche en commentant à voix haute. Gladia transcrit (en direct, puis sur le fichier complet) ; une capture d'écran est extraite à chaque phrase.
+2. **Comprendre.** Holo (Models API de H) relie chaque phrase à l'écran et en tire la procédure et **les règles implicites**. Linkup vérifie ces règles sur des sources publiques. Vous relisez et corrigez la **Skill** avant tout lancement.
+3. **Essayer.** Un **agent custom H** est créé avec cette Skill et refait la tâche seul, à l'écran. Holo juge si le résultat est le même que dans la démo ; sinon, la leçon est ajoutée à la Skill (3 essais au plus).
+4. **Compiler.** Devin reçoit la trace réussie et écrit un **tool déterministe** (Playwright, sélecteurs par libellés visibles), son contrat d'interface et ses tests, dans une PR. Tests verts → fusion → déploiement automatique.
+5. **Exploiter.** L'agent appelle le tool : rapide, reproductible, toujours arrêté avant l'action finale.
+6. **Reprendre.** Si le logiciel a changé, le *precheck* du tool échoue : **l'agent H finit la tâche en computer use** avec la Skill, et sa trace renvoie Devin corriger le tool.
+
 > Un script classique casse à la première mise à jour du logiciel. Le nôtre se répare : l'agent H prend le relais à l'écran, et Devin corrige le code derrière lui.
 
-## 3. Pourquoi c'est solide
+## 3. Le cas qui le prouve : défendre les chargebacks
+
+Une contestation de paiement (**chargeback**) non défendue avant la date limite, c'est de l'argent perdu d'office.
+Une marketplace en reçoit des centaines par jour, à environ 15 minutes chacune.
+
+C'est le cas idéal pour Show me once, parce qu'il ne s'automatise pas par API :
+- **les preuves sont dans des outils sans API** : back-office maison, portail du transporteur, outil de support ;
+- **la décision dépend de règles que seule l'équipe connaît** : « moins de 15 €, on accepte », « carte volée confirmée, on accepte et on bloque le client »…
+
+Les outils de contestation automatique existants ne voient que les données accessibles par API et appliquent *leurs* règles.
+Ici, une analyste montre **un** litige, et l'agent défend toute la file **avec ses règles à elle**.
+
+## 4. Pourquoi c'est solide
 
 | Critère du jury | Ce que nous montrons |
 |---|---|
 | **Usage du computer use** | L'écran est central deux fois : pour **apprendre** (la démo) et pour **agir** là où il n'y a pas d'API, plus la reprise quand un tool casse. |
 | **Fiabilité** | Le résultat est lu dans **Stripe** (statut réel de chaque litige), jamais dans le récit de l'agent. Chaque tâche est rejouée plusieurs fois (benchmark A/B). |
-| **Utilité** | De l'argent récupéré, mesuré en euros. La même méthode marche pour n'importe quel back-office sans API. |
-| **Originalité** | Apprentissage par démonstration + compilation en tool + **auto-réparation**. |
+| **Utilité** | N'importe quel employé crée un agent sans compétence technique. Sur le cas chargebacks : de l'argent récupéré, mesuré en euros. |
+| **Originalité** | On n'écrit pas l'agent, on **le forme** : apprentissage par démonstration, compilation en tool, **auto-réparation**. |
 | **Contrôle par l'humain** | Skill relue avant lancement ; l'agent s'arrête toujours avant « Soumettre » ; bouton « Arrêter » ; aucun code de Devin n'est déployé sans tests verts. |
 
-## 4. Démo et résultats
+## 5. Démo et résultats
 
 - **Vidéo de démo** : _lien à ajouter_
 - **Écran « € récupérés »** : `chargebacks/` → `python -m som watch`
@@ -72,7 +93,7 @@ Chaque litige traité ne se rejoue pas : chaque condition a son propre lot, cré
 
 Les chiffres sortent de `python -m som bench` (`runs/<date>/scores.csv`, lien de replay H de chaque session dans `log.csv`).
 
-## 5. Organisation du repo
+## 6. Organisation du repo
 
 ```
 show-me-once/
@@ -122,7 +143,7 @@ Les déploiements (Railway, GitHub Actions d'h-tools) tournent depuis les repos 
 | [`comptarex/`](comptarex/) | `Jean-Christophe972/show-me-once` | [`comptarex/README.md`](comptarex/README.md) |
 | [`prep/`](prep/) | `Jean-Christophe972/show-me-once` | [`prep/JOURNAL.md`](prep/JOURNAL.md) |
 
-## 6. Partenaires : ce que chacun fait vraiment
+## 7. Partenaires : ce que chacun fait vraiment
 
 | Partenaire | Rôle dans Show me once | Où |
 |---|---|---|
@@ -133,7 +154,7 @@ Les déploiements (Railway, GitHub Actions d'h-tools) tournent depuis les repos 
 | **Linkup** | vérifie les règles dites par l'humain et cherche la documentation publique du logiciel | `smo/smo/pipeline/enrich.py` |
 | **Stripe** | litiges réels en mode test ; leur statut final est notre vérité | `chargebacks/som/seed.py`, `chargebacks/som/checker.py` |
 
-## 7. Sécurité
+## 8. Sécurité
 
 - Aucun secret dans le repo : chaque projet a son `.env.example`, les `.env` sont ignorés par git.
 - Clés Stripe **de test uniquement** (le code refuse une clé live).
@@ -141,7 +162,7 @@ Les déploiements (Railway, GitHub Actions d'h-tools) tournent depuis les repos 
 - Serveur SMO en ligne protégé par jeton obligatoire ; tools sans adresse publique utile sans ce jeton.
 - Toutes les données sont fictives (marketplace « Sportiva », cabinet « Fiduciaire Moreau »).
 
-## 8. Équipe
+## 9. Équipe
 
 | | Rôle |
 |---|---|
