@@ -1,6 +1,7 @@
 # Bloc commun des Skills
 
-La règle absolue (le tool d'abord, l'écran en secours puis `report_drift`, ne jamais finaliser, le format de réponse)
+La règle absolue (le tool d'abord, l'écran en secours, `report_drift` seulement si l'interface a changé et jamais
+pour un refus métier, ne jamais finaliser, le format de réponse)
 est dans les instructions de l'agent (`smo/pipeline/provision.py`) : elles sont toujours lues, une Skill ne l'est que
 si H la charge. Ces blocs n'en donnent que le détail, sans la répéter.
 
