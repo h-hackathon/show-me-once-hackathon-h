@@ -23,10 +23,15 @@ ask() {   # ask <en-tête d'auth> <requête GraphQL> [id du projet]
 
 seen=$(ask "Authorization: Bearer $token" 'query($id: String!) { project(id: $id) { name } }' "$project")
 if printf '%s' "$seen" | grep -q '"name"'; then
-  kind="jeton d'équipe (workspace)"
-  ask "Authorization: Bearer $token" '{ me { id } }' | grep -q '"id"' && kind="jeton de compte"
-  echo "jeton Railway OK ($kind) : il voit le projet $(printf '%s' "$seen" | sed -n 's/.*"name":"\([^"]*\)".*/\1/p')"
-  exit 0
+  name=$(printf '%s' "$seen" | sed -n 's/.*"name":"\([^"]*\)".*/\1/p')
+  if ask "Authorization: Bearer $token" '{ me { id } }' | grep -q '"id"'; then
+    echo "jeton Railway OK (jeton de compte) : il voit le projet $name"
+    exit 0
+  fi
+  # Vu le 08/11 : l'API l'accepte, mais le CLI (5.2.0 comme 5.71.0, même avec --workspace) répond « Unauthorized ».
+  echo "RAILWAY_API_TOKEN est un jeton d'ÉQUIPE (workspace) : l'API voit le projet $name, mais le CLI Railway le" \
+       "refuse. Il faut un jeton de compte : Account Settings → Tokens, avec « No workspace », créé par un membre du projet." >&2
+  exit 1
 fi
 
 if ask "Authorization: Bearer $token" '{ me { id } }' | grep -q '"id"'; then
