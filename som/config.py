@@ -3,10 +3,6 @@ import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-DATA = ROOT / "data"
-FACTURES = DATA / "factures"
-FACTURES_PNG = DATA / "factures_png"
-SKILLS = ROOT / "skills"
 RUNS = ROOT / "runs"
 
 try:

@@ -1,5 +1,2 @@
-hai-agents[all]   # SDK Agents API H (+ navigateur local, outils OTP)
-pydantic>=2
-python-dotenv
-httpx
-imageio-ffmpeg    # ffmpeg intégré : son + images de la vidéo de démo
+python-dotenv   # lit le fichier .env
+certifi         # certificats HTTPS (Python de python.org sur Mac)

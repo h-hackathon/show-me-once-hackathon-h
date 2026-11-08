@@ -2,7 +2,7 @@
 
 Pour chaque scénario : un client, puis un paiement confirmé avec une carte de test qui déclenche un litige
 (pm_card_createDispute = « fraude », pm_card_createDisputeProductNotReceived = « colis non reçu »).
-Un litige ne se remet pas à zéro : chaque run du benchmark utilise donc son propre lot (--batch).
+Un litige traité ne se remet pas à zéro : chaque usage (vidéo, démo…) prend son propre lot (--batch).
 
 Sortie : runs/stripe/<batch>.json  [{order_id, dispute_id, payment_intent, customer, montant, …}]
 """
@@ -31,31 +31,30 @@ def _one(s: dict, batch: str) -> dict:
             "charge": pi.get("latest_charge"), "montant": s["montant"], "motif": s["motif"], "dispute_id": None}
 
 
-def seed(batch: str, limit: int | None = None, wait_s: int = 90) -> list[dict]:
+def seed(batch: str, limit: int | None = None, offset: int = 0, wait_s: int = 300) -> list[dict]:
     out_dir = RUNS / "stripe"
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / f"{batch}.json"
     if path.exists():
         raise SystemExit(f"❌ Le lot « {batch} » existe déjà ({path}). Choisis un autre nom : --batch {batch}b")
-    scenarios = generate()[:limit] if limit else generate()
+    scenarios = generate()[offset:]
+    scenarios = scenarios[:limit] if limit else scenarios
     print(f"💳 Création de {len(scenarios)} paiements litigieux dans Stripe (mode test), lot « {batch} »…")
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        rows = list(pool.map(lambda s: _one(s, batch), scenarios))
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        rows = []
+        for i, row in enumerate(pool.map(lambda s: _one(s, batch), scenarios), 1):
+            rows.append(row)
+            if i % 25 == 0 or i == len(scenarios):
+                print(f"   {i}/{len(scenarios)} paiements créés")
 
     print("⏳ Attente des litiges (Stripe les crée quelques secondes après le paiement)…")
     t0 = time.time()
     while time.time() - t0 < wait_s and any(r["dispute_id"] is None for r in rows):
-        for r in rows:
-            if r["dispute_id"] is None:
-                found = st.get("/disputes", payment_intent=r["payment_intent"], limit=1).get("data", [])
-                if found:
-                    d = found[0]
-                    r.update(dispute_id=d["id"], due_by=(d.get("evidence_details") or {}).get("due_by"),
-                             reason=d.get("reason"), url=st.dashboard_url("disputes", d["id"]))
+        _match(rows, since=int(t0) - 600)
         missing = sum(r["dispute_id"] is None for r in rows)
         print(f"   {len(rows) - missing}/{len(rows)} litiges créés")
         if missing:
-            time.sleep(4)
+            time.sleep(6)
     path.write_text(json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8")
     if any(r["dispute_id"] is None for r in rows):
         print("⚠️  Certains litiges ne sont pas encore apparus : relance `python -m som stripe-sync --batch "
@@ -64,17 +63,29 @@ def seed(batch: str, limit: int | None = None, wait_s: int = 90) -> list[dict]:
     return rows
 
 
+def _match(rows: list[dict], since: int | None = None) -> None:
+    """Associe chaque paiement à son litige en parcourant la liste des litiges (100 par appel)."""
+    by_pi = {r["payment_intent"]: r for r in rows if not r.get("dispute_id")}
+    params = {"limit": 100}
+    if since:
+        params["created"] = {"gte": since}
+    while by_pi:
+        page = st.get("/disputes", **params)
+        for d in page.get("data", []):
+            r = by_pi.pop(d.get("payment_intent"), None)
+            if r:
+                r.update(dispute_id=d["id"], due_by=(d.get("evidence_details") or {}).get("due_by"),
+                         reason=d.get("reason"), url=st.dashboard_url("disputes", d["id"]))
+        if not page.get("has_more") or not page.get("data"):
+            break
+        params["starting_after"] = page["data"][-1]["id"]
+
+
 def sync(batch: str) -> list[dict]:
     """Complète les litiges manquants d'un lot déjà créé."""
     path = RUNS / "stripe" / f"{batch}.json"
     rows = json.loads(path.read_text(encoding="utf-8"))
-    for r in rows:
-        if not r.get("dispute_id"):
-            found = st.get("/disputes", payment_intent=r["payment_intent"], limit=1).get("data", [])
-            if found:
-                d = found[0]
-                r.update(dispute_id=d["id"], due_by=(d.get("evidence_details") or {}).get("due_by"),
-                         reason=d.get("reason"), url=st.dashboard_url("disputes", d["id"]))
+    _match(rows)
     path.write_text(json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"✅ {sum(bool(r.get('dispute_id')) for r in rows)}/{len(rows)} litiges dans {path}")
     return rows

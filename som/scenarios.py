@@ -1,9 +1,9 @@
-"""Les 60 litiges de la démo (24 historiques + 36 ajoutés) et la vérité terrain (ce qu'un analyste expérimenté ferait).
+"""Les 400 litiges de la démo (24 historiques + 36 + 340 ajoutés) et la vérité terrain (ce qu'un analyste expérimenté ferait).
 
 Marketplace fictive « Sportiva ». Chaque litige Stripe est rattaché à une commande (métadonnée order_id).
 Les preuves sont dispersées dans 3 outils internes : back-office commandes, portail transporteur, support client.
 
-Règles de l'équipe (dans cet ordre) — c'est ce que la Skill doit apprendre de la démo :
+Règles de l'équipe (dans cet ordre) :
   1. montant < 15 €                          → accepter (se défendre coûte plus cher que le litige : ~15 € de frais)
   2. carte volée confirmée par le titulaire  → accepter ET bloquer le client dans Stripe (métadonnée bloque = oui)
   3. client déjà remboursé (back-office)     → contester avec la preuve de remboursement (sinon on paie deux fois)
@@ -59,6 +59,19 @@ FAMILLES_EXTRA = [
     ("perdu", "product_not_received", 2),
     ("sans_signature", "product_not_received", 2),
 ]
+# 340 litiges ajoutés pour atteindre 400 (mêmes familles, mêmes règles)
+FAMILLES_EXTRA2 = [
+    ("livre_signe", "product_not_received", 80),
+    ("livre_signe", "fraudulent", 30),
+    ("recu_confirme", "product_not_received", 35),
+    ("deja_rembourse", "product_not_received", 35),
+    ("petit_montant", "product_not_received", 40),
+    ("carte_volee", "fraudulent", 30),
+    ("carte_volee_petit", "fraudulent", 10),
+    ("perdu_puis_recu", "product_not_received", 20),
+    ("perdu", "product_not_received", 30),
+    ("sans_signature", "product_not_received", 30),
+]
 
 
 def decide(s: dict) -> tuple[str, bool, str]:
@@ -86,6 +99,9 @@ def generate(seed: int = SEED) -> list[dict]:
     extra = [(f, m) for f, m, k in FAMILLES_EXTRA for _ in range(k)]
     random.Random(seed + 2).shuffle(extra)
     file += extra  # ajoutés APRÈS : les 24 premiers litiges restent strictement identiques
+    extra2 = [(f, m) for f, m, k in FAMILLES_EXTRA2 for _ in range(k)]
+    random.Random(seed + 3).shuffle(extra2)
+    file += extra2  # idem : les 60 premiers restent identiques
     for famille, motif in file:
         if True:
             n += 1

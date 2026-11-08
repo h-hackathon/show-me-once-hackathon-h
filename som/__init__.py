@@ -1,1 +1,1 @@
-"""Show me once — l'humain fait la tâche une fois, l'agent H fait les suivantes."""
+"""Sportiva — outils factices et litiges Stripe de démonstration."""

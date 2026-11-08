@@ -1,7 +1,6 @@
 """Mini client de l'API Stripe (bibliothèque standard), réservé au MODE TEST.
 
-Sert à : créer les litiges de la démo (seed), lire leurs vrais statuts (vérificateur, écran € récupérés).
-L'agent, lui, ne passe jamais par l'API : il travaille dans le Dashboard Stripe, comme un humain.
+Sert à créer les litiges de la démo (seed) et à retrouver leurs identifiants.
 """
 import base64
 import json

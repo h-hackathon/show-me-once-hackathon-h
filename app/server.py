@@ -21,6 +21,10 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 
 HERE = Path(__file__).resolve().parent
 DATA = json.loads((HERE / "data.json").read_text(encoding="utf-8"))
+BY_CLIENT: dict = {}
+for _o in DATA["orders"].values():
+    BY_CLIENT.setdefault(_o["client_email"], []).append(_o)
+N_LITIGES = sum(1 for _o in DATA["orders"].values() if _o["litige"])
 SECRET = (os.environ.get("SECRET_KEY") or "sportiva-demo-" + DATA.get("genere_le", "")).encode()
 MOIS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."]
 JOURS = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
@@ -283,7 +287,7 @@ def ful_pill(t: str) -> str:
 
 
 def admin_shell(active: str, inner: str, q: str = "") -> str:
-    n_lit = sum(1 for o in DATA["orders"].values() if o["litige"])
+    n_lit = N_LITIGES
     nav = [("home", "/admin", "home", "Accueil"), ("orders", "/admin/orders", "orders", "Commandes"),
            ("products", "/admin/products", "tag", "Produits"), ("customers", "/admin/customers", "users", "Clients"),
            ("analytics", "/admin/analytics", "chart", "Analyses de données")]
@@ -406,7 +410,7 @@ def admin_order(oid: str) -> str | None:
                  f'<div><div>{e(ev["texte"])}</div><div class="t">{fdate(ev["date"])}</div></div></div>' for ev in reversed(o["chronologie"]))
     banner = (f'<div class="banner rise"><div class="bh">{ic("alert", 20)}</div><div class="t"><b>Contestation de paiement ouverte</b><br>'
               f'<span>La banque du client conteste ce paiement. Le litige se traite dans le Dashboard Stripe.</span></div></div>' if o["litige"] else "")
-    spent = sum(x["total"] for x in DATA["orders"].values() if x["client_email"] == o["client_email"])
+    spent = sum(x["total"] for x in BY_CLIENT.get(o["client_email"], []))
     tags = "".join(f'<span class="tag">{ic("tag", 13)}{e(t)}</span>' for t in o["tags"]) or '<span style="color:var(--mute)">Aucune étiquette</span>'
     inner = f"""<a class="crumb" href="/admin/orders">← Commandes</a>
 <div class="title"><h1 class="mono" style="font-family:'Roboto Mono',monospace;font-weight:600;font-size:26px">{o['id']}</h1>{pay_pill(o['paiement'])}{ful_pill(o['traitement'])}
@@ -431,12 +435,12 @@ def admin_customers(q: str) -> str:
     for email, c in sorted(DATA["clients"].items(), key=lambda kv: kv[1]["nom"]):
         if ql and ql not in f"{email} {c['nom']}".lower():
             continue
-        n = [o for o in DATA["orders"].values() if o["client_email"] == email]
+        n = BY_CLIENT.get(email, [])
         rows.append(f'<tr class="r"><td><div class="who">{avatar(c["nom"], 28)}<a class="oid" style="font-family:inherit" href="/admin/customers/{quote(email)}">{e(c["nom"])}</a></div></td>'
                     f'<td style="color:var(--mute)">{e(email)}</td><td>{e(c["ville"])}</td><td class="num">{c["commandes"]}</td><td class="num">{eur(sum(o["total"] for o in n))}</td></tr>')
     inner = f"""<div class="title"><h1>Clients</h1><span class="meta">{len(rows)} client(s)</span></div><div class="card rise">
 <form class="tools" action="/admin/customers"><div class="f">{ic('search', 17)}<input name="q" value="{e(q)}" placeholder="Rechercher un client par nom ou e-mail"></div><button class="btn">Rechercher</button></form>
-<table><tr><th>Client</th><th>E-mail</th><th>Ville</th><th style="text-align:right">Commandes</th><th style="text-align:right">Dépensé</th></tr>{''.join(rows)}</table></div>"""
+<table><tr><th>Client</th><th>E-mail</th><th>Ville</th><th style="text-align:right">Commandes</th><th style="text-align:right">Dépensé</th></tr>{''.join(rows[:100])}</table>{f'<div class="tfoot">100 premiers affichés sur {len(rows)} · utilise la recherche</div>' if len(rows) > 100 else ''}</div>"""
     return admin_shell("customers", inner)
 
 
@@ -444,7 +448,7 @@ def admin_customer(email: str) -> str | None:
     c = DATA["clients"].get(email)
     if not c:
         return None
-    orders = [o for o in DATA["orders"].values() if o["client_email"] == email]
+    orders = BY_CLIENT.get(email, [])
     rows = "".join(f'<tr class="r"><td><a class="oid" href="/admin/orders/{o["id"]}">{o["id"]}</a></td><td>{fdate(o["date"], False)}</td>'
                    f'<td class="num">{eur(o["total"])}</td><td>{pay_pill(o["paiement"])}</td><td>{ful_pill(o["traitement"])}</td></tr>' for o in orders)
     inner = f"""<a class="crumb" href="/admin/customers">← Clients</a><div class="title">{avatar(c['nom'], 44)}<h1>{e(c['nom'])}</h1>
@@ -809,7 +813,7 @@ def care_page(q: str, tid: str | None) -> str:
     att = sum(1 for t in allt if t["statut"] != "Résolu")
     items = "".join(f"""<a class="t {'on' if t['id'] == tid else ''}" href="/care/tickets/{quote(t['id'][1:])}{'?q=' + quote(q) if q else ''}">{care_avatar(t['client'])}
 <div style="min-width:0"><div class="top"><span>{e(t['client'])}</span><span>{_ago(t['date'])}</span></div><div class="s">{e(t['sujet'])} — {e(t['messages'][0][1])}</div>
-<small><span>{e(t['id'])} · {e(t['commande'])}</span><span class="pill {'p-ok' if t['statut'] == 'Résolu' else 'p-wait'}"><i></i>{e(t['statut'])}</span></small></div></a>""" for t in ts)
+<small><span>{e(t['id'])} · {e(t['commande'])}</span><span class="pill {'p-ok' if t['statut'] == 'Résolu' else 'p-wait'}"><i></i>{e(t['statut'])}</span></small></div></a>""" for t in ts[:150])
     t = next((x for x in allt if x["id"] == tid), None)
     if t:
         r = random.Random(t["id"])
@@ -826,7 +830,7 @@ def care_page(q: str, tid: str | None) -> str:
 <div class="composer"><div class="tb"><span class="on">Répondre</span><span>Note interne</span></div><div class="ph">Répondre à {e(t['client'].split()[0])}…</div>
 <div class="ft">{ic('file', 17)}{ic('note', 17)}{ic('tag', 17)}{ic('attach', 17)}<span class="send">Envoyer</span></div></div>"""
         c = DATA["clients"].get(t["email"], {"nom": t["client"], "ville": "", "cp": "", "depuis": "", "commandes": 0})
-        orders = sorted((o for o in DATA["orders"].values() if o["client_email"] == t["email"]), key=lambda o: o["date"], reverse=True)
+        orders = sorted(BY_CLIENT.get(t["email"], []), key=lambda o: o["date"], reverse=True)
         oc = "".join(f'<div class="oc"><div><span class="mono">{o["id"]}</span><br><small style="color:var(--mute)">{fdate(o["date"], False)}</small></div>'
                      f'<div style="text-align:right"><b>{eur(o["total"])}</b><br><small style="color:var(--mute)">{e(o["traitement"])}</small></div></div>' for o in orders)
         others = [x for x in allt if x["email"] == t["email"] and x["id"] != t["id"]]
@@ -852,7 +856,7 @@ def care_page(q: str, tid: str | None) -> str:
 <a href="#">{ic('clock', 16)} En attente<span>{att}</span></a></section>
 <section class="list"><div class="lh"><h2>{ic('inbox', 18)} Tickets</h2><form action="/care">{ic('search', 16)}
 <input name="q" value="{e(q)}" placeholder="Rechercher : e-mail, nom, n° de commande"></form><div class="sub"><span>Ouverts {len(ts)} ▾</span><span>Plus récents ▾</span></div></div>
-{items or '<div style="padding:24px;color:var(--mute)">Aucun ticket trouvé.</div>'}</section>
+{items or '<div style="padding:24px;color:var(--mute)">Aucun ticket trouvé.</div>'}{f'<div style="padding:14px;color:var(--mute);font-size:12.5px">150 plus récents affichés sur {len(ts)} · utilise la recherche pour retrouver un ticket</div>' if len(ts) > 150 else ''}</section>
 <main class="conv">{conv}</main>{ctx}</div>"""
     return page("Sportiva Care", body, CARE_CSS, "care", "#1f73e8")
 
