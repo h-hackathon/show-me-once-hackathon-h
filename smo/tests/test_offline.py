@@ -535,6 +535,21 @@ def test_devin_brief_renders(run, s):
     assert "tools/x/" in prompt and "$" not in prompt.replace("$tool", "")
 
 
+def test_devin_brief_has_the_map_once_and_the_screens_of_the_good_attempt(tmp_path):
+    skill_md = "# S\n\n## Étapes\n1. a\n\n## Carte du logiciel\n- Connexion\n- Factures\n\n## Règles\n- r\n"
+    assert compile_stage.without_map(skill_md) == "# S\n\n## Étapes\n1. a\n\n## Règles\n- r\n"
+    assert compile_stage.without_map("# S\n\n## Carte du logiciel\n- x\n") == "# S\n"
+    shots = []
+    for i in range(7):
+        shots.append(tmp_path / f"step-{i:03d}.png")
+        shots[-1].write_bytes(b"png")
+    trace = Trace(session_id="s", agent="a", status="completed", steps=[
+        TraceStep(index=i, screenshot=str(p)) for i, p in enumerate(shots)] + [
+        TraceStep(index=7, screenshot="https://cdn.example/step-007.png")])
+    assert [p.name for p in compile_stage.trace_shots(trace, 3)] == ["step-000.png", "step-003.png", "step-006.png"]
+    assert compile_stage.trace_shots(trace, 0) == []
+
+
 def test_devin_session_requires_the_json_report():
     import httpx
     from smo.clients.devin import Devin

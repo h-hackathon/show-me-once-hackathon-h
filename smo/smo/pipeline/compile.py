@@ -5,6 +5,7 @@ Devin n'est pas déterministe ; le code qu'il produit l'est, une fois relu (PR) 
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 from string import Template
@@ -18,6 +19,7 @@ from ..runs import Run
 from . import docs, mapping
 from .skill import tool_name
 from .trial import trial_request
+from .understand import spread
 
 
 MAX_TRACE_CHARS = 20_000
@@ -35,6 +37,18 @@ def trace_text(trace: Trace) -> str:
         lines.append(f"- [{st.url or '?'}] {st.title or ''} → {actions or 'observation'}")
     text = "\n".join(lines)
     return text if len(text) <= MAX_TRACE_CHARS else text[:MAX_TRACE_CHARS] + "\n[…] (trace complète en pièce jointe)"
+
+
+def without_map(skill: str) -> str:
+    """La Skill pour le brief, sans sa section « Carte du logiciel » : le brief a déjà la carte (section 4)."""
+    return re.sub(r"\n## Carte du logiciel\n.*?(?=\n## |\Z)", "", skill, flags=re.S)
+
+
+def trace_shots(trace: Trace, n: int) -> list[Path]:
+    """n captures de l'essai réussi (trials/<n>/step-*.png) à intervalles réguliers, l'écran final compris."""
+    shots = [Path(st.screenshot) for st in trace.steps
+             if st.screenshot and not st.screenshot.startswith("http") and Path(st.screenshot).exists()]
+    return spread(shots, n) if n > 0 else []
 
 
 def checks_text(context: Context) -> str:
@@ -82,7 +96,7 @@ def run(run: Run, s: Settings, log: Callable[[str], None], wait: bool = True) ->
         name = tool_name(run)
         prompt = Template((ROOT / "docs" / "DEVIN_BRIEF.md").read_text(encoding="utf-8")).substitute(
             method=METHOD, task=meta.task, repo=s.devin_repo or "ce repo", tool_name=name, url=meta.software_url,
-            request=trial_request(run).message, skill=run.file("skill.md").read_text(encoding="utf-8"),
+            request=trial_request(run).message, skill=without_map(run.file("skill.md").read_text(encoding="utf-8")),
             trace=trace_text(trace), checks=checks_text(context),
             map=mapping.summary(soft_map) if (soft_map := mapping.load(run)) else "Pas de carte.",
             docs=docs.summary(run) or "Pas de documentation publique trouvée.", kind=meta.software_kind)
@@ -90,8 +104,7 @@ def run(run: Run, s: Settings, log: Callable[[str], None], wait: bool = True) ->
         # les sorties JSON complètes de chaque étape (rien n'est perdu par le résumé du brief), puis des captures
         outputs = [run.file(n) for n in ("trace.json", "trial.json", "procedure.json", "notes.json", "map.json",
                                          "docs.json") if run.has(n)]
-        shots = sorted(run.file("trace").glob("step-*.png"))
-        urls = _attachments(api, [*outputs, *shots[:max(0, MAX_ATTACHMENTS - len(outputs))]])
+        urls = _attachments(api, [*outputs, *trace_shots(trace, MAX_ATTACHMENTS - len(outputs))])
         secrets = {} if meta.software_kind == "desktop" else session_secrets(s, meta.software_url, log)
         session = api.create_session(prompt, tags=["smo", run.id], max_acu=s.devin_max_acu, attachment_urls=urls,
                                      output_schema=REPORT_SCHEMA, secrets=secrets)
