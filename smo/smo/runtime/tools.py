@@ -107,7 +107,14 @@ def guarded(fn: Callable) -> dict:
 
 
 def with_page(fn: Callable) -> dict:
-    """Un navigateur neuf par appel (l'API sync de Playwright ne se partage pas entre threads)."""
+    """Un navigateur neuf par appel (l'API sync de Playwright ne se partage pas entre threads). Tool d'h-tools : le
+    navigateur de son runtime (fr-FR, délais, étape en cause dans l'erreur), le même que sur Railway."""
+    try:
+        from h_tools.loader import with_page as runtime_with_page   # le clone est dans sys.path (load_tool)
+    except ImportError:
+        runtime_with_page = None
+    if runtime_with_page is not None:
+        return runtime_with_page(fn)
     from playwright.sync_api import sync_playwright
 
     with sync_playwright() as p:
