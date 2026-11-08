@@ -11,7 +11,8 @@ capture → transcribe → frames → read → understand → enrich → skill �
    └──→ docs (Linkup, en parallèle : documentation publique du logiciel) ──┘
 
 Un agent H par type de logiciel : `web` (navigateur) ou `desktop` (bureau du Mac), chacun avec sa Skill et ses tools.
-Chaque Skill envoyée dans H se termine par le bloc commun `skills/bloc_commun.md` (utiliser les tools).
+La règle absolue (le tool d'abord, l'écran en secours) est dans les instructions de chaque agent ; sa Skill commence
+par le détail (`skills/bloc_commun*.md`).
           Gladia       ffmpeg   Holo   Holo        Linkup            humain   agent H     agent H  Devin     agent H + tool
                                 (1 capture par appel, puis synthèse en texte seul)
 ```

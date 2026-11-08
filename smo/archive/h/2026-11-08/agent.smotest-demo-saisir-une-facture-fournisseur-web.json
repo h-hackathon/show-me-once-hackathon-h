@@ -1,0 +1,157 @@
+{
+  "name": "smotest-demo-saisir-une-facture-fournisseur-web",
+  "description": "Saisir une facture fournisseur, appris d'une démonstration de demo (web).",
+  "environments": [
+    {
+      "kind": "web",
+      "id": "web",
+      "host": "cloud",
+      "start_url": "https://show-me-once-prep-production.up.railway.app/login",
+      "headless": false,
+      "mode": {
+        "type": "visual",
+        "width": 1200,
+        "height": 1200,
+        "markdown": false
+      },
+      "lazy": false,
+      "settle_s": 1.0,
+      "vault_id": "b9125850-28a6-42b9-a9ff-c5540e910f9b",
+      "use_default_browser_profile": false,
+      "persist_browser_profile": false,
+      "session_id": null,
+      "browser_profile_id": null,
+      "network": null
+    }
+  ],
+  "instructions": "Règle absolue : pas encore de tool pour cette tâche, fais-la toi-même à l'écran en suivant ta Skill.\nTu es l'agent « Saisir une facture fournisseur » de demo. Tu travailles dans le logiciel https://show-me-once-prep-production.up.railway.app/login, une pièce à la fois, avec ta Skill « smo-demo-saisir-une-facture-fournisseur-web ».\nSi le logiciel demande de choisir un dossier ou une société, prends celui qui correspond à la pièce (le client indiqué dessus).\nSi une règle de la Skill demande l'arrêt (incohérence, cas inconnu), n'enregistre rien et explique pourquoi.\nNe clique jamais sur « Valider ». Réponds au format demandé.",
+  "skills": [
+    "smo-demo-saisir-une-facture-fournisseur-web"
+  ],
+  "answer_format": {
+    "type": "object",
+    "title": "RunReport",
+    "required": [
+      "status",
+      "mode",
+      "summary"
+    ],
+    "properties": {
+      "mode": {
+        "enum": [
+          "tool",
+          "computer_use"
+        ],
+        "type": "string",
+        "title": "Mode"
+      },
+      "flags": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "title": "Flags",
+        "default": []
+      },
+      "status": {
+        "enum": [
+          "done",
+          "flagged",
+          "failed"
+        ],
+        "type": "string",
+        "title": "Status"
+      },
+      "summary": {
+        "type": "string",
+        "title": "Summary"
+      },
+      "reference": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Reference",
+        "default": null
+      }
+    },
+    "description": "Format de réponse imposé à l'agent custom."
+  },
+  "tools": [
+    {
+      "name": "report_drift",
+      "description": "Signale que l'interface a changé pour un tool (precheck en échec ou erreur à l'exécution).\ntool : nom du tool concerné ; details : ce qui a changé ou ce qui manquait. Déclenche sa réparation.",
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "tool",
+          "details"
+        ],
+        "properties": {
+          "tool": {
+            "type": "string",
+            "title": "Tool"
+          },
+          "details": {
+            "type": "string",
+            "title": "Details"
+          }
+        }
+      }
+    },
+    {
+      "name": "check_supplier",
+      "description": "Vérifie sur le web qu'un fournisseur existe (raison sociale, pays) et, si donné, que son n° de TVA lui correspond.",
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "vat_number": {
+            "type": "string",
+            "title": "Vat Number",
+            "default": ""
+          }
+        }
+      }
+    },
+    {
+      "name": "verify_entry",
+      "description": "Relit dans le logiciel (API technique) la pièce enregistrée sous cette référence : statut et montants réels.",
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "reference"
+        ],
+        "properties": {
+          "reference": {
+            "type": "string",
+            "title": "Reference"
+          }
+        }
+      }
+    }
+  ],
+  "model": null,
+  "reasoning_effort": null,
+  "subagents": null,
+  "registry_skills": null,
+  "_revisions": [
+    {
+      "number": 1,
+      "created_at": "2026-11-08T01:41:13.021043Z",
+      "created_by": "ef8890c4-c5fb-46c4-894a-230dac922783",
+      "message": null,
+      "restored_from": null
+    }
+  ]
+}

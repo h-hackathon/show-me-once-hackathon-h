@@ -1,0 +1,9 @@
+{
+  "name": "smo-demo-saisir-une-facture-fournisseur-web",
+  "description": "Utiliser pour toute demande de type « saisir une facture fournisseur » dans https://show-me-once-prep-production.up.railway.app/login (par exemple « traite la pièce XXX ») : la méthode, les contrôles, quand s'arrêter.",
+  "files": {},
+  "executable_files": [],
+  "source": null,
+  "url_pattern": null,
+  "compatibility": null
+}

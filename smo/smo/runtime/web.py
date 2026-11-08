@@ -3,6 +3,7 @@
     GET  /                            la page (smo/web/)
     GET  /api/config                  valeurs par défaut et libellés des étapes
     POST /api/live                    ouvre une transcription Gladia en direct (le navigateur reçoit une URL à jeton)
+    GET  /api/existing                agents SMO déjà dans H pour cette tâche (même nom ou proche), avant d'enregistrer
     POST /api/captures                vidéo + tâche → nouveau run, pipeline lancé jusqu'à la relecture
     GET  /api/runs/{id}               état des étapes, Skill, liens, dernières lignes du journal
     PUT  /api/runs/{id}/skill         Skill corrigée par l'humain
@@ -13,6 +14,7 @@
 """
 from __future__ import annotations
 
+import logging
 import os
 import shutil
 import tempfile
@@ -26,8 +28,9 @@ from pydantic import BaseModel
 from ..clients import gladia, h
 from ..config import Settings
 from ..models import CaptureMeta, CompileResult, Provisioned, SoftwareMap, Trace, Trial, TrialRequest
-from ..pipeline import target
+from ..pipeline import existing, target
 from ..pipeline.orchestrator import NAMES, run_pipeline
+from ..pipeline.skill import name_for
 from ..pipeline.trial import FILES_DIR, trial_request
 from ..runs import Run
 from .auth import token_checker
@@ -35,6 +38,8 @@ from .auth import token_checker
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 MAX_UPLOAD_MB = 500   # ~25 min d'écran enregistré par la page ; au-delà, 413
+
+H_SESSION_URL = "https://platform.hcompany.ai/agents/sessions/{}"
 
 LABELS = {
     "map": "Cartographie du logiciel (agent H)",
@@ -106,8 +111,11 @@ def links(run: Run) -> dict:
     if run.has("agent.json"):
         agent = run.read_model("agent.json", Provisioned)
         out |= {"agent": agent.agent_name, "tool_ready": agent.tool_ready}
+    if run.has("session.active"):                     # essai en cours : on peut regarder l'agent en direct
+        out["live"] = H_SESSION_URL.format(run.file("session.active").read_text().strip())
     if run.has("trace.json"):
-        out["trial_replay"] = run.read_model("trace.json", Trace).agent_view_url
+        trace = run.read_model("trace.json", Trace)
+        out |= {"trial_replay": trace.agent_view_url, "trial_answer": trace.answer}
     if run.has("compile.json"):
         compiled = run.read_model("compile.json", CompileResult)
         out |= {"devin": compiled.url, "pr": compiled.pr_url, "devin_report": compiled.report}
@@ -143,11 +151,26 @@ def router_for(s: Settings) -> tuple[APIRouter, Runner]:
             raise HTTPException(503, "GLADIA_API_KEY absente")
         return {"url": gladia.start_live(s.gladia_api_key)["url"]}
 
+    @router.get("/existing", dependencies=[Depends(check_token)])
+    def existing_agents(task: str, kind: str = "web") -> dict:
+        """Ne bloque jamais l'enregistrement : sans H joignable, aucune proposition."""
+        if not s.hai_api_key or not task.strip():
+            return {"candidates": []}
+        try:
+            found = existing.candidates(s, task.strip(), kind)
+        except Exception:
+            logging.getLogger("smo.web").exception("agents existants pour « %s »", task)
+            return {"candidates": []}
+        return {"candidates": [e.model_dump() for e in found]}
+
     @router.post("/captures", dependencies=[Depends(check_token)])
     async def create_capture(video: UploadFile, task: str = Form(...), url: str = Form(...),
-                             software_kind: str = Form("web"), software_name: str = Form("")) -> dict:
+                             software_kind: str = Form("web"), software_name: str = Form(""),
+                             improves: str = Form("")) -> dict:
         if software_kind not in ("web", "desktop"):
             raise HTTPException(422, "software_kind : web ou desktop")
+        if improves and improves != name_for(task.strip(), software_kind, s.agent_prefix):
+            raise HTTPException(422, f"Le titre de la tâche ne correspond pas à l'agent à améliorer ({improves})")
         if software_kind == "desktop" and not target.has_remote_desktop(s) and os.environ.get("RAILWAY_ENVIRONMENT"):
             raise HTTPException(422, "Appli de bureau : renseigne H_DESKTOP_BRIDGE (l'identifiant qu'affiche "
                                      "scripts/desktop_bridge.sh sur le PC du live) ou H_DESKTOP_ENV (un environnement "
@@ -163,7 +186,7 @@ def router_for(s: Settings) -> tuple[APIRouter, Runner]:
                     raise HTTPException(413, f"Vidéo trop lourde (plus de {MAX_UPLOAD_MB} Mo)")
                 fh.write(chunk)
         meta = CaptureMeta(task=task.strip(), software_kind=software_kind, software_url=url.strip(),
-                           software_name=software_name.strip() or None)
+                           software_name=software_name.strip() or None, improves=improves or None)
         run = Run.create(s.runs_dir, meta, [dest])
         shutil.rmtree(folder)
         runner.start(run)
@@ -173,6 +196,9 @@ def router_for(s: Settings) -> tuple[APIRouter, Runner]:
     def run_state(run_id: str) -> dict:
         run = open_run(run_id)
         status, busy = run.status(), runner.busy(run.id)
+        # Skill validée : l'étape est ensuite sautée sans réécrire son statut, qui restait « en attente » (la page aussi)
+        if run.has("skill.approved") and status.get("review", {}).get("state") == "waiting":
+            status["review"] = {**status["review"], "state": "done"}
         log_lines = run.file("log.txt").read_text(encoding="utf-8").splitlines()[-12:] if run.has("log.txt") else []
         return {"id": run.id, "meta": run.meta.model_dump(mode="json"), "state": overall(status, busy), "busy": busy,
                 "status": status, "approved": run.has("skill.approved"),

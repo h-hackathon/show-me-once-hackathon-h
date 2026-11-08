@@ -1,0 +1,9 @@
+{
+  "name": "smotest-saisir-une-facture-fournisseur-web",
+  "description": "Utiliser pour toute demande de type « saisir une facture fournisseur » dans Qonta : la méthode, les contrôles, quand s'arrêter.",
+  "files": {},
+  "executable_files": [],
+  "source": null,
+  "url_pattern": null,
+  "compatibility": null
+}

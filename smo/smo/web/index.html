@@ -13,7 +13,10 @@
   <header class="top">
     <div class="wrap top-row">
       <span class="brand"><span class="mark" aria-hidden="true"></span>Show me once</span>
-      <span class="built">construit avec H</span>
+      <div class="top-right">
+        <span class="built">construit avec H</span>
+        <button class="btn ghost small js-new-demo" id="new-demo" type="button" hidden><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Nouvelle démonstration</button>
+      </div>
     </div>
   </header>
 
@@ -28,63 +31,87 @@
     <section id="view-prepare" class="view">
       <div class="intro">
         <h1>Montrez la tâche une fois.</h1>
-        <p>Faites-la comme d'habitude, en disant à voix haute ce que vous faites et pourquoi. Votre agent H fera les suivantes.</p>
-      </div>
-      <div class="grid">
-        <form id="prepare-form" class="card form" novalidate>
-          <div class="field">
-            <label for="task">Tâche</label>
-            <input id="task" name="task" required value="Saisir une facture fournisseur">
+        <div class="intro-line">
+          <p>Faites-la comme d'habitude, en disant à voix haute ce que vous faites et pourquoi. Votre agent H fera les suivantes.</p>
+          <button class="icon-btn" id="tips-toggle" type="button" aria-expanded="false" aria-controls="tips"
+                  aria-label="Conseils pour une bonne démonstration" title="Conseils pour une bonne démonstration">
+            <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9.5"/><path d="M12 11v6"/><path d="M12 7.5v.01" stroke-width="2.6"/></svg>
+          </button>
+        </div>
+        <div class="tips" id="tips" role="region" aria-label="Conseils" hidden>
+          <div class="tips-head">
+            <h2>Pour une bonne démonstration</h2>
+            <button class="icon-btn small" id="tips-close" type="button" aria-label="Fermer les conseils">
+              <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
           </div>
-          <fieldset class="field kind">
-            <legend>Type de logiciel</legend>
-            <label class="choice"><input type="radio" name="software_kind" value="web" checked> Site web</label>
-            <label class="choice"><input type="radio" name="software_kind" value="desktop"> Application de bureau</label>
-          </fieldset>
-          <div class="field">
-            <label for="url" id="url-label">Adresse du logiciel</label>
-            <input id="url" name="url" type="url" required placeholder="https://…">
-          </div>
-          <div class="field">
-            <label for="software_name">Nom du logiciel <span class="optional">pour chercher sa documentation</span></label>
-            <input id="software_name" name="software_name" placeholder="Qonta, Odoo, Pennylane…">
-          </div>
-          <button class="btn primary" type="submit">Choisir l'écran et enregistrer</button>
-          <p class="error" id="prepare-error" role="alert" hidden></p>
-        </form>
-        <aside class="card tips">
-          <h2>Pour une bonne démonstration</h2>
           <ul>
-            <li><strong>Dites ce que vous faites, et pourquoi.</strong> « J'ouvre la facture, je recopie le numéro. »</li>
-            <li><strong>Dites vos règles.</strong> « Je vérifie toujours que HT + TVA = TTC. » « Si le fournisseur est étranger, alors… »</li>
-            <li><strong>Ne finalisez pas.</strong> Arrêtez-vous avant de valider, envoyer ou payer : l'agent fera de même.</li>
-            <li><strong>Une erreur ?</strong> Continuez en disant « je corrige ».</li>
+            <li><strong>Allez jusqu'au bout, sans valider</strong> : jusqu'au brouillon, pas plus loin.</li>
+            <li><strong>Dites ce que vous faites</strong>, et pourquoi.</li>
+            <li><strong>Dites vos règles</strong> : « HT + TVA = TTC ».</li>
+            <li><strong>Une erreur ?</strong> Dites « je corrige » et continuez.</li>
           </ul>
-          <p class="note">Chrome vous demandera l'écran à partager, puis le micro.</p>
-        </aside>
+        </div>
       </div>
+      <form id="prepare-form" class="card form narrow" novalidate>
+        <div class="field">
+          <label for="task">Tâche</label>
+          <input id="task" name="task" required value="Saisir une facture fournisseur">
+        </div>
+        <fieldset class="field kind">
+          <legend>Type de logiciel</legend>
+          <label class="choice"><input type="radio" name="software_kind" value="web" checked> Site web</label>
+          <label class="choice"><input type="radio" name="software_kind" value="desktop"> Application de bureau</label>
+        </fieldset>
+        <div class="field">
+          <label for="url" id="url-label">Adresse du logiciel</label>
+          <input id="url" name="url" type="url" required placeholder="https://…">
+        </div>
+        <div class="field">
+          <label for="software_name">Nom du logiciel <span class="optional">pour chercher sa documentation</span></label>
+          <input id="software_name" name="software_name" placeholder="Qonta, Odoo, Pennylane…">
+        </div>
+        <input type="hidden" name="improves" value="">
+        <fieldset class="field existing" id="existing" hidden>
+          <legend>Cette tâche a déjà une automatisation dans H</legend>
+          <div id="existing-choices"></div>
+        </fieldset>
+        <button class="btn primary big" type="submit" id="record-btn">Choisir l'écran et enregistrer</button>
+        <p class="note">Chrome vous demandera l'écran à partager, puis le micro.</p>
+        <p class="error" id="prepare-error" role="alert" hidden></p>
+      </form>
     </section>
 
     <section id="view-record" class="view" hidden>
       <div class="card recording">
         <div class="rec-head">
-          <span class="rec-dot" aria-hidden="true"></span>
-          <span class="rec-label">Enregistrement</span>
-          <span class="timer" id="timer">00:00</span>
+          <div class="rec-title">
+            <h1><span class="rec-dot" aria-hidden="true"></span>Enregistrement en cours</h1>
+            <p class="note" id="rec-task"></p>
+          </div>
+          <span class="timer" id="timer" role="timer" aria-label="Durée de l'enregistrement">00:00</span>
         </div>
-        <p class="task-line" id="rec-task"></p>
+        <div class="chips">
+          <span class="chip" id="share-chip">
+            <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>
+            <span id="share-label">Écran partagé</span>
+          </span>
+          <span class="chip live-status" id="live-status">Transcription : connexion…</span>
+          <span class="chip accent">Jusqu'au brouillon, sans valider</span>
+        </div>
         <div class="live">
           <div class="live-head">
-            <span>Transcription en direct · Gladia</span>
-            <span class="live-status" id="live-status">connexion…</span>
+            <span>Ce que vous dites · Gladia</span>
+            <span id="live-count"></span>
           </div>
-          <div class="live-text" id="live-text" aria-live="polite">
-            <p class="placeholder">Parlez : vos phrases apparaissent ici.</p>
-          </div>
+          <ol class="live-text" id="live-text" aria-live="polite">
+            <li class="placeholder">Parlez : vos phrases apparaissent ici.</li>
+          </ol>
         </div>
         <div class="actions">
-          <button class="btn primary" id="stop" type="button">Terminer l'enregistrement</button>
-          <button class="btn ghost" id="cancel" type="button">Annuler</button>
+          <button class="btn primary big" id="stop" type="button"><span class="stop-square" aria-hidden="true"></span>Terminer l'enregistrement</button>
+          <button class="btn ghost big" id="cancel" type="button">Annuler</button>
+          <p class="note grow">Faites la tâche dans le logiciel, puis revenez ici pour terminer. « Arrêter le partage » dans Chrome termine aussi l'enregistrement.</p>
         </div>
       </div>
     </section>
@@ -105,43 +132,99 @@
         </div>
         <span class="pill" id="follow-state"></span>
       </div>
-      <div class="grid follow-grid">
-        <div class="card">
-          <h2>Avancement</h2>
-          <ol class="stages" id="stages"></ol>
+
+      <ol class="rail" id="rail" aria-label="Avancement"></ol>
+
+      <section class="card review" id="review" aria-labelledby="review-title" hidden>
+        <div class="review-intro">
+          <h2 id="review-title">Relisez la Skill de votre agent</h2>
+          <p class="note" id="review-note">C'est la méthode que votre agent va suivre. Corrigez ce qui est faux, ajoutez une règle oubliée.</p>
+        </div>
+        <div class="review-grid">
+          <div class="field">
+            <label for="skill">Skill</label>
+            <textarea id="skill" spellcheck="false"></textarea>
+          </div>
+          <div class="review-side">
+            <div class="field">
+              <h3>Demande d'essai</h3>
+              <p class="note">Ce que l'agent recevra pour ses essais, comme une vraie demande.</p>
+              <label for="trial-message" class="sr-only">Demande d'essai</label>
+              <textarea id="trial-message" class="short" spellcheck="false"></textarea>
+            </div>
+            <div class="field">
+              <span class="label">Pièces jointes</span>
+              <div class="dropzone" id="dropzone">
+                <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+                <p>Glissez vos PDF ou images ici</p>
+                <label for="trial-files" class="btn ghost">Ajouter des pièces</label>
+                <input id="trial-files" class="sr-only" type="file" multiple accept=".pdf,image/*">
+                <p class="note">10 fichiers et 7 Mo au plus</p>
+              </div>
+              <ul class="files" id="trial-files-list" aria-label="Pièces jointes"></ul>
+              <p class="note" id="trial-files-note"></p>
+            </div>
+            <div class="next">
+              <p class="next-title">Ensuite</p>
+              <ol id="next-steps">
+                <li>Votre agent H fait la tâche à l'écran avec cette demande, en 3 essais au plus.</li>
+                <li>Il enregistre en brouillon, sans jamais valider.</li>
+                <li>Dès qu'un essai réussit, Devin code un tool qui fera la même saisie en quelques secondes.</li>
+              </ol>
+            </div>
+            <button class="btn primary big" id="approve" type="button">Valider et lancer les essais</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card ready" id="ready" aria-labelledby="ready-title" hidden>
+        <div class="ready-main">
+          <h2 id="ready-title">Votre agent est prêt</h2>
+          <code class="agent-name" id="ready-agent"></code>
+          <p>Écrivez-lui dans H, comme à un collègue, et joignez les pièces :</p>
+          <p class="quote" id="ready-request"></p>
+          <div class="actions">
+            <a class="btn primary big" id="ready-open" target="_blank" rel="noopener">Ouvrir l'agent dans H <span aria-hidden="true">↗</span></a>
+          </div>
+        </div>
+        <div class="ready-how">
+          <h3>Comment il travaille</h3>
+          <div id="ready-tool"></div>
+          <div><p class="strong">Écran en secours</p><p class="note">Si le logiciel a changé, il reprend la tâche à l'écran et vous prévient.</p></div>
+          <div><p class="strong">Jamais finaliser</p><p class="note">Il enregistre en brouillon. Valider reste votre décision.</p></div>
+        </div>
+      </section>
+      <div class="tiles" id="ready-tiles" hidden></div>
+
+      <div class="work" id="work">
+        <section class="card progress" aria-labelledby="progress-title">
+          <h2 id="progress-title">Avancement</h2>
+          <ol class="phases" id="phases"></ol>
+        </section>
+        <div class="side">
+          <section class="card" id="request-card" aria-labelledby="request-title" hidden>
+            <h2 id="request-title">Demande d'essai</h2>
+            <p class="quote" id="request-message"></p>
+            <ul class="files" id="request-files"></ul>
+          </section>
+          <section class="card" id="agent-card" aria-labelledby="agent-title" hidden>
+            <h2 id="agent-title">Votre agent</h2>
+            <code class="agent-name" id="agent-name"></code>
+            <p class="note" id="agent-mode"></p>
+            <a class="btn ghost" id="agent-open" target="_blank" rel="noopener">Ouvrir l'agent dans H <span aria-hidden="true">↗</span></a>
+          </section>
           <div class="actions">
             <button class="btn ghost" id="resume" type="button" hidden>Relancer</button>
             <button class="btn ghost" id="stop-run" type="button" hidden>Arrêter</button>
-            <button class="btn ghost" id="new-demo" type="button">Nouvelle démonstration</button>
-          </div>
-        </div>
-        <div class="side">
-          <div class="card review" id="review" hidden>
-            <h2 id="review-title">Relisez la Skill de votre agent</h2>
-            <p class="note" id="review-note">C'est la méthode que votre agent va suivre. Corrigez ce qui est faux, ajoutez une règle oubliée, puis validez.</p>
-            <label for="skill" class="sr-only">Skill</label>
-            <textarea id="skill" spellcheck="false"></textarea>
-            <h3>Demande d'essai</h3>
-            <p class="note">Ce que l'agent recevra pendant ses essais, comme une vraie demande, avec ses pièces jointes.</p>
-            <label for="trial-message" class="sr-only">Demande d'essai</label>
-            <textarea id="trial-message" class="short" spellcheck="false"></textarea>
-            <label for="trial-files" class="note">Pièces jointes (PDF ou images, 10 fichiers et 7 Mo au plus)</label>
-            <input id="trial-files" type="file" multiple accept=".pdf,image/*">
-            <p class="note" id="trial-files-note"></p>
-            <div class="actions">
-              <button class="btn primary" id="approve" type="button">Valider la Skill</button>
-            </div>
-          </div>
-          <div class="card" id="links" hidden>
-            <h2>Votre agent</h2>
-            <dl class="links" id="link-list"></dl>
-          </div>
-          <div class="card">
-            <h2>Journal</h2>
-            <pre class="log" id="log">—</pre>
           </div>
         </div>
       </div>
+
+      <details class="card tech">
+        <summary>Détails techniques <span class="note">· journal, cartographie</span></summary>
+        <dl class="links" id="link-list"></dl>
+        <pre class="log" id="log">—</pre>
+      </details>
     </section>
 
     <form class="card token" id="token-box" hidden>
