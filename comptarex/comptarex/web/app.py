@@ -1,4 +1,4 @@
-"""Site web COMPTAREX Cabinet 6.2 : pages HTML fabriquées par le serveur, aucune API pour l'agent.
+"""Site web QONTA Cabinet 6.2 : pages HTML fabriquées par le serveur, aucune API pour l'agent.
 
 Seule exception : l'API technique /api/* (JSON, en-tête X-Admin-Token), réservée au contrôle du banc
 de test (lire les factures réellement enregistrées, remettre à zéro, basculer l'interface v1/v2).
@@ -22,7 +22,7 @@ config.verifier_production()
 app = Flask(__name__)
 app.secret_key = config.SECRET_KEY
 app.config.update(PERMANENT_SESSION_LIFETIME=timedelta(days=30), SESSION_COOKIE_SAMESITE="Lax",
-                  SESSION_COOKIE_NAME="COMPTAREXSESSID", SESSION_COOKIE_SECURE=config.PROD)
+                  SESSION_COOKIE_NAME="QONTASESSID", SESSION_COOKIE_SECURE=config.PROD)
 if config.PROD:
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)   # HTTPS terminé par Railway
 
@@ -329,7 +329,7 @@ SITUATION_DEFAUT = {"au": "", "type": "gestion", "comparatif": "aucun", "niveau"
                     "abonnement": "", "francs": "1", "titre": "SITUATION INTERMEDIAIRE DE GESTION",
                     "orientation": "portrait", "police": "Courier New 9", "entete": "1", "numeroter": "1",
                     "soldes": "", "imprimante": "\\\\SRV-CAB01\\HP LaserJet 4050 PCL6", "exemplaires": "1",
-                    "chemin": "C:\\COMPTAREX\\EDITIONS\\", "memoriser": ""}
+                    "chemin": "C:\\QONTA\\EDITIONS\\", "memoriser": ""}
 
 
 @app.route("/editions/situation", methods=["GET", "POST"])
@@ -350,7 +350,7 @@ def situation():
     if action == "proprietes":
         return boite("Pilote d'impression non disponible sur ce poste. Contactez votre administrateur réseau.")
     if action == "apercu":
-        return boite("Le composant d'aperçu nécessite Java 1.4.2. Installez-le depuis le CD-ROM Comptarex "
+        return boite("Le composant d'aperçu nécessite Java 1.4.2. Installez-le depuis le CD-ROM Qonta "
                      "ou contactez votre administrateur.")
     au = compta.parse_date_fr(v["au"])
     if au is None:
@@ -589,7 +589,7 @@ def api_ui_version():
 
 def main() -> None:
     db.connect().close()
-    print(f"COMPTAREX Cabinet : http://{config.HOST}:{config.PORT}  (base : {config.DB_PATH})")
+    print(f"QONTA Cabinet : http://{config.HOST}:{config.PORT}  (base : {config.DB_PATH})")
     app.run(host=config.HOST, port=config.PORT, threaded=True, debug=False)
 
 

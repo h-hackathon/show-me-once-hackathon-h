@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex, nofollow">
-<title>{% block title %}Bureau{% endblock %} - COMPTAREX Cabinet {{ version_courte }}</title>
+<title>{% block title %}Bureau{% endblock %} - QONTA Cabinet {{ version_courte }}</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='comptarex.css') }}">
 </head>
 <body>
@@ -11,7 +11,7 @@
   <div class="bandeau">
     <div class="logo">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="1.6" aria-hidden="true"><rect x="4" y="3" width="15" height="18"></rect><line x1="8" y1="3" x2="8" y2="21"></line><line x1="11" y1="8" x2="16" y2="8"></line><line x1="11" y1="12" x2="16" y2="12"></line></svg>
-      <b>COMPTAREX</b><span>Cabinet {{ version_courte }}</span>
+      <b>QONTA</b><span>Cabinet {{ version_courte }}</span>
     </div>
     <div>{{ cabinet }} — Utilisateur : <b>{{ utilisateur }}</b> — <a href="{{ url_for('logout') }}">Déconnexion</a></div>
   </div>
@@ -33,7 +33,7 @@
   </div>
   <div class="pied">
     <span>Session : expire dans <span id="expire">14:59</span> — toute saisie non enregistrée sera perdue</span>
-    <span>© 2004 Comptarex S.A. — v{{ version_logiciel }}</span>
+    <span>© 2004 Qonta S.A. — v{{ version_logiciel }}</span>
   </div>
 </div>
 {% if boite %}{% include "_boite.html" %}{% endif %}

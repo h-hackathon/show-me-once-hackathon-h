@@ -11,7 +11,8 @@ capture → transcribe → frames → read → understand → enrich → skill �
    └──→ docs (Linkup, en parallèle : documentation publique du logiciel) ──┘
 
 Un agent H par type de logiciel : `web` (navigateur) ou `desktop` (bureau du Mac), chacun avec sa Skill et ses tools.
-Chaque Skill envoyée dans H se termine par le bloc commun `skills/bloc_commun.md` (utiliser les tools).
+La règle absolue (le tool d'abord, l'écran en secours) est dans les instructions de chaque agent ; sa Skill commence
+par le détail (`skills/bloc_commun*.md`).
           Gladia       ffmpeg   Holo   Holo        Linkup            humain   agent H     agent H  Devin     agent H + tool
                                 (1 capture par appel, puis synthèse en texte seul)
 ```
@@ -94,8 +95,11 @@ Les tools déterministes de bureau (accessibilité macOS) doivent tourner là o�
 
 Trois projets Railway séparés : Qonta (le logiciel de test), SMO (ce serveur), h-tools (les tools de Devin).
 
-1. **Service SMO**, dans son propre projet : New › GitHub Repo › `show-me-once-prep`.
-   - Settings › Source : **Root Directory = `smo`** ; branche `main` une fois la PR fusionnée, ou `feat/smo` pour tester avant.
+1. **Service SMO**, dans son propre projet : New › GitHub Repo › `Jean-Christophe972/show-me-once`.
+   - Settings › Source : **Root Directory = `smo`**, branche **`main`**, **Watch Paths = `/smo/**`** (un changement de
+     Qonta ne redéploie pas SMO), « Wait for CI » désactivé. Chaque fusion dans `main` redéploie alors SMO tout seul ;
+     un service déployé par le CLI (`railway up`) ou sans dépôt relié ne se redéploie jamais seul.
+   - Dépôt absent de la liste : « Configure GitHub App », donner à Railway l'accès au dépôt (son propriétaire valide).
    - Le reste vient de `railway.toml` : construction par le `Dockerfile`, vérification de santé sur `/health`, redémarrage en cas d'échec.
 2. **Volume** : clic droit sur le service › Attach Volume, monté sur **`/data`**. Sans lui, les runs et les cartes sont effacés à chaque redéploiement.
 3. **Variables** (Raw Editor : coller le `.env`, puis ajuster) :
@@ -106,7 +110,7 @@ Trois projets Railway séparés : Qonta (le logiciel de test), SMO (ce serveur),
    - `DESKTOP_LOGIN` / `DESKTOP_PASSWORD` : les identifiants de l'appli de bureau ;
    - inutile sur Railway : `H_TOOLS_DIR`.
 4. **Adresse** : Settings › Networking › Generate Domain. La mettre dans `SMO_SERVER_URL`, sur Railway et dans le `.env` du Mac.
-5. **h-tools**, pour la liaison : dans le projet Railway d'h-tools, la variable partagée `SMO_SERVER_TOKEN` (le même jeton) ; dans les secrets GitHub du repo h-tools, `SMO_SERVER_URL` (cette adresse) et `SMO_SERVER_TOKEN`. Chaque déploiement de tool l'annonce alors à SMO.
+5. **h-tools**, pour la liaison : dans les secrets GitHub du repo h-tools, `SMO_SERVER_URL` (cette adresse) et `SMO_SERVER_TOKEN` (le même jeton), plus `RAILWAY_API_TOKEN`, un jeton de **compte** (Account Settings › Tokens, « No workspace »). Rien à régler dans le projet Railway d'h-tools : chaque déploiement pose les variables du tool et l'annonce à SMO.
 6. **Vérifier** : `uv run smo doctor` (ligne « Serveur SMO »), puis ouvrir l'adresse dans Chrome ; la page demande le jeton.
 
 En local, pour essayer un tool d'h-tools sans le déployer : `gh repo clone Tomoroshimaru/h-tools ~/h-tools`, puis `H_TOOLS_DIR=~/h-tools` dans le `.env`.

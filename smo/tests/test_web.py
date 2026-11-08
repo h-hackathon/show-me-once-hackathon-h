@@ -84,7 +84,7 @@ def test_stop_cancels_the_h_session_and_the_pipeline_stops(s, monkeypatch):
 
 def test_online_desktop_capture_needs_the_h_desktop_environment(s, monkeypatch):
     monkeypatch.setenv("RAILWAY_ENVIRONMENT", "production")
-    data = {"task": "t", "url": "COMPTAREX Cabinet 6.2", "software_kind": "desktop"}
+    data = {"task": "t", "url": "QONTA Cabinet 6.2", "software_kind": "desktop"}
     s = dataclasses.replace(s, h_desktop_env=None, h_desktop_bridge=None)
     bridge = "3f2c1a9e-8b7d-4c6e-9f10-2a3b4c5d6e7f"
     cases = ((None, None, 422), ("qonta-desktop", None, 200), (None, bridge, 200))
@@ -151,3 +151,35 @@ def test_frames_from_a_recorded_webm(s):
     assert [f.utterance_index for f in frameset.frames] == [0, 1]
     assert all(run.file(f.path).exists() for f in frameset.frames) and not run.file("frames/all").exists()
     assert frameset.final == "frames/final.png" and run.file(frameset.final).exists()   # référence du juge
+
+
+def test_existing_agents_are_offered_before_recording(s, monkeypatch):
+    from types import SimpleNamespace as NS
+    from smo.pipeline import existing
+    s = dataclasses.replace(s, hai_api_key="hai-test", agent_prefix="smo-")
+    agents = [NS(name="smo-saisir-une-facture-fournisseur-web", instructions="Règle absolue, avant tout le reste : …",
+                 description="Saisir une facture fournisseur, appris d'une démonstration (web)."),
+              NS(name="smo-creer-un-client-web", instructions="", description="Créer un client, appris d'une démonstration (web)."),
+              NS(name="smo-a-la-main", instructions="", description="Fait à la main dans H.")]
+    fake = NS(agents=NS(list_agents=lambda page, size: NS(items=agents if page == 1 else [])))
+    monkeypatch.setattr(existing.h, "client", lambda key: fake)
+    router, runner = router_for(s)
+    monkeypatch.setattr(runner, "start", lambda run: True)               # pas de vrai pipeline
+    client = TestClient(_app(router))
+
+    def found(task, kind="web"):
+        return client.get("/api/existing", params={"task": task, "kind": kind}).json()["candidates"]
+    assert found("Saisir une facture fournisseur") == [{"name": "smo-saisir-une-facture-fournisseur-web",
+                                                        "task": "Saisir une facture fournisseur",
+                                                        "exact": True, "has_tool": True}]
+    assert [(c["name"], c["exact"]) for c in found("Saisie des factures fournisseurs")] == \
+        [("smo-saisir-une-facture-fournisseur-web", False)]                   # titre proche : même tâche, sans doute
+    assert found("Saisir une facture fournisseur", "desktop") == [] and found("Payer un salaire") == []
+
+    video = {"video": ("capture.webm", b"webm", "video/webm")}
+    r = client.post("/api/captures", files=video, data={"task": "Saisie des factures", "url": "https://qonta.example",
+                                                        "improves": "smo-saisir-une-facture-fournisseur-web"})
+    assert r.status_code == 422                                              # le titre doit être celui de l'agent
+    r = client.post("/api/captures", files=video, data={"task": "Saisir une facture fournisseur", "url": "https://qonta.example",
+                                                        "improves": "smo-saisir-une-facture-fournisseur-web"})
+    assert Run.open(s.runs_dir, r.json()["run_id"]).meta.improves == "smo-saisir-une-facture-fournisseur-web"

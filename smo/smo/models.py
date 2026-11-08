@@ -13,6 +13,7 @@ class CaptureMeta(BaseModel):
     software_kind: Literal["web", "desktop"] = "web"   # un agent H par type : navigateur ou bureau du Mac
     software_url: str                      # web : l'adresse ; bureau : le nom de l'application ouverte
     software_name: str | None = None       # nom public du logiciel (ex. « Odoo »), pour chercher sa doc (Linkup)
+    improves: str | None = None            # agent H existant que cette démo améliore (même nom), choisi avant l'enregistrement
     language: str = "fr"
     created_at: datetime = Field(default_factory=datetime.now)
 
@@ -171,6 +172,7 @@ class Provisioned(BaseModel):
     tools: list[str]
     tool_ready: bool                       # False : l'agent travaille en computer use en attendant le tool
     environment: dict[str, Any]
+    tool_sha: str | None = None            # commit du tool donné à l'agent (amélioration : attendre le suivant)
 
 
 class ScreenMap(BaseModel):

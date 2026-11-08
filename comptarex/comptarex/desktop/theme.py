@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (QApplication, QFrame, QGridLayout, QLabel, QLineE
 GRIS = "#D4D0C8"
 BLEU = "#0A246A"
 ROUGE = "#B00000"
-TITRE = "COMPTAREX"
+TITRE = "QONTA"
 IMPRIMANTE = "\\\\SRV-CAB01\\HP LaserJet 4050 PCL6"
 DUREE_TRAITEMENT_MS = 2000     # la fausse « édition en cours » (mise à 0 par les tests)
 
@@ -61,7 +61,7 @@ def question(parent, texte: str, titre: str = TITRE) -> bool:
 
 def module_indisponible(parent, nom: str = "") -> None:
     info(parent, f"Module {nom + ' ' if nom else ''}non disponible dans votre licence (code 0x41).\n"
-                 "Contactez Comptarex S.A. pour une extension de licence.")
+                 "Contactez Qonta S.A. pour une extension de licence.")
 
 
 def ouvrir_pdf(chemin) -> None:
@@ -105,11 +105,11 @@ def champ(grille: QGridLayout, ligne: int, libelle: str, widget: QWidget, colonn
 
 
 def bandeau(texte: str, sous_titre: str = "") -> QLabel:
-    lbl = QLabel(f"<span style='font-size:20px; font-weight:bold; font-style:italic;'>COMPTAREX</span>"
+    lbl = QLabel(f"<span style='font-size:20px; font-weight:bold; font-style:italic;'>QONTA</span>"
                  f"&nbsp;&nbsp;{texte}" + (f"<br><span style='font-size:10px;'>{sous_titre}</span>" if sous_titre else ""))
     lbl.setStyleSheet(f"background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {BLEU}, stop:1 #3A6EA5);"
                       "color: white; padding: 8px 12px;")
-    lbl.setAccessibleName("COMPTAREX " + texte)
+    lbl.setAccessibleName("QONTA " + texte)
     return lbl
 
 

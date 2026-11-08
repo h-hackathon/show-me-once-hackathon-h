@@ -120,7 +120,7 @@ class SituationDialog(QDialog):
             self, "Pilote d'impression indisponible sur ce poste.")), 1, 2)
         g.addWidget(self.d_ecran, 2, 0, 1, 3)
         g.addWidget(self.d_pdf, 3, 0)
-        chemin = theme.lecture_seule(QLineEdit("C:\\COMPTAREX\\EDITIONS\\"))
+        chemin = theme.lecture_seule(QLineEdit("C:\\QONTA\\EDITIONS\\"))
         chemin.setAccessibleName("Dossier du fichier")
         g.addWidget(chemin, 3, 1)
         self.exemplaires = theme.champ(g, 4, "Nombre d'exemplaires :", QLineEdit("1"))
@@ -165,7 +165,7 @@ class SituationDialog(QDialog):
             theme.info(self, f"Edition envoyée vers {theme.IMPRIMANTE} (travail n° {4470 + edition_id}).\n"
                              "Récupérez votre document à l'imprimante.")
         elif dest == "pdf":
-            theme.info(self, f"Fichier enregistré sous C:\\COMPTAREX\\EDITIONS\\{fichier} sur le serveur du cabinet.")
+            theme.info(self, f"Fichier enregistré sous C:\\QONTA\\EDITIONS\\{fichier} sur le serveur du cabinet.")
         else:
             theme.traitement(self, ["Lecture des écritures...", "Calcul des soldes...", "Mise en page..."])
             self.params = {**params, "edition_id": edition_id}
@@ -194,7 +194,7 @@ def pages_situation(conn, dossier, params: dict, numero: str, edite_le: datetime
                 f"<td align='right'>Edité le {edite_le:%d/%m/%Y %H:%M} par {config.USER_CODE}</td></tr></table>")
 
     def pied() -> str:
-        return (f"<hr><table width='100%' style='{style}'><tr><td>COMPTAREX 6.2.4</td>"
+        return (f"<hr><table width='100%' style='{style}'><tr><td>QONTA 6.2.4</td>"
                 f"<td align='right'>Edition n° {numero}</td></tr></table>")
 
     def ligne(libelle, montant, extra="", gras=False):
@@ -273,7 +273,7 @@ class ApercuWindow(QWidget):
         barre.addWidget(theme.bouton("Imprimer...", lambda: theme.info(
             self, f"Edition envoyée vers {theme.IMPRIMANTE} (travail n° {4470 + params['edition_id']}).")))
         barre.addWidget(theme.bouton("Exporter...", lambda: theme.info(
-            self, f"Fichier enregistré sous C:\\COMPTAREX\\EDITIONS\\{self.fichier} sur le serveur du cabinet.")))
+            self, f"Fichier enregistré sous C:\\QONTA\\EDITIONS\\{self.fichier} sur le serveur du cabinet.")))
         barre.addWidget(theme.bouton("Transmettre au client...", self.transmettre))
         barre.addStretch()
         barre.addWidget(theme.bouton("Fermer", lambda: self.parentWidget().close()))

@@ -1,4 +1,4 @@
-"""COMPTAREX Cabinet 6.2, version logiciel : connexion, choix du dossier, fenêtre principale MDI.
+"""QONTA Cabinet 6.2, version logiciel : connexion, choix du dossier, fenêtre principale MDI.
 
     uv run --extra desktop comptarex-desktop
 """
@@ -20,7 +20,7 @@ from .situation import ApercuWindow, SituationDialog
 class LoginDialog(QDialog):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("COMPTAREX Cabinet 6.2 — Identification")
+        self.setWindowTitle("QONTA Cabinet 6.2 — Identification")
         self.essais = 0
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 8)
@@ -47,7 +47,7 @@ class LoginDialog(QDialog):
         corps.addLayout(fenetres.boutons(None, self.connexion, theme.bouton("Effacer", self.effacer)))
         corps.addWidget(theme.avertissement("Attention : après 3 essais infructueux, votre compte sera bloqué. "
                                             "Contactez votre administrateur."))
-        pied = QLabel("Poste : CAB-PC07 — © 2004 Comptarex S.A. — v6.2.4 (build 20041117)")
+        pied = QLabel("Poste : CAB-PC07 — © 2004 Qonta S.A. — v6.2.4 (build 20041117)")
         pied.setStyleSheet("color: #4A4A4A;")
         corps.addWidget(pied)
         lay.addLayout(corps)
@@ -230,8 +230,8 @@ class MainWindow(QMainWindow):
         self._action(m, "Fermer tout", self.mdi.closeAllSubWindows)
         m = mb.addMenu("&?")
         self._action(m, "Aide", lambda: theme.info(self, "L'aide en ligne nécessite Internet Explorer 6.0 SP1."), "F1")
-        self._action(m, "A propos de COMPTAREX...", lambda: theme.info(
-            self, "COMPTAREX Cabinet 6.2.4 (build 20041117)\n© 2004 Comptarex S.A.\n"
+        self._action(m, "A propos de QONTA...", lambda: theme.info(
+            self, "QONTA Cabinet 6.2.4 (build 20041117)\n© 2004 Qonta S.A.\n"
                   "Licence CFM-042-2004 — 12 postes — Fiduciaire Moreau & Associés"))
 
     def _outils(self) -> None:
@@ -282,7 +282,7 @@ class MainWindow(QMainWindow):
         self.dossier = compta.dossier(self.conn, code)
         self.lecture_seule = consultation
         version = "6.3" if compta.ui(self.conn)["version"] == "v2" else "6.2"
-        self.setWindowTitle(f"COMPTAREX Cabinet {version} — [{compta.libelle_dossier(self.dossier)} — Exercice 2026]"
+        self.setWindowTitle(f"QONTA Cabinet {version} — [{compta.libelle_dossier(self.dossier)} — Exercice 2026]"
                             + (" (consultation)" if consultation else ""))
         self.p_dossier.setText(f"Dossier {code}" + (" — CONSULTATION" if consultation else ""))
         for a in self.actions_saisie:
@@ -375,7 +375,7 @@ class MainWindow(QMainWindow):
 
 def main() -> None:
     app = QApplication(sys.argv)
-    app.setApplicationName("COMPTAREX Cabinet")
+    app.setApplicationName("QONTA Cabinet")
     theme.appliquer(app)
     app.setWindowIcon(theme.icone("balance"))
     conn = db.connect()

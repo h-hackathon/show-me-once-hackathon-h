@@ -13,7 +13,8 @@ from hai_agents.tools import tool as as_tool   # nom, description et schéma tir
 
 def tools(on_drift: Callable[[str, str], None]) -> list[Tool]:
     def report_drift(tool: str, details: str) -> str:
-        """Signale que l'interface a changé pour un tool (precheck en échec ou erreur à l'exécution).
+        """Signale que l'interface a changé pour un tool : un élément introuvable à l'écran, un écran différent.
+        Jamais pour un cas métier (fournisseur absent ou ambigu, doublon, total incohérent) : rien à réparer.
         tool : nom du tool concerné ; details : ce qui a changé ou ce qui manquait. Déclenche sa réparation."""
         on_drift(tool, details)
         return "Signalé. Termine la tâche toi-même à l'écran en suivant la Skill."
