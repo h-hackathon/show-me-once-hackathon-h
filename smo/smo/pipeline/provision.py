@@ -16,7 +16,7 @@ from ..models import CompileResult, Provisioned, RunReport
 from ..runs import Run
 from ..runtime.tools import definitions, desktop_files, find, h_tools
 from . import target
-from .skill import skill_name, tool_name, with_common_block
+from .skill import NEVER_FINALIZE, skill_name, tool_name, with_common_block
 
 
 INSTRUCTIONS = """{rule}
@@ -24,7 +24,7 @@ Tu es l'agent « {task} ». Tu travailles dans {where}, une pièce à la fois, a
 Les pièces jointes à la demande sont sur ta workstation : lis-les avec ta Skill « {read_skill} ».
 {dossier_rule}
 Si une règle de la Skill demande l'arrêt (incohérence, cas inconnu), n'enregistre rien et explique pourquoi.
-Ne clique jamais sur « Valider ». Réponds au format demandé."""
+""" + NEVER_FINALIZE + " Réponds au format demandé."
 
 RULE_WITH_TOOL = ("Règle absolue, avant tout le reste : appelle d'abord `run_{tool}` avec les valeurs lues sur la pièce. "
                   "Il fait toute la tâche sur un serveur et renvoie le résultat final : tu n'as rien à faire à l'écran. "

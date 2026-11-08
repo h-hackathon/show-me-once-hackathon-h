@@ -66,10 +66,9 @@ Les mêmes étapes, telles que les enchaîne `uv run smo` :
 
 **À l'exécution** (Catherine lance son agent depuis H) :
 1. L'agent appelle `precheck_<tâche>`, qui vérifie que l'interface n'a pas changé, sans rien modifier.
-2. Si le precheck est OK, il lit la pièce et appelle `run_<tâche>` : saisie déterministe, arrêt en brouillon, idempotente, règles codées en dur.
+2. Si le precheck est OK, il lit la pièce et appelle `run_<tâche>` : saisie déterministe, jamais finalisée, idempotente, règles codées en dur.
 3. Sinon, ou si le tool échoue, il fait la saisie en computer use avec la Skill, puis appelle `report_drift`. Sa session repart chez Devin (`SMO_AUTO_REPAIR=1`, ou `smo repair`), qui ouvre une PR corrigeant le tool et `skill.md`.
 4. Après la fusion, `smo run <id> --only upgrade --force` repousse le tool et la Skill dans H.
-5. Il vérifie toujours avec `verify_entry` (on ne croit jamais l'agent sur parole).
 
 **Qui exécute les tools ?** Chez H, un custom tool est exécuté par le programme qui suit la session. C'est le **serveur SMO** (Railway) :
 - il est prévenu par un webhook H (`session.status_updated` → `awaiting_tool_results`) ;

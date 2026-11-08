@@ -94,7 +94,7 @@ def test_skill_applies_linkup_correction():
                                              correction="Fournisseur UE : autoliquidation (20 % EU)")])
     md = skill.render(PROCEDURE, context, "https://compta.example")
     assert "autoliquidation" in md and "dit pendant la démo" in md
-    assert "Ne jamais cliquer sur « Valider »" in md
+    assert "Ne jamais finaliser (valider" in md
     assert "1. Cliquer sur « Nouvelle facture »" in md
 
 
@@ -203,7 +203,7 @@ def test_tool_registry_and_h_definitions(s):
     tools = runtime_tools.h_tools(compiled, s, on_drift=lambda *_: None)
     names = [t.name for t in tools]
     assert names == ["precheck_saisir_une_facture_fournisseur", "run_saisir_une_facture_fournisseur",
-                     "report_drift", "verify_entry"]
+                     "report_drift"]
     run_def = runtime_tools.definitions(tools)[1]
     assert set(run_def["input_schema"]["required"]) == {"reference", "total_ttc"}
     drifts = []
@@ -518,7 +518,7 @@ def test_provision_environment_and_definitions():
     assert h.web_environment("http://localhost:3000").host == "user_device"
     assert h.web_environment("https://compta.example").host == "cloud"
     defs = runtime_tools.definitions(runtime_tools.h_tools({}, config.load(), on_drift=lambda *_: None))
-    assert [ToolDefinition(**d).name for d in defs] == ["report_drift", "verify_entry"]
+    assert [ToolDefinition(**d).name for d in defs] == ["report_drift"]
 
 
 def test_devin_brief_renders(run, s):

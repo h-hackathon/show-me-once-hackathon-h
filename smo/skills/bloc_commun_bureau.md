@@ -13,5 +13,5 @@ fichiers (`run.sh`, `tool/`, `h_tools/`) sont dans le dossier de la Skill, dans 
    méthode ci-dessous, puis appelle `report_drift` avec l'erreur du tool (`./run.sh precheck` dit, sans rien
    modifier, ce qui a changé dans l'interface).
 
-Toujours : ne jamais cliquer sur « Valider ». Réponds au format demandé, avec mode = "tool" si le tool a fait la tâche,
+Toujours : ne jamais finaliser (valider, confirmer, envoyer, payer, supprimer) : enregistrer sans finaliser, un humain s'en charge. Réponds au format demandé, avec mode = "tool" si le tool a fait la tâche,
 "computer_use" si tu l'as faite à l'écran.

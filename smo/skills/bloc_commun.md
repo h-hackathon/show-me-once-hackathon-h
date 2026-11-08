@@ -8,5 +8,5 @@ Cette règle passe avant tout le reste de la Skill, pour chaque pièce :
 4. `$run` renvoie `error`, ou ne répond pas : fais la tâche toi-même à l'écran (computer use) en suivant la méthode
    ci-dessous, puis appelle `report_drift` avec l'erreur du tool.
 
-Toujours : ne jamais cliquer sur « Valider ». Réponds au format demandé, avec mode = "tool" si le tool a fait la tâche,
+Toujours : ne jamais finaliser (valider, confirmer, envoyer, payer, supprimer) : enregistrer sans finaliser, un humain s'en charge. Réponds au format demandé, avec mode = "tool" si le tool a fait la tâche,
 "computer_use" si tu l'as faite à l'écran.

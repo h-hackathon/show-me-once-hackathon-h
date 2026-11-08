@@ -202,10 +202,11 @@ def h_tools(compiled: dict, cfg, on_drift: Callable[[str, str], None],
             input_schema={"type": "object", "properties": {}}, fn=partial(call_tool, "precheck", t, context)))
         out.append(Tool(
             name=f"run_{t.name}",
-            description=f"{t.description} Saisie automatique et déterministe, qui s'arrête en brouillon. "
-                        "Renvoie status = draft_saved | duplicate | flagged | error.",
+            description=f"{t.description} Fait la tâche de façon automatique et déterministe, sans jamais finaliser. "
+                        "Renvoie status = draft_saved (enregistré, pas finalisé) | duplicate (déjà fait) | "
+                        "flagged (une règle bloque, rien n'est enregistré) | error.",
             input_schema=t.schema, fn=partial(call_tool, "run", t, context)))
-    return out + builtins.tools(cfg, on_drift)
+    return out + builtins.tools(on_drift)
 
 
 def definitions(tools: list[Tool]) -> list[dict]:

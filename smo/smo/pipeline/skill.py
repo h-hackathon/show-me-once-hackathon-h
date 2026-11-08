@@ -14,6 +14,10 @@ from ..runs import Run, slug
 from . import mapping
 
 
+# La seule règle de sécurité commune à toutes les tâches, quel que soit le logiciel : c'est un humain qui finalise.
+NEVER_FINALIZE = ("Ne jamais finaliser (valider, confirmer, envoyer, payer, supprimer) : enregistrer sans finaliser, "
+                  "un humain s'en charge.")
+
 VERB = {"navigate": "Aller sur", "click": "Cliquer sur", "type": "Remplir", "select": "Choisir dans",
         "check": "Vérifier", "read": "Lire"}
 
@@ -54,7 +58,7 @@ def render(procedure: Procedure, context: Context, url: str, soft_map: SoftwareM
     corrections = {c.rule: c for c in context.rule_checks if c.verdict == "corrected" and c.correction}
     lines = [f"# {procedure.task}", "",
              "## Objectif",
-             f"{procedure.task} dans {procedure.software} ({url}), une pièce à la fois, en s'arrêtant en brouillon.", "",
+             f"{procedure.task} dans {procedure.software} ({url}), une pièce à la fois, sans jamais finaliser.", "",
              "## Prérequis",
              "- Être connecté au logiciel.",
              "- S'il faut choisir un dossier ou une société : celui du client indiqué sur la pièce.", "",
@@ -73,7 +77,7 @@ def render(procedure: Procedure, context: Context, url: str, soft_map: SoftwareM
             lines.append(f"- {fix.correction} (corrigé par vérification ; dit pendant la démo : « {rule.text} »)")
         else:
             lines.append(f"- {rule.text}")
-    lines += ["- Ne jamais cliquer sur « Valider » ou « Confirmer » : la pièce reste en brouillon.",
+    lines += [f"- {NEVER_FINALIZE}",
               "", "## S'arrêter et prévenir un humain si"]
     lines += [f"- {c}" for c in procedure.stop_conditions] or ["- une valeur est illisible ou incohérente"]
     if procedure.inputs:

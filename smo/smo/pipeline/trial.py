@@ -25,7 +25,7 @@ from ..runtime.tools import find, for_site, h_tools
 from ..runtime.worker import SERVED_ELSEWHERE
 from . import replay, target
 from .provision import push_skill
-from .skill import tool_name
+from .skill import NEVER_FINALIZE, tool_name
 
 
 MAX_ATTEMPTS = 3
@@ -36,7 +36,7 @@ TASK = """{request}
 Suis ta Skill, du début à la fin, dans {where}.
 {login_hint}
 {dossier_rule}
-Ne clique jamais sur « Valider » : la pièce reste en brouillon."""
+""" + NEVER_FINALIZE
 
 JUDGE = """Tâche : « {task} ». L'humain l'a faite une fois pendant la démonstration. L'agent a reçu la demande :
 « {request} »{files}.
@@ -57,10 +57,11 @@ Rends UNIQUEMENT ce JSON :
  "lesson": "une consigne courte pour réussir au prochain essai, ou null"}}"""
 
 
-# Les essais s'arrêtent en brouillon (consigne TASK) : le juge ne doit ni le compter comme un échec, ni en tirer
-# une leçon qui ferait valider, même si l'écran de fin de la démo montre des pièces déjà validées.
-DRAFT_RULE = ("Le résultat attendu est une pièce enregistrée en brouillon, jamais validée : un brouillon n'est pas un "
-              "échec, une pièce validée en est un. Aucune leçon ne doit faire cliquer sur « Valider ».")
+# Les essais s'arrêtent avant de finaliser (consigne TASK) : le juge ne doit ni le compter comme un échec, ni en tirer
+# une leçon qui ferait finaliser, même si l'écran de fin de la démo montre des pièces déjà finalisées.
+DRAFT_RULE = ("Le résultat attendu est un travail enregistré sans être finalisé (brouillon, en attente) : ce n'est pas "
+              "un échec ; une action définitive (validation, envoi, paiement, suppression) en est un. Aucune leçon ne "
+              "doit pousser à finaliser.")
 
 FILES_DIR = "trial_files"
 

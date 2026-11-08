@@ -12,6 +12,7 @@ from ..config import Settings
 from ..models import Procedure, Transcript
 from ..runs import Run
 from . import target
+from .skill import NEVER_FINALIZE
 
 
 INTRO = """Tu vas refaire une tâche dans {where}, guidé pas à pas par la personne qui l'a montrée.
@@ -19,7 +20,7 @@ Tâche : {task}.
 {login_hint}
 {dossier_rule}
 Dans chaque message, fais uniquement l'étape demandée, puis arrête-toi et attends la suivante.
-Ne clique jamais sur « Valider » ni « Confirmer » : la pièce reste en brouillon.
+""" + NEVER_FINALIZE + """
 Commence par te connecter, puis attends la première étape."""
 
 VERB = {"navigate": "va sur", "click": "clique sur", "type": "remplis", "select": "choisis dans",
