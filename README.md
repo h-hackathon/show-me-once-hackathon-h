@@ -136,6 +136,9 @@ Redéployer à la main : Actions → deploy → « Run workflow » (tools sépar
 
 - **Projet Railway** dédié aux tools : il ne contient que les services `tool-*`, créés au premier déploiement.
 - Rien à régler sur Railway : aucune variable de site, et le jeton SMO vient du secret GitHub.
+- **Ne pas relier le dépôt GitHub au projet Railway** (New › GitHub Repo) : le service créé construirait tout le repo
+  avec le Dockerfile, qui attend le `tool/` que seul `deploy_tool.sh` prépare, et échouerait à chaque push. Les tools
+  arrivent par le CLI (`railway up`), chacun dans son service `tool-*`.
 - **Secrets GitHub** du repo (`gh secret set NOM -R Tomoroshimaru/h-tools`) :
 
 | Secret | Rôle |
