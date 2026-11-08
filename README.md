@@ -155,10 +155,3 @@ Les déploiements (Railway, GitHub Actions d'h-tools) tournent depuis les repos 
 - Serveur SMO en ligne protégé par jeton obligatoire ; tools sans adresse publique utile sans ce jeton.
 - Toutes les données sont fictives (marketplace « Sportiva », cabinet « Fiduciaire Moreau »).
 
-## 9. Équipe
-
-| | Rôle |
-|---|---|
-| Jean-Christophe Dorn | produit, cas d'usage, préparation, pitch |
-| Thomas Alaphilippe | plateforme SMO, Qonta, h-tools |
-| Noah Segonds | cas chargebacks, outils Sportiva, démo |
