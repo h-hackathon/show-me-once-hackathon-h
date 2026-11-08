@@ -19,9 +19,9 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parent.parent
-RUNTIME = ("__init__.py", "config.py", "loader.py", "desk.py", "cli.py")   # pas de Playwright ni de serveur
+# Le runtime d'un tool de bureau : pas de Playwright (ui.py) ni de serveur (server.py).
+RUNTIME = ("__init__.py", "config.py", "loader.py", "desk.py", "cli.py", "steps.py", "formats.py")
 
 
 def bundle(name: str, sha: str) -> dict[str, str]:
@@ -65,6 +65,9 @@ def main(name: str, sha: str, tool_url: str | None = None) -> int:
     if not server:
         print("SMO_SERVER_URL absent : le tool est déployé mais aucun agent n'est mis à jour", file=sys.stderr)
         return 0 if tool_url else 1   # un tool de bureau n'existe que par SMO
+    if not token:
+        print("SMO_SERVER_TOKEN absent : SMO refuserait l'annonce (secret GitHub à renseigner)", file=sys.stderr)
+        return 1
     if tool_url:
         body = {"tool": name, "sha": sha, "url": tool_url}
     else:

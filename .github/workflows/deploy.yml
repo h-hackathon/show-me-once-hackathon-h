@@ -10,6 +10,9 @@ on:
         description: "Tools à redéployer, séparés par des espaces (vide = tous)"
         required: false
 
+permissions:
+  contents: read
+
 concurrency:
   group: deploy
   cancel-in-progress: false
@@ -50,7 +53,7 @@ jobs:
         run: |
           uv sync --frozen
           uv run playwright install --with-deps chromium
-          uv run pytest $(for n in $TOOLS; do printf 'tools/%s ' "$n"; done)
+          uv run pytest tests $(for n in $TOOLS; do printf 'tools/%s ' "$n"; done)
       - name: CLI Railway
         if: steps.changed.outputs.tools != ''
         run: npm install -g "@railway/cli@$RAILWAY_CLI_VERSION"
