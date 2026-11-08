@@ -259,6 +259,7 @@ function upload() {
 // --- 3-4. suivre ---------------------------------------------------------------------------------
 
 let pollId = null, editorMode = null;   // editorMode : "review" ou "retry" une fois la Skill chargée dans l'éditeur
+let attachedFiles = [];                 // les pièces jointes déjà envoyées pour la demande d'essai
 
 function follow(runId) {
   history.replaceState(null, "", `?run=${encodeURIComponent(runId)}`);
@@ -324,7 +325,9 @@ function renderRail(phases) {
     li.dataset.state = p.state;
     if (["running", "waiting"].includes(p.state)) li.setAttribute("aria-current", "step");
     const head = el("span", "rail-head", p.short);
-    head.append(el("span", "rail-state", stateText(p)));
+    const short = p.state === "done" && p.key !== "review" && p.seconds   // la barre est étroite : « 41 s », « 16 min »
+      ? (p.seconds < 60 ? `${Math.round(p.seconds)} s` : `${Math.round(p.seconds / 60)} min`) : stateText(p);
+    head.append(el("span", "rail-state", short));
     li.append(el("span", "rail-bar"), head, el("span", "rail-tags", p.tags.join(" · ")));
     return li;
   }));
@@ -450,7 +453,8 @@ function render(run) {
     $("trial-files").value = "";
     editorMode = mode;
   }
-  renderFiles(run.trial_request.files);
+  attachedFiles = run.trial_request.files;
+  renderFiles(attachedFiles);
   if (mode === "retry") {
     $("review-title").textContent = "L'agent n'a pas réussi en 3 essais";
     $("review-note").textContent = "Ses leçons sont à la fin de la Skill. Corrigez ce qui bloque, puis relancez les essais.";
@@ -559,7 +563,7 @@ drop.addEventListener("drop", (e) => {
   $("trial-files").files = e.dataTransfer.files;
   $("trial-files").dispatchEvent(new Event("change"));
 });
-$("trial-files").addEventListener("change", () => renderFiles([]));
+$("trial-files").addEventListener("change", () => renderFiles(attachedFiles));
 
 // La Skill et la demande d'essai (texte + pièces jointes) relues, avant de lancer ou relancer les essais.
 async function saveReview(runId) {
