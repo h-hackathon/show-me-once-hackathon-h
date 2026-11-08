@@ -1,0 +1,14 @@
+# Secrets : jamais sur GitHub
+.env
+
+# Généré
+runs/
+.venv/
+__pycache__/
+.DS_Store
+
+# Vidéos de démo (trop lourdes : à partager par Drive)
+*.mov
+*.mp4
+_to_delete/
+*.zip

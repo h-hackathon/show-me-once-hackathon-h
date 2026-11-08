@@ -1,0 +1,5 @@
+hai-agents[all]   # SDK Agents API H (+ navigateur local, outils OTP)
+pydantic>=2
+python-dotenv
+httpx
+imageio-ffmpeg    # ffmpeg intégré : son + images de la vidéo de démo
