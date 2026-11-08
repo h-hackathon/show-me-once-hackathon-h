@@ -58,7 +58,8 @@ def post(url: str, token: str, body: dict) -> dict:
             return json.loads(response.read() or b"{}")
     except urllib.error.URLError as err:
         if isinstance(err.reason, socket.gaierror):   # adresse inconnue : réessayer 10 min n'y changerait rien
-            sys.exit("SMO_SERVER_URL ne correspond à aucune adresse : corrige le secret GitHub (l'adresse publique de SMO)")
+            sys.exit("SMO_SERVER_URL ne correspond à aucune adresse : "
+                     "corrige le secret GitHub (l'adresse publique de SMO)")
         print(f"SMO : {err}", file=sys.stderr)
         return {}
     except ValueError as err:
