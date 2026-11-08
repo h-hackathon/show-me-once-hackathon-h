@@ -9,7 +9,8 @@ Show me once turns that recording into an **H custom agent** that works through 
 **Devin** then compiles the learned task into a fast, deterministic **tool**. When the software changes, the tool notices,
 the **H agent takes over in computer use**, and Devin repairs the tool. **No technical skills needed** to create the agent.
 
-Proof on a real case: **defending Stripe chargebacks**, scored from the real dispute statuses in Stripe — not from what the agent says.
+Proof case: **entering supplier invoices in Qonta**, a 2000s-style accounting software with no API. An accountant shows one invoice;
+the agent handles the inbox with her rules, and every result is checked in the software itself — not taken from what the agent says.
 
 ---
 
@@ -47,59 +48,59 @@ flowchart LR
 
 > A classic script breaks at the first software update. Ours repairs itself: the H agent takes over on screen, and Devin fixes the code behind it.
 
-## 3. The case that proves it: defending chargebacks
+## 3. The case that proves it: supplier invoices in Qonta
 
-A payment dispute (**chargeback**) not answered before its deadline is money lost by default.
-A marketplace receives hundreds a day, at about 15 minutes each.
+Accounting firms still run on old desktop-era software with **no API**. Entering supplier invoices is repetitive,
+but full of rules that live only in the accountant's head — the kind of work nobody can automate without a developer.
 
-It is the ideal case for Show me once, because it cannot be automated through an API:
-- **the evidence lives in tools without an API**: in-house back-office, carrier portal, support tool;
-- **the decision depends on rules only the team knows**: *"under €15, accept"*, *"stolen card confirmed, accept and block the customer"*…
+**Qonta** (`comptarex/`) reproduces such a tool: grey Windows-2000 look, codes everywhere, 14 client files, a web version
+and a real desktop window. The accountant enters **one** invoice while talking; the agent then processes the inbox.
 
-Existing auto-dispute tools only see data reachable through APIs and apply *their* rules.
-Here, an analyst shows **one** dispute, and the agent defends the whole queue **with her rules**.
-
-| Rule the analyst says out loud | Where the agent sees it | Decision |
+| Rule the accountant says out loud | Trap in the inbox | Expected behaviour |
 |---|---|---|
-| Amount under €15 | Stripe | accept (fees cost more) |
-| Cardholder confirms the card was stolen | Sportiva Care (support) | accept **and block the customer** |
-| Customer already refunded | Sportiva Admin (back-office) | contest, with the refund receipt |
-| Delivered with signature | Parcelia Pro (carrier) | contest, with the proof of delivery |
-| No signature, but customer wrote "received" | Sportiva Care | contest, with the ticket export |
-| No evidence | — | accept |
+| "I always check that net + VAT = total" | INV-009: printed total is wrong by €100 | do not enter it, flag it to the human |
+| "Foreign EU supplier: reverse-charge VAT" | INV-007: German supplier, not yet in the files | create the supplier, apply "20% EU reverse charge" |
+| "Same supplier, same reference: it's a duplicate" | the software refuses duplicates | detect it, do not retry |
+| "Dates are DD/MM/YYYY, or the software errors" | "Error 0x2F" on any other format | always type the expected format |
+| "I never validate myself" | "Save draft" vs "Validate" | always stop at the draft |
+
+The first tool compiled by **Devin** from this demo — `h-tools/tools/saisir_une_facture_fournisseur_web/` — passed its
+tests against the live Qonta before being merged and deployed automatically.
+
+**Next case, same platform:** defending Stripe chargebacks (`chargebacks/`), where the evidence lives in a back-office,
+a carrier portal and a support tool, none of which has an API.
 
 ## 4. Why it holds up
 
 | Judging criterion | What we show |
 |---|---|
 | **Use of computer use** | The screen is central twice: to **learn** (the demo) and to **act** where there is no API — plus the takeover when a tool breaks. |
-| **Reliability** | Results are read from **Stripe** (real status of each dispute), never from the agent's own report. Each task is replayed several times (A/B benchmark). |
-| **Usefulness** | Any employee can create an agent without technical skills. On chargebacks: money recovered, measured in euros. |
+| **Reliability** | Results are read from **Qonta's own records** (what was really saved, in draft), never from the agent's report, and compared with a ground-truth file. Each task is replayed several times. |
+| **Usefulness** | Any employee can create an agent without technical skills — here, an accountant on software that has no API. |
 | **Originality** | You don't write the agent, you **train** it: learning by demonstration, compiled into a tool, **self-repairing**. |
-| **User control** | Skill reviewed before launch; the agent always stops before "Submit"; a "Stop" button; no Devin code is deployed without green tests. |
+| **User control** | Skill reviewed before launch; the agent always stops at the draft, never "Validate"; a "Stop" button; no Devin code is deployed without green tests. |
 
 ## 5. Demo and results
 
 - **Demo video**: [watch on Loom](https://www.loom.com/share/25c8a67e44874b6a9565442cce927eb0) (~5 min, best watched at **1.5× speed**)
 
-**Benchmark** — same disputes, two conditions (A: agent alone, classic prompt; B: agent + Skill learned from the demo).
-A handled dispute cannot be replayed, so each condition gets its own identical batch created in Stripe.
+**Benchmark** — the same 10 invoices (INV-001 to INV-010, with traps), several runs each:
+A: agent alone with a classic prompt; B: agent + Skill learned from the demo; C: agent + Devin's tool.
+Results are read from Qonta's technical API (`GET /api/invoices`) and compared with
+`comptarex/data/verite_terrain_factures.csv`; Qonta is reset between runs (`POST /api/admin/reset`).
 
-| | A — agent alone | B — agent + Skill |
-|---|---|---|
-| Disputes handled correctly | _being measured_ | _being measured_ |
-| € recovered (Stripe statuses) | _being measured_ | _being measured_ |
-| Wrongly contested | _being measured_ | _being measured_ |
-| Fraudsters blocked | _being measured_ | _being measured_ |
-
-Disputes are created in Stripe test mode by `chargebacks/som/seed.py`; outcomes are read back from Stripe by `chargebacks/som/stripe_api.py`.
+| | A — agent alone | B — agent + Skill | C — agent + tool |
+|---|---|---|---|
+| Invoices entered correctly | _being measured_ | _being measured_ | _being measured_ |
+| Traps caught (INV-007, INV-009) | _being measured_ | _being measured_ | _being measured_ |
+| Time per invoice | _being measured_ | _being measured_ | _being measured_ |
 
 ## 6. ROI: why teach once instead of prompting every time
 
 | | Human | Computer-use agent alone, every time | **Show me once** |
 |---|---|---|---|
 | Setup | training | prompt engineering by a technical person | **one narrated demo**, reviewed Skill |
-| Per task | ~15 min of an analyst | model calls on every screen, every run | **compiled tool**: deterministic script, **no model tokens for the task itself** |
+| Per task | several minutes of an accountant per invoice | model calls on every screen, every run | **compiled tool**: deterministic script, **no model tokens for the task itself** |
 | Reliability | varies | different path on each run | same steps every run; result checked in the real system |
 | When the UI changes | human adapts | may silently fail | precheck detects it, **agent takes over**, Devin repairs the tool |
 
@@ -123,8 +124,8 @@ The offline tests run without any API key.
 show-me-once-hackathon-h/
 ├── smo/           the platform: capture → Skill → H custom agent → Devin tool → takeover    (FastAPI server, Railway)
 ├── h-tools/       the tool factory: one folder per learned task, written by Devin, one Railway container per tool
-├── chargebacks/   the use case: 60 real Stripe disputes (test mode), Sportiva internal tools, scoring, demo screen
-├── comptarex/     Qonta, a fake 2000s accounting software with no API: second test ground (supplier invoices)
+├── comptarex/     Qonta, a fake 2000s accounting software with no API: the proof case (supplier invoices)
+├── chargebacks/   next case: 60 real Stripe disputes (test mode) and the Sportiva internal tools
 └── prep/          preparation done before Saturday 10:30: API tests and logbook (no product code)
 ```
 
@@ -175,13 +176,13 @@ The detailed READMEs inside each folder are written in French.
 |---|---|
 | **Show me once** | the product |
 | **SMO** | the platform code (`smo/`): server, pipeline, recording page |
-| **som** | the Python package of the chargebacks use case (`chargebacks/som/`) |
+| **som** | the Python package of the chargebacks case (`chargebacks/som/`) |
 | **Skill** | the written procedure + rules the agent follows (an H Skill), learned from the demo and reviewed by the human |
 | **Tool** | a deterministic script written by Devin for one learned task, exposed to the agent as two H custom tools: `precheck_<task>` and `run_<task>` |
 | **Precheck** | checks, without changing anything, that the software screens still match the tool's UI contract |
 | **Takeover** | when a tool fails, the H agent finishes the task in computer use and reports the drift |
-| **Qonta** | fake 2000s accounting software (no API), our second test ground (folder `comptarex/`, its original code name) |
-| **Sportiva / Parcelia** | fictional marketplace and carrier used in the chargebacks case |
+| **Qonta** | fake 2000s accounting software with no API, our proof case (folder `comptarex/`, its original code name) |
+| **Sportiva / Parcelia** | fictional marketplace and carrier of the next case (chargebacks) |
 
 ## 10. Partners: what each one actually does
 
@@ -192,7 +193,7 @@ The detailed READMEs inside each folder are written in French.
 | **Gladia** | live transcription while recording, then timestamped transcription of the full file | `smo/smo/clients/gladia.py` |
 | **Devin** | writes and **repairs** tools (PR + tests) through its API, following the `smo-tool` Skill | `smo/smo/pipeline/compile.py`, `h-tools/` |
 | **Linkup** | checks the rules stated by the human and finds the software's public documentation | `smo/smo/pipeline/enrich.py` |
-| **Stripe** | real disputes in test mode; their final status is our ground truth | `chargebacks/som/seed.py`, `chargebacks/som/stripe_api.py` |
+| **Stripe** | next case: real disputes in test mode, scored from their final status | `chargebacks/som/seed.py`, `chargebacks/som/stripe_api.py` |
 
 ## 11. Security
 
