@@ -110,16 +110,17 @@ flowchart TB
     P -- "trace réussie / dérive" --> DV -- "PR fusionnée → GitHub Actions" --> T
 ```
 
-Chaque dossier est **autonome** (ses dépendances, son `.env.example`, son README) et vient d'un repo de travail de l'équipe,
-**importé avec tout son historique** (`git subtree`) : la chronologie des commits pendant le hackathon reste lisible.
+Ce repo **rassemble les trois repos de travail de l'équipe**, importés avec tout leur historique : la chronologie des commits
+pendant le hackathon reste lisible. Chaque dossier est **autonome** (ses dépendances, son `.env.example`, son README).
+Les déploiements (Railway, GitHub Actions d'h-tools) tournent depuis les repos de travail ; celui-ci est la vue d'ensemble.
 
 | Dossier | Repo de travail | Démarrer |
 |---|---|---|
-| [`smo/`](smo/) | ce repo | [`smo/README.md`](smo/README.md) · plan détaillé : [`smo/PLAN.md`](smo/PLAN.md) |
+| [`smo/`](smo/) | `Jean-Christophe972/show-me-once` | [`smo/README.md`](smo/README.md) · plan détaillé : [`smo/PLAN.md`](smo/PLAN.md) |
 | [`h-tools/`](h-tools/) | `Tomoroshimaru/h-tools` | [`h-tools/README.md`](h-tools/README.md) |
 | [`chargebacks/`](chargebacks/) | `noahsgds/show-me-once` | [`chargebacks/README.md`](chargebacks/README.md) |
-| [`comptarex/`](comptarex/) | ce repo | [`comptarex/README.md`](comptarex/README.md) |
-| [`prep/`](prep/) | ce repo | [`prep/JOURNAL.md`](prep/JOURNAL.md) |
+| [`comptarex/`](comptarex/) | `Jean-Christophe972/show-me-once` | [`comptarex/README.md`](comptarex/README.md) |
+| [`prep/`](prep/) | `Jean-Christophe972/show-me-once` | [`prep/JOURNAL.md`](prep/JOURNAL.md) |
 
 ## 6. Partenaires : ce que chacun fait vraiment
 
