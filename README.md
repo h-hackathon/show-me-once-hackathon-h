@@ -81,7 +81,6 @@ Here, an analyst shows **one** dispute, and the agent defends the whole queue **
 ## 5. Demo and results
 
 - **Demo video**: _link to add_
-- **"€ recovered" screen**: in `chargebacks/`, `python -m som watch`
 
 **Benchmark** — same disputes, two conditions (A: agent alone, classic prompt; B: agent + Skill learned from the demo).
 A handled dispute cannot be replayed, so each condition gets its own identical batch created in Stripe.
@@ -93,26 +92,39 @@ A handled dispute cannot be replayed, so each condition gets its own identical b
 | Wrongly contested | _being measured_ | _being measured_ |
 | Fraudsters blocked | _being measured_ | _being measured_ |
 
-Numbers come from `python -m som bench` (`runs/<date>/scores.csv`; the H replay link of every session is in `log.csv`).
+Disputes are created in Stripe test mode by `chargebacks/som/seed.py`; outcomes are read back from Stripe by `chargebacks/som/stripe_api.py`.
 
-## 6. Tests
+## 6. ROI: why teach once instead of prompting every time
+
+| | Human | Computer-use agent alone, every time | **Show me once** |
+|---|---|---|---|
+| Setup | training | prompt engineering by a technical person | **one narrated demo**, reviewed Skill |
+| Per task | ~15 min of an analyst | model calls on every screen, every run | **compiled tool**: deterministic script, **no model tokens for the task itself** |
+| Reliability | varies | different path on each run | same steps every run; result checked in the real system |
+| When the UI changes | human adapts | may silently fail | precheck detects it, **agent takes over**, Devin repairs the tool |
+
+Measured during preparation (`prep/JOURNAL.md`): an H agent session takes ~20–60 s per web task; Gladia transcribes one
+minute of narration in 3–5 s; Holo reads a document and drafts a Skill in ~3 s. The cost of learning is paid **once**;
+every later run uses the tool, and computer use (tokens + minutes) is only spent on the runs where the software changed.
+
+## 7. Tests
 
 | Project | Command | Result |
 |---|---|---|
-| `smo/` | `cd smo && uv sync && uv run pytest` | **53 passed**, 1 skipped (the live test needs a running Comptarex) |
+| `smo/` | `cd smo && uv sync && uv run pytest` | **53 passed**, 1 skipped (the live test needs a running Qonta) |
 | `h-tools/` | `cd h-tools && uv sync && uv run pytest tests` | **16 passed** |
 | First tool written by Devin | `h-tools/tools/saisir_une_facture_fournisseur_web/` | green in GitHub Actions before merge |
 
 The offline tests run without any API key.
 
-## 7. Repository layout
+## 8. Repository layout
 
 ```
 show-me-once-hackathon-h/
 ├── smo/           the platform: capture → Skill → H custom agent → Devin tool → takeover    (FastAPI server, Railway)
 ├── h-tools/       the tool factory: one folder per learned task, written by Devin, one Railway container per tool
 ├── chargebacks/   the use case: 60 real Stripe disputes (test mode), Sportiva internal tools, scoring, demo screen
-├── comptarex/     Comptarex, a fake 2000s accounting software with no API: second test ground (supplier invoices)
+├── comptarex/     Qonta, a fake 2000s accounting software with no API: second test ground (supplier invoices)
 └── prep/          preparation done before Saturday 10:30: API tests and logbook (no product code)
 ```
 
@@ -135,7 +147,7 @@ flowchart TB
     subgraph Targets["software without an API"]
       ST["Stripe Dashboard"]
       SP["Sportiva Admin · Parcelia Pro · Sportiva Care"]
-      CX["Comptarex"]
+      CX["Qonta"]
     end
     U --> P --> AG
     AG -- "tool call" --> W --> TL --> Targets
@@ -157,7 +169,7 @@ Deployments (Railway, h-tools GitHub Actions) run from the working repositories;
 
 The detailed READMEs inside each folder are written in French.
 
-## 8. Names used in this project
+## 9. Names used in this project
 
 | Name | What it is |
 |---|---|
@@ -168,21 +180,21 @@ The detailed READMEs inside each folder are written in French.
 | **Tool** | a deterministic script written by Devin for one learned task, exposed to the agent as two H custom tools: `precheck_<task>` and `run_<task>` |
 | **Precheck** | checks, without changing anything, that the software screens still match the tool's UI contract |
 | **Takeover** | when a tool fails, the H agent finishes the task in computer use and reports the drift |
-| **Comptarex** | fake accounting software (no API), our second test ground — called *Qonta* in some internal docs |
+| **Qonta** | fake 2000s accounting software (no API), our second test ground (folder `comptarex/`, its original code name) |
 | **Sportiva / Parcelia** | fictional marketplace and carrier used in the chargebacks case |
 
-## 9. Partners: what each one actually does
+## 10. Partners: what each one actually does
 
 | Partner | Role in Show me once | Where |
 |---|---|---|
-| **H Company — Agents API** | custom agents, **Skills**, **custom tools** executed by our server, vault (credentials never in a prompt), browser profiles, parallel sessions | `smo/smo/clients/h.py`, `chargebacks/som/runner.py` |
-| **H Company — Holo (Models API)** | reads the demo screenshots, writes the procedure, judges the trials | `smo/smo/pipeline/understand.py`, `chargebacks/som/skill_builder.py` |
-| **Gladia** | live transcription while recording, then timestamped transcription of the full file | `smo/smo/clients/gladia.py`, `chargebacks/som/capture.py` |
+| **H Company — Agents API** | custom agents, **Skills**, **custom tools** executed by our server, vault (credentials never in a prompt), browser profiles, parallel sessions | `smo/smo/clients/h.py` |
+| **H Company — Holo (Models API)** | reads the demo screenshots, writes the procedure, judges the trials | `smo/smo/pipeline/understand.py` |
+| **Gladia** | live transcription while recording, then timestamped transcription of the full file | `smo/smo/clients/gladia.py` |
 | **Devin** | writes and **repairs** tools (PR + tests) through its API, following the `smo-tool` Skill | `smo/smo/pipeline/compile.py`, `h-tools/` |
 | **Linkup** | checks the rules stated by the human and finds the software's public documentation | `smo/smo/pipeline/enrich.py` |
-| **Stripe** | real disputes in test mode; their final status is our ground truth | `chargebacks/som/seed.py`, `chargebacks/som/checker.py` |
+| **Stripe** | real disputes in test mode; their final status is our ground truth | `chargebacks/som/seed.py`, `chargebacks/som/stripe_api.py` |
 
-## 10. Security
+## 11. Security
 
 - No secrets in the repository: every project has a `.env.example`, `.env` files are git-ignored.
 - Stripe **test keys only** (the code rejects a live key).
