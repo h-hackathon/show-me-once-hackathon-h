@@ -1,0 +1,9 @@
+# Le runtime commun, le conteneur et le déploiement : toute modification redéploie tous les tools.
+/h_tools/          @Tomoroshimaru
+/Dockerfile        @Tomoroshimaru
+/railway.json      @Tomoroshimaru
+/pyproject.toml    @Tomoroshimaru
+/uv.lock           @Tomoroshimaru
+/scripts/          @Tomoroshimaru
+/.github/          @Tomoroshimaru
+/.agents/          @Tomoroshimaru
