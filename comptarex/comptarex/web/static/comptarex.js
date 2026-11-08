@@ -1,4 +1,4 @@
-/* COMPTAREX Cabinet 6.2 — scripts de la page (pas d'appel réseau, sauf la création de fournisseur) */
+/* QONTA Cabinet 6.2 — scripts de la page (pas d'appel réseau, sauf la création de fournisseur) */
 (function () {
   "use strict";
 
