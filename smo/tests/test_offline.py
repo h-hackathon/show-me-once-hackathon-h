@@ -440,8 +440,16 @@ def test_find_prefers_the_local_clone_then_the_announced_tool(s, monkeypatch):
     assert rt.find(s, "saisir_web") == "distant:https://tool-saisir-web.up.railway.app"
 
 
-def _hook_setup(monkeypatch, live: dict, precheck: dict, kind: str = "web"):
+def _server(monkeypatch):
+    """Le serveur importé avec le vrai smo/.env : ni interrogation de H (clé réelle), ni jeton exigé."""
     from smo.runtime import server
+    monkeypatch.setattr(server, "worker", None)
+    monkeypatch.setitem(server.app.dependency_overrides, server.check_token, lambda: None)
+    return server
+
+
+def _hook_setup(monkeypatch, live: dict, precheck: dict, kind: str = "web"):
+    server = _server(monkeypatch)
     registered, upgraded, prechecked = [], [], []
     monkeypatch.setattr(server.remote, "register", lambda s, name, url, sha, **kw: registered.append((url, kw)))
     monkeypatch.setattr(server, "find", lambda s, name: type("T", (), {"sha": live["sha"], "kind": kind})())
@@ -567,9 +575,8 @@ def test_devin_session_requires_the_json_report():
 
 
 def test_server_health_without_keys(monkeypatch):
-    monkeypatch.delenv("HAI_API_KEY", raising=False)
     from fastapi.testclient import TestClient
-    from smo.runtime import server
+    server = _server(monkeypatch)
     with TestClient(server.app) as client:
         body = client.get("/health").json()
     assert body["ok"] is True and isinstance(body["local_tools"], list)

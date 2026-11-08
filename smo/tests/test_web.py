@@ -66,9 +66,11 @@ def test_capture_review_and_approve(client, s):
     assert run.has("skill.approved") and client.started == [run_id, run_id]
 
 
-def test_stop_cancels_the_h_session_and_the_pipeline_stops(client, s, monkeypatch):
+def test_stop_cancels_the_h_session_and_the_pipeline_stops(s, monkeypatch):
     from smo.pipeline import orchestrator
     from smo.runtime import web
+    s = dataclasses.replace(s, hai_api_key="hai-test")   # sans clé H, rien à annuler (CI, Devin)
+    client = TestClient(_app(router_for(s)[0]))
     run = Run.create(s.runs_dir, CaptureMeta(task="Saisir", software_url="https://qonta.example"), [])
     run.write_text("session.active", "sess-42")
     cancelled = []
