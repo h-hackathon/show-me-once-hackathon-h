@@ -24,6 +24,7 @@ from pydantic import BaseModel
 from ..clients import gladia
 from ..config import Settings
 from ..models import CaptureMeta, CompileResult, Provisioned, SoftwareMap, Trace, Trial
+from ..pipeline import target
 from ..pipeline.orchestrator import NAMES, run_pipeline
 from ..runs import Run
 from .auth import token_checker
@@ -144,9 +145,10 @@ def router_for(s: Settings) -> tuple[APIRouter, Runner]:
                              software_name: str = Form("")) -> dict:
         if software_kind not in ("web", "desktop"):
             raise HTTPException(422, "software_kind : web ou desktop")
-        if software_kind == "desktop" and not s.h_desktop_env and os.environ.get("RAILWAY_ENVIRONMENT"):
-            raise HTTPException(422, "Appli de bureau : renseigne H_DESKTOP_ENV, l'identifiant de l'environnement "
-                                     "desktop de test configuré dans H.")
+        if software_kind == "desktop" and not target.has_remote_desktop(s) and os.environ.get("RAILWAY_ENVIRONMENT"):
+            raise HTTPException(422, "Appli de bureau : renseigne H_DESKTOP_BRIDGE (l'identifiant qu'affiche "
+                                     "scripts/desktop_bridge.sh sur le PC du live) ou H_DESKTOP_ENV (un environnement "
+                                     "desktop configuré dans H).")
         folder = Path(tempfile.mkdtemp())
         dest = folder / f"capture{Path(video.filename or '').suffix or '.webm'}"
         size = 0

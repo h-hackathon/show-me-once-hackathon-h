@@ -334,12 +334,34 @@ def test_desktop_gets_its_own_agent_environment_and_names(s, tmp_path):
     from smo.pipeline import target
     run = Run.create(s.runs_dir, CaptureMeta(task="Saisir une facture fournisseur", software_kind="desktop",
                                              software_url="COMPTAREX Cabinet 6.2", owner="Catherine"), [])
+    s = dataclasses.replace(s, h_desktop_env=None, h_desktop_bridge=None)
     local = target.environment(run.meta, s)                         # sans environnement H : le bureau de la machine
-    assert local.kind == "desktop" and local.host == "user_device"
+    assert local.kind == "desktop" and local.host == "user_device" and not local.session_id
     assert target.environment(run.meta, dataclasses.replace(s, h_desktop_env="qonta-desktop")) == "qonta-desktop"
     assert skill.tool_name(run).endswith("_desktop") and provision.agent_name(run, s).endswith("-desktop")
     assert "application de bureau « COMPTAREX Cabinet 6.2 »" in target.where(run.meta)
     assert target.credentials(run.meta, s) == (s.desktop_login, s.desktop_password)
+
+
+def test_desktop_bridge_points_the_agent_at_the_live_pc(s):
+    from hai_agents_local.routing import localize_agent
+    from smo.pipeline import target
+    bridge = "3f2c1a9e-8b7d-4c6e-9f10-2a3b4c5d6e7f"
+    s = dataclasses.replace(s, h_desktop_env=None, h_desktop_bridge=bridge)
+    env = target.desktop_environment(s)
+    assert (env.kind, env.host, env.session_id) == ("desktop", "user_device", bridge)
+    assert target.as_dict(env)["session_id"] == bridge                     # agent.json garde l'identifiant
+    assert target.desktop_environment(dataclasses.replace(s, h_desktop_env="qonta-desktop")) == "qonta-desktop"
+    # session_id rempli : le SDK ne lance aucun relais ici (Railway n'a pas d'écran), H vise celui du PC du live
+    assert localize_agent({"name": "a", "environments": [target.as_dict(env)]}, api_key="k").bridges == []
+    assert target.has_remote_desktop(s) and not target.has_remote_desktop(dataclasses.replace(s, h_desktop_bridge=None))
+
+
+def test_desktop_bridge_must_be_a_uuid():
+    assert config.bridge_id(None) is None and config.bridge_id("") is None
+    assert config.bridge_id("3F2C1A9E-8B7D-4C6E-9F10-2A3B4C5D6E7F") == "3f2c1a9e-8b7d-4c6e-9f10-2a3b4c5d6e7f"
+    with pytest.raises(config.MissingConfig, match="H_DESKTOP_BRIDGE"):
+        config.bridge_id("mon-mac")
 
 
 def test_docs_summary_feeds_holo(run):

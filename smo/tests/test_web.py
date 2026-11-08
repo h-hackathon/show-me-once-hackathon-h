@@ -63,16 +63,21 @@ def test_capture_review_and_approve(client, s):
 def test_online_desktop_capture_needs_the_h_desktop_environment(s, monkeypatch):
     monkeypatch.setenv("RAILWAY_ENVIRONMENT", "production")
     data = {"task": "t", "url": "COMPTAREX Cabinet 6.2", "software_kind": "desktop"}
-    for desktop_env, expected in ((None, 422), ("qonta-desktop", 200)):
-        router, runner = router_for(dataclasses.replace(s, h_desktop_env=desktop_env))
+    s = dataclasses.replace(s, h_desktop_env=None, h_desktop_bridge=None)
+    bridge = "3f2c1a9e-8b7d-4c6e-9f10-2a3b4c5d6e7f"
+    cases = ((None, None, 422), ("qonta-desktop", None, 200), (None, bridge, 200))
+    for i, (desktop_env, desktop_bridge, expected) in enumerate(cases):
+        data["task"] = f"t{i}"   # un run par cas : même seconde, même tâche → même dossier
+        router, runner = router_for(dataclasses.replace(s, h_desktop_env=desktop_env, h_desktop_bridge=desktop_bridge))
         monkeypatch.setattr(runner, "start", lambda run: True)
         app = FastAPI()
         app.include_router(router)
         with TestClient(app) as c:
             r = c.post("/api/captures", files={"video": ("capture.webm", b"x", "video/webm")}, data=data)
         assert r.status_code == expected
-    assert "H_DESKTOP_ENV" in TestClient(_app(router_for(s)[0])).post(
+    detail = TestClient(_app(router_for(s)[0])).post(
         "/api/captures", files={"video": ("c.webm", b"x", "video/webm")}, data=data).json()["detail"]
+    assert "H_DESKTOP_BRIDGE" in detail and "H_DESKTOP_ENV" in detail
 
 
 def _app(router):

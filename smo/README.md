@@ -77,7 +77,16 @@ On peut refaire une étape : `uv run smo run <id> --only understand --force`.
 
 Où il tourne : **un seul serveur SMO, sur Railway, gère tout**. Sur la page, on choisit l'agent :
 - **web** : l'agent H travaille dans son navigateur cloud, sur le site en ligne ;
-- **bureau** : l'agent H travaille dans l'**environnement desktop de test configuré dans H**, dont on donne l'identifiant dans `H_DESKTOP_ENV`. Sans lui, SMO prend le bureau de la machine où il tourne, ce qui ne sert qu'en local.
+- **bureau** : l'agent H travaille sur le **PC du live**, par son relais (`H_DESKTOP_BRIDGE`, voir ci-dessous), ou dans un environnement desktop configuré dans H (`H_DESKTOP_ENV`, prioritaire). Sans l'un ni l'autre, SMO prend le bureau de la machine où il tourne, ce qui ne sert qu'en local.
+
+### Agent bureau sur le PC du live
+
+SMO, sur Railway, n'a pas d'écran. Il donne à l'agent bureau l'environnement `{"kind": "desktop", "host": "user_device", "session_id": H_DESKTOP_BRIDGE}`, et H envoie les clics au relais qui sert cet identifiant : `holo local desktop`, lancé sur le PC du live.
+
+1. Installer holo sur le PC du live : `uv tool install "hai-agents[cli,desktop]==1.4.3"`. Il lit `HAI_API_KEY` (le script la prend dans `smo/.env`), sinon `holo login`.
+2. Autorisations macOS, dans Réglages › Confidentialité et sécurité, pour l'app qui lance le script (Terminal, iTerm, VS Code…) : **Enregistrement de l'écran**, **Accessibilité** et **Surveillance de l'entrée**. Puis quitter et rouvrir cette app : une autorisation ne vaut que pour un nouveau processus.
+3. Lancer `scripts/desktop_bridge.sh`. Sans `H_DESKTOP_BRIDGE`, il en génère un et l'affiche : le mettre dans les variables Railway de SMO (et dans `.env`). Le relais s'arrête à la fin de chaque session H ; le script le relance en boucle. Ctrl-C arrête tout.
+4. Un seul agent à la fois pilote la machine : les essais passent l'un après l'autre, et on ne touche pas à la souris pendant une session.
 
 Les tools déterministes de bureau (accessibilité macOS) doivent tourner là où tourne l'appli : h-tools ne les déploie pas sur Railway. En attendant, l'agent bureau travaille en computer use.
 
@@ -93,8 +102,8 @@ Trois projets Railway séparés : Qonta (le logiciel de test), SMO (ce serveur),
    - toutes les clés et les `SITE_*` du `.env` ;
    - **`SMO_RUNS_DIR=/data/runs`** ;
    - **`SMO_SERVER_TOKEN`** : 16 caractères minimum, par exemple `openssl rand -hex 24`. Sans lui, le serveur refuse de démarrer en ligne.
-   - **`H_DESKTOP_ENV`** : l'identifiant de l'environnement desktop de test configuré dans H (agent bureau) ;
-   - `DESKTOP_LOGIN` / `DESKTOP_PASSWORD` : les identifiants de l'appli dans cet environnement ;
+   - agent bureau : **`H_DESKTOP_BRIDGE`**, l'identifiant du relais du PC du live (voir « Agent bureau sur le PC du live »), ou `H_DESKTOP_ENV`, un environnement desktop configuré dans H ;
+   - `DESKTOP_LOGIN` / `DESKTOP_PASSWORD` : les identifiants de l'appli de bureau ;
    - inutile sur Railway : `H_TOOLS_DIR`.
 4. **Adresse** : Settings › Networking › Generate Domain. La mettre dans `SMO_SERVER_URL`, sur Railway et dans le `.env` du Mac.
 5. **h-tools**, pour la liaison : dans le projet Railway d'h-tools, la variable partagée `SMO_SERVER_TOKEN` (le même jeton) ; dans les secrets GitHub du repo h-tools, `SMO_SERVER_URL` (cette adresse) et `SMO_SERVER_TOKEN`. Chaque déploiement de tool l'annonce alors à SMO.
@@ -120,6 +129,7 @@ smo/
   smo/runtime/     serveur FastAPI, worker des tools H, chargement des tools, helpers Playwright
   tools/           les tools compilés par Devin (un dossier par tâche) + _template
   docs/            brief Devin (création, réparation), contrat du site compta
+  scripts/         desktop_bridge.sh : le relais bureau du PC du live
 ```
 
 Repris de `prep/` : la transcription Gladia (`03`), la lecture d'écran Holo (`04`), l'usage de l'Agents API (`01`, `02`).

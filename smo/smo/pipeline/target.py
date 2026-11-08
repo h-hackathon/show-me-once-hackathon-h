@@ -1,7 +1,8 @@
 """Le logiciel cible d'un run : un site web (navigateur de l'agent H) ou une appli de bureau (environnement desktop).
 
-L'appli de bureau tourne dans l'environnement desktop de test configuré dans H (H_DESKTOP_ENV) ; sans lui, SMO
-prend le bureau de la machine où il tourne (utile en local seulement).
+L'appli de bureau tourne dans l'environnement desktop de test configuré dans H (H_DESKTOP_ENV), ou sur le PC du live
+par son relais `holo local desktop` (H_DESKTOP_BRIDGE) ; sans l'un ni l'autre, SMO prend le bureau de la machine où il
+tourne (utile en local seulement).
 
 Un agent H par type, avec ses propres tools : les noms d'agent, de Skill et de tool portent le type.
 """
@@ -22,8 +23,21 @@ def is_desktop(meta: CaptureMeta) -> bool:
 
 
 def desktop_environment(s: Settings):
-    """L'environnement desktop de test configuré dans H (par son identifiant), sinon le bureau de cette machine."""
-    return s.h_desktop_env or LOCAL_DESKTOP
+    """L'environnement desktop de test configuré dans H (par son identifiant), sinon le relais du PC du live,
+    sinon le bureau de cette machine.
+
+    Le relais : session_id déjà rempli, le SDK ne lance pas de relais local et H envoie les commandes à celui qui sert
+    cet identifiant (scripts/desktop_bridge.sh sur le PC du live)."""
+    if s.h_desktop_env:
+        return s.h_desktop_env
+    if s.h_desktop_bridge:
+        return Environment_Desktop(id="desktop", host="user_device", session_id=s.h_desktop_bridge)
+    return LOCAL_DESKTOP
+
+
+def has_remote_desktop(s: Settings) -> bool:
+    """Un bureau joignable depuis un serveur sans écran (Railway) : l'environnement H ou le relais du PC du live."""
+    return bool(s.h_desktop_env or s.h_desktop_bridge)
 
 
 def environment(meta: CaptureMeta, s: Settings):

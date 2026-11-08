@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -40,6 +41,7 @@ ENV = {
     "tool_url": "SMO_TOOL_URL",
     "worker_kinds": "SMO_WORKER_KINDS",
     "h_desktop_env": "H_DESKTOP_ENV",
+    "h_desktop_bridge": "H_DESKTOP_BRIDGE",
 }
 
 DEFAULTS = {
@@ -85,6 +87,7 @@ class Settings:
     tool_url: str | None           # adresse des tools déployés (défaut : réseau privé Railway du projet)
     worker_kinds: tuple[str, ...]  # agents servis par ce serveur (défaut : web et desktop)
     h_desktop_env: str | None      # l'environnement desktop de test configuré dans H (son identifiant)
+    h_desktop_bridge: str | None   # sinon, le relais `holo local desktop` du PC du live (son identifiant)
 
     def require(self, *names: str) -> None:
         missing = [ENV[n] for n in names if not getattr(self, n)]
@@ -134,6 +137,7 @@ def load() -> Settings:
         tool_url=env("tool_url"),
         worker_kinds=worker_kinds(env("worker_kinds")),
         h_desktop_env=env("h_desktop_env"),
+        h_desktop_bridge=bridge_id(env("h_desktop_bridge")),
     )
 
 
@@ -142,3 +146,14 @@ def worker_kinds(value: str | None) -> tuple[str, ...]:
     if value:
         return tuple(k.strip() for k in value.split(",") if k.strip())
     return ("web", "desktop")
+
+
+def bridge_id(value: str | None) -> str | None:
+    """L'identifiant du relais bureau : un UUID, celui qu'affiche scripts/desktop_bridge.sh."""
+    if not value:
+        return None
+    try:
+        return str(uuid.UUID(value))
+    except ValueError:
+        raise MissingConfig(f"{ENV['h_desktop_bridge']} doit être un UUID (celui qu'affiche "
+                            f"scripts/desktop_bridge.sh), pas {value!r}") from None
