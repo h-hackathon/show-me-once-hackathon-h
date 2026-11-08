@@ -38,13 +38,6 @@ flowchart LR
     F -- "sa trace" --> D
 ```
 
-1. **Montrer.** L'analyste traite un litige en commentant à voix haute. Gladia transcrit (en direct, puis sur le fichier complet) ; une capture d'écran est extraite à chaque phrase.
-2. **Comprendre.** Holo (Models API de H) relie chaque phrase à l'écran et en tire la procédure et **les règles implicites**. Linkup vérifie ces règles sur des sources publiques. L'humain relit et corrige la **Skill** avant tout lancement.
-3. **Essayer.** Un **agent custom H** est créé avec cette Skill et refait la tâche seul, à l'écran. Holo juge si le résultat est le même que dans la démo ; sinon, la leçon est ajoutée à la Skill (3 essais au plus).
-4. **Compiler.** Devin reçoit la trace réussie et écrit un **tool déterministe** (Playwright, sélecteurs par libellés visibles), son contrat d'interface et ses tests, dans une PR. Tests verts → fusion → déploiement automatique.
-5. **Exploiter.** L'agent appelle le tool : rapide, reproductible, toujours arrêté avant l'action finale.
-6. **Reprendre.** Si le logiciel a changé, le *precheck* du tool échoue : **l'agent H finit la tâche en computer use** avec la Skill, et sa trace renvoie Devin corriger le tool.
-
 1. **Montrer.** Vous faites la tâche en commentant à voix haute. Gladia transcrit (en direct, puis sur le fichier complet) ; une capture d'écran est extraite à chaque phrase.
 2. **Comprendre.** Holo (Models API de H) relie chaque phrase à l'écran et en tire la procédure et **les règles implicites**. Linkup vérifie ces règles sur des sources publiques. Vous relisez et corrigez la **Skill** avant tout lancement.
 3. **Essayer.** Un **agent custom H** est créé avec cette Skill et refait la tâche seul, à l'écran. Holo juge si le résultat est le même que dans la démo ; sinon, la leçon est ajoutée à la Skill (3 essais au plus).
