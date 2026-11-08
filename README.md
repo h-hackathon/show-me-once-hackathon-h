@@ -122,8 +122,8 @@ TOOL_DIR=tools/<nom> uv run uvicorn --factory h_tools.server:create_app --port 8
 2. relance les tests du runtime et de ces tools ;
 3. lance `scripts/deploy_tool.sh <nom>` pour chacun :
    - **tool web** : contexte de build (Dockerfile, `h_tools/`, `tools/<nom>/` copié en `tool/`), service
-     `tool-<nom>` créé au besoin avec deux variables seulement (`PORT=8080`, `SMO_SERVER_TOKEN` en référence à la
-     variable partagée), `railway up`, adresse publique, puis annonce à SMO (`scripts/announce.py` →
+     `tool-<nom>` créé au besoin, ses deux seules variables reposées à chaque fois (`PORT=8080`, `SMO_SERVER_TOKEN`
+     pris dans le secret GitHub), `railway up`, adresse publique, puis annonce à SMO (`scripts/announce.py` →
      `POST /hooks/tool-deployed`) jusqu'à ce que SMO voie le nouveau commit et rende son precheck ;
    - **tool de bureau** : `announce.py` envoie à SMO le tool, le runtime sans Playwright et `run.sh`.
 
@@ -135,15 +135,15 @@ Redéployer à la main : Actions → deploy → « Run workflow » (tools sépar
 ### Mise en place (une fois)
 
 - **Projet Railway** dédié aux tools : il ne contient que les services `tool-*`, créés au premier déploiement.
-- **Variable partagée** du projet (Settings › Shared Variables) : `SMO_SERVER_TOKEN`. Aucune variable de site.
+- Rien à régler sur Railway : aucune variable de site, et le jeton SMO vient du secret GitHub.
 - **Secrets GitHub** du repo (`gh secret set NOM -R Tomoroshimaru/h-tools`) :
 
 | Secret | Rôle |
 |---|---|
-| `RAILWAY_API_TOKEN` | token de **compte** Railway (un token de projet ne peut pas créer de service) |
+| `RAILWAY_API_TOKEN` | jeton de **compte** Railway (Account Settings › Tokens, « No workspace ») : un jeton de projet ne crée pas de service, et le CLI refuse un jeton d'équipe (workspace) |
 | `RAILWAY_PROJECT_ID` | le projet Railway des tools |
 | `SMO_SERVER_URL` | l'adresse publique du serveur SMO, à qui chaque tool est annoncé |
-| `SMO_SERVER_TOKEN` | le mot de passe commun avec SMO (le même que la variable partagée) |
+| `SMO_SERVER_TOKEN` | le mot de passe commun avec SMO : le même que la variable `SMO_SERVER_TOKEN` du SMO sur Railway |
 
 ## Licence
 

@@ -30,8 +30,8 @@ echo "$sha" > "$build/tool/VERSION"
 find "$build" -name __pycache__ -type d -prune -exec rm -rf {} +
 cd "$build"
 
-# 2. Nouveau tool : on crée son service. Deux variables seulement : PORT, et SMO_SERVER_TOKEN (variable partagée du
-#    projet) pour que le tool n'accepte que les appels de SMO.
+# 2. Nouveau tool : on crée son service. Deux variables seulement : PORT, et SMO_SERVER_TOKEN pour que le tool
+#    n'accepte que les appels de SMO.
 #    Un jeton d'équipe (workspace) ne lit pas `me` : sans --workspace, railway link répond « Unauthorized ».
 workspace=$(curl -sS --max-time 20 https://backboard.railway.com/graphql/v2 -H "Content-Type: application/json" \
   -H "Authorization: Bearer $RAILWAY_API_TOKEN" \
@@ -40,8 +40,12 @@ workspace=$(curl -sS --max-time 20 https://backboard.railway.com/graphql/v2 -H "
 railway link --project "$RAILWAY_PROJECT_ID" --environment "${RAILWAY_ENV_NAME:-production}" ${workspace:+--workspace "$workspace"}
 if ! railway variables --service "$service" --kv >/dev/null 2>&1; then
   echo "nouveau service : $service"
-  railway add --service "$service" --variables "PORT=8080" --variables "SMO_SERVER_TOKEN=\${{shared.SMO_SERVER_TOKEN}}"
+  railway add --service "$service"
 fi
+#    Posées à chaque déploiement (un service créé à la main n'en a aucune) : sans PORT, Railway en choisit un autre que
+#    celui de l'adresse publique (502) ; le jeton vient du secret GitHub, sans variable partagée Railway à créer.
+railway variables --service "$service" --skip-deploys --set "PORT=8080" \
+  ${SMO_SERVER_TOKEN:+--set "SMO_SERVER_TOKEN=$SMO_SERVER_TOKEN"} > /dev/null
 
 # 3. Build et déploiement : sort en erreur si le build échoue
 railway up --service "$service" --ci

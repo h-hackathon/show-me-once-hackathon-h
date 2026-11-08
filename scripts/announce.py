@@ -61,7 +61,9 @@ def post(url: str, token: str, body: dict) -> dict:
 
 
 def main(name: str, sha: str, tool_url: str | None = None) -> int:
-    server, token = os.environ.get("SMO_SERVER_URL", "").rstrip("/"), os.environ.get("SMO_SERVER_TOKEN", "")
+    server, token = os.environ.get("SMO_SERVER_URL", "").strip().rstrip("/"), os.environ.get("SMO_SERVER_TOKEN", "")
+    if server and "://" not in server:   # « xxx.up.railway.app » tel que copié depuis Railway
+        server = f"https://{server}"
     if not server:
         print("SMO_SERVER_URL absent : le tool est déployé mais aucun agent n'est mis à jour", file=sys.stderr)
         return 0 if tool_url else 1   # un tool de bureau n'existe que par SMO
