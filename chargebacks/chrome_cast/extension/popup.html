@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { width:300px; margin:0; padding:16px; font:14px/1.4 system-ui, sans-serif; background:#0f1115; color:#e8eaed; }
+    h1 { font-size:16px; margin:0 0 12px; }
+    button { width:100%; font:inherit; font-weight:600; border:0; border-radius:8px; padding:10px; cursor:pointer; background:#7c5cff; color:#fff; margin-bottom:8px; }
+    button.stop { background:#ea4335; }
+    details { margin-top:8px; color:#9aa0a6; }
+    input { width:100%; box-sizing:border-box; margin:4px 0 8px; padding:6px 8px; border-radius:6px; border:1px solid #333; background:#181b22; color:#e8eaed; }
+    small { color:#9aa0a6; }
+  </style>
+</head>
+<body>
+  <h1>Show Me Once</h1>
+  <div id="idle">
+    <button id="open">● Nouvel enregistrement</button>
+    <small>Ouvre l'onglet recorder pour choisir l'écran.</small>
+  </div>
+  <div id="rec" hidden>
+    <button id="stop" class="stop">■ Arrêter et envoyer</button>
+    <small>Enregistrement en cours…</small>
+  </div>
+  <details>
+    <summary>Réglages</summary>
+    <label>URL du backend<input id="backendUrl" placeholder="http://localhost:8000"></label>
+    <label>Clé d'accès backend (optionnel)<input id="apiKey" type="password"></label>
+    <button id="save">Enregistrer</button>
+  </details>
+  <script src="popup.js"></script>
+</body>
+</html>

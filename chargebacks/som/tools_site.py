@@ -3,7 +3,7 @@ support Sportiva Care. Marques 100 % fictives.
 
   python -m som outils   → app/data.json (lu par app/server.py, à déployer sur Railway)
 
-Les 60 commandes en litige viennent de som/scenarios.py ; on ajoute ~260 commandes « normales » sur 90 jours
+Les 400 commandes en litige viennent de som/scenarios.py ; on ajoute ~1 600 commandes « normales » sur 90 jours
 + l'historique d'achat des clients en litige. Tout est corrélé : commande ↔ colis ↔ ticket ↔ client. Les pages n'affichent jamais la décision attendue.
 """
 import json
@@ -209,7 +209,7 @@ def data() -> dict:
         tickets += t
         c = s["client"]
         clients[c["email"]] = {"nom": f"{c['prenom']} {c['nom']}", "ville": c["ville"], "cp": c["cp"], "depuis": c["client_depuis"]}
-    fo, fs, ft, fc = _filler(260, scenarios)
+    fo, fs, ft, fc = _filler(1600, scenarios)
     orders += fo
     ships += fs
     tickets += ft
@@ -218,8 +218,11 @@ def data() -> dict:
     ids = [o["id"] for o in orders]
     assert len(ids) == len(set(ids)), "identifiants de commande en double"
     assert len({s["tracking"] for s in ships}) == len(ships), "numéros de suivi en double"
+    par_client = {}
+    for o in orders:
+        par_client[o["client_email"]] = par_client.get(o["client_email"], 0) + 1
     for email, c in clients.items():               # nombre de commandes = vraies commandes visibles
-        c["commandes"] = sum(1 for o in orders if o["client_email"] == email)
+        c["commandes"] = par_client.get(email, 0)
     orders.sort(key=lambda o: (o["date"], o["id"]), reverse=True)
     tickets.sort(key=lambda t: (t["date"], t["commande"]), reverse=True)
     for i, t in enumerate(tickets):
