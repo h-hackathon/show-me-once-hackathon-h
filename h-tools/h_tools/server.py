@@ -9,8 +9,10 @@ Le contexte (adresse du logiciel, identifiants) vient du vault H, lu par SMO à 
 Sans contexte (en local), il est lu dans SITE_URL, SITE_USERNAME… (h_tools.config).
 
 Le tool a une adresse publique (SMO tourne dans un autre projet Railway). Sauf /health, chaque appel doit porter
-le mot de passe commun avec SMO dans l'en-tête X-SMO-Token (variable SMO_SERVER_TOKEN) ; sans elle, en local, tout
-est ouvert. Les identifiants ne passent que dans le corps (HTTPS), jamais dans l'adresse ni dans les journaux.
+le mot de passe commun avec SMO dans l'en-tête X-SMO-Token (variable SMO_SERVER_TOKEN). Sans elle, tout est ouvert en
+local, mais le conteneur (SMO_AUTH_REQUIRED=1, posé par le Dockerfile) refuse tout appel : un tool déployé n'est
+jamais public par erreur. Les identifiants ne passent que dans le corps (HTTPS), jamais dans l'adresse ni dans les
+journaux.
 
     TOOL_DIR=tools/<nom> uv run uvicorn --factory h_tools.server:create_app --port 8080    # en local
 """
@@ -28,7 +30,11 @@ from .loader import load_tool
 
 def check_token(x_smo_token: str | None = Header(default=None)) -> None:
     expected = os.environ.get("SMO_SERVER_TOKEN", "").strip()
-    if expected and not hmac.compare_digest((x_smo_token or "").encode(), expected.encode()):
+    if not expected:
+        if os.environ.get("SMO_AUTH_REQUIRED"):
+            raise HTTPException(503, "SMO_SERVER_TOKEN absent : le tool refuse tout appel")
+        return
+    if not hmac.compare_digest((x_smo_token or "").encode(), expected.encode()):
         raise HTTPException(401, "X-SMO-Token manquant ou invalide")
 
 

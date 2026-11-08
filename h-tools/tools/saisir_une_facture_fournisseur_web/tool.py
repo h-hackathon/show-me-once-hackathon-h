@@ -1,7 +1,6 @@
 """Saisir une facture fournisseur dans Qonta (Comptarex) à partir des valeurs lues sur la pièce, jusqu'au brouillon."""
 
 import re
-import unicodedata
 from datetime import date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Literal
@@ -9,8 +8,8 @@ from typing import Literal
 from playwright.sync_api import expect
 from pydantic import BaseModel, Field, field_validator
 
-from h_tools.ui import StepError, check_contract, contract_of, logged_out, login, stay_logged_in, step
-
+from h_tools.formats import CENT, decimal_fr, fr_amount, fr_date, fr_number, meme_nom, norm, sans_forme
+from h_tools.ui import StepError, check_contract, contract_of, logged_out, login, stay_logged_in, step, table_rows
 
 NAME = "saisir_une_facture_fournisseur_web"
 DESCRIPTION = ("Saisit une facture fournisseur dans Qonta (dossier du client, fournisseur, référence, date, lignes) "
@@ -21,18 +20,6 @@ CONTRACT = contract_of(__file__)
 Taxe = Literal["20 %", "10 %", "5,5 %", "0 %", "20 % autoliquidation UE"]
 TAUX = {"20 %": Decimal("0.20"), "10 %": Decimal("0.10"), "5,5 %": Decimal("0.055"), "0 %": Decimal("0"),
         "20 % autoliquidation UE": Decimal("0")}   # autoliquidation : la TVA n'est pas facturée par le fournisseur
-CENT = Decimal("0.01")
-LEGAL_FORMS = {"SA", "SAS", "SASU", "SARL", "EURL", "SNC", "SCI", "SCM", "SELARL", "SCOP", "EI", "GIE"}
-
-
-def decimal_fr(value):
-    """« 1 234,50 », « 1234.50 € » ou 1234.5 → Decimal ; comme sur la pièce."""
-    if isinstance(value, str):
-        value = value.replace("\u00a0", "").replace("\u202f", "").replace(" ", "").replace("€", "")
-        if "," in value:
-            value = value.replace(".", "").replace(",", ".")
-    return value
-
 
 class Ligne(BaseModel):
     libelle: str = Field(description="libellé de la ligne, tel qu'écrit sur la pièce")
@@ -91,42 +78,6 @@ class Params(BaseModel):
         return " ".join(value.split())
 
 
-# ------------------------------------------------------------------ formats de l'écran (un helper par format)
-
-def fr_amount(value: Decimal) -> str:
-    """Decimal("1234.5") → « 1 234,50 » : le format des montants de Qonta."""
-    sign = "-" if value < 0 else ""
-    units, cents = f"{abs(value).quantize(CENT, ROUND_HALF_UP):.2f}".split(".")
-    return f"{sign}{int(units):,}".replace(",", " ") + f",{cents}"
-
-
-def fr_number(value: Decimal) -> str:
-    """Decimal("2") → « 2 », Decimal("1.50") → « 1,5 » : une quantité ou un taux."""
-    text = f"{value.normalize():f}"
-    return text.replace(".", ",")
-
-
-def fr_date(value: date) -> str:
-    """date(2026, 10, 5) → « 05/10/2026 » (JJ/MM/AAAA, exigé par le champ Date de facture)."""
-    return value.strftime("%d/%m/%Y")
-
-
-def norm(text: str) -> str:
-    """Comparaison de noms comme l'autocomplétion de Qonta : sans accents, en majuscules, espaces réduits."""
-    text = unicodedata.normalize("NFD", text or "")
-    text = "".join(c for c in text if not unicodedata.combining(c)).upper()
-    return " ".join(re.sub(r"[^\w&]+", " ", text).split())
-
-
-def sans_forme(text: str) -> str:
-    """« NETCLOUD SERVICES SAS » → « NETCLOUD SERVICES »."""
-    return " ".join(w for w in norm(text).split() if w not in LEGAL_FORMS)
-
-
-def meme_nom(a: str, b: str) -> bool:
-    return norm(a) == norm(b) or sans_forme(a) == sans_forme(b)
-
-
 # ------------------------------------------------------------------ règles de la Skill (hors ligne)
 
 def rules(params: Params) -> str | None:
@@ -141,8 +92,8 @@ def rules(params: Params) -> str | None:
             return f"ligne {i} : quantité {ligne.quantite} invalide (elle doit être positive)"
         if ligne.prix_unitaire_ht < 0:
             return f"ligne {i} : prix unitaire HT négatif"
-    ht = sum((l.montant_ht for l in params.lignes), Decimal(0))
-    ttc = ht + sum((l.tva for l in params.lignes), Decimal(0))
+    ht = sum((ligne.montant_ht for ligne in params.lignes), Decimal(0))
+    ttc = ht + sum((ligne.tva for ligne in params.lignes), Decimal(0))
     if ht != params.total_ht:
         return f"total HT des lignes ({fr_amount(ht)}) ≠ total HT de la pièce ({fr_amount(params.total_ht)})"
     if ttc != params.total_ttc:
@@ -174,7 +125,8 @@ def connexion(page, cfg) -> None:
     with step("connexion"):
         login(page, cfg)
         if logged_out(page):
-            raise Stop({"status": "error", "reason": "connexion refusée : vérifier l'identifiant du site dans le vault"})
+            raise Stop({"status": "error",
+                        "reason": "connexion refusée : vérifier l'identifiant du site dans le vault"})
 
 
 def ouvrir_dossier(page, cfg, dossier: str) -> str:
@@ -205,17 +157,6 @@ def ouvrir_dossier(page, cfg, dossier: str) -> str:
         return nom
 
 
-def table_rows(page) -> list[dict]:
-    """Les lignes du tableau principal, en dictionnaires {en-tête: valeur}."""
-    table = page.get_by_role("main").get_by_role("table")
-    headers = [h.strip() for h in table.get_by_role("columnheader").all_inner_texts()]
-    rows = []
-    for row in table.get_by_role("row").all()[1:]:   # la première ligne est celle des en-têtes
-        cells = [c.strip() for c in row.get_by_role("cell").all_inner_texts()]
-        rows.append(dict(zip(headers, cells)))
-    return rows
-
-
 def chercher_doublon(page, cfg, params: Params) -> dict | None:
     """Liste des factures fournisseurs : la pièce (même fournisseur, même référence) est-elle déjà saisie ?"""
     with step("recherche d'un doublon dans la liste des factures"):
@@ -224,7 +165,8 @@ def chercher_doublon(page, cfg, params: Params) -> dict | None:
         while True:
             for row in table_rows(page):
                 tiers = row.get("Fournisseur", "")
-                if norm(row.get("Référence", "")) == norm(params.reference) and meme_nom(tiers, params.fournisseur):
+                if (norm(row.get("Référence", "")) == norm(params.reference)
+                        and meme_fournisseur(tiers, params.fournisseur)):
                     return doublon(params, row.get("N°"), row.get("Statut"), row.get("Fournisseur"))
             pages = re.search(r"Page (\d+)/(\d+)", page.get_by_role("main").inner_text())
             if not pages or int(pages.group(1)) >= int(pages.group(2)):
@@ -242,21 +184,41 @@ def doublon(params: Params, numero: str | None, statut: str | None, fournisseur:
     return result
 
 
+FORMES_ETRANGERES = {"GMBH", "AG", "KG", "LTD", "LIMITED", "PLC", "LLC", "INC", "BV", "NV", "SRL", "SPA", "SL", "SPRL"}
+
+
+def nom_compte(text: str) -> str:
+    """« Bürotechnik Weber GmbH » → « BUROTECHNIK WEBER » : sans accents ni forme juridique, française ou étrangère."""
+    return " ".join(w for w in sans_forme(text).split() if w not in FORMES_ETRANGERES)
+
+
+def meme_fournisseur(compte: str, nom: str) -> bool:
+    """Une forme étrangère n'est ignorée que si l'un des deux noms n'en a pas : ACME AG n'est pas ACME GmbH."""
+    if meme_nom(compte, nom):
+        return True
+    formes = [{w for w in norm(t).split() if w in FORMES_ETRANGERES} for t in (compte, nom)]
+    return nom_compte(compte) == nom_compte(nom) and (formes[0] == formes[1] or not all(formes))
+
+
 def choisir_fournisseur(page, nom: str) -> str:
     """Autocomplétion : taper le nom comme un humain, puis choisir le compte fournisseur dans la liste."""
     champ = page.get_by_role("combobox", name="Fournisseur")
     liste = page.get_by_role("listbox", name="Fournisseurs proposés")
-    vus: list[str] = []
-    for query in dict.fromkeys([nom, sans_forme(nom), sans_forme(nom).split()[0]]):
+    proposes: list[str] = []
+    exacts: list[str] = []
+    cherches: list[str] = []
+    # Qonta cherche sans accents dans tout le nom : chaque mot du nom retrouve un compte qui le contient.
+    for query in dict.fromkeys([nom, nom_compte(nom), *nom_compte(nom).split()]):
         if len(query) < 2:
             continue
+        cherches.append(query)
         champ.fill("")
         champ.press_sequentially(query, delay=50)
         expect(liste).to_be_visible()
         options = [o.strip() for o in liste.get_by_role("option").all_inner_texts()]
         comptes = [o for o in options if not o.startswith("+")]   # « + Créer le fournisseur … » : jamais par le tool
-        vus = comptes or vus
-        exacts = [o for o in comptes if meme_nom(o.split(" — ")[0], nom)]
+        proposes += [c for c in comptes if c not in proposes]
+        exacts = [o for o in comptes if meme_fournisseur(o.split(" — ")[0], nom)]
         if len(exacts) == 1:
             liste.get_by_role("option", name=exacts[0], exact=True).click()
             compte = exacts[0].split(" — ")[0]
@@ -264,10 +226,23 @@ def choisir_fournisseur(page, nom: str) -> str:
             return compte
         if len(exacts) > 1:
             break
-    raise Stop({"status": "error", "fournisseur": nom, "reason": (
-        f"fournisseur « {nom} » introuvable ou ambigu dans la liste des comptes"
-        + (f" (proposés : {', '.join(vus)})" if vus else "")
-        + " : le tool ne crée pas de fournisseur, un humain doit le choisir ou le créer")})
+    raise Stop(fournisseur_non_choisi(nom, proposes, exacts, cherches))
+
+
+def fournisseur_non_choisi(nom: str, proposes: list[str], ambigus: list[str], cherches: list[str]) -> dict:
+    """Aucun compte unique au nom de la pièce : le tool ne crée ni ne devine un fournisseur."""
+    if len(ambigus) > 1:
+        return {"status": "error", "fournisseur": nom, "reason": (
+            f"plusieurs comptes correspondent à « {nom} » ({', '.join(ambigus)}) : choisir le bon compte à l'écran")}
+    if proposes:
+        return {"status": "error", "fournisseur": nom, "reason": (
+            f"aucun compte au nom exact de « {nom} » (proposés : {', '.join(proposes)}) : vérifier à l'écran s'il "
+            "s'agit du même fournisseur ; sinon, un humain doit le créer")}
+    return {"status": "flagged", "fournisseur": nom, "reason": (
+        f"fournisseur « {nom} » absent des comptes du dossier (recherches {', '.join(f'« {q} »' for q in cherches)} : "
+        "Qonta ne propose que « + Créer le fournisseur ») : "
+        "le tool ne crée pas de fournisseur, un humain doit le créer avant de ressaisir la facture ; "
+        "rien n'a été enregistré")}
 
 
 def ligne_ecran(page, i: int):
@@ -318,11 +293,11 @@ def saisir(page, cfg, params: Params) -> dict:
         attendu = fr_amount(params.total_ttc)
         try:
             expect(totaux).to_contain_text(re.compile(r"Total TTC\s*" + re.escape(attendu)), timeout=3000)
-        except AssertionError:
+        except AssertionError as err:
             affiche = re.search(r"Total TTC\s*([-\d  ]+,\d{2})", totaux.inner_text())
             raise Stop({"status": "flagged", "reference": params.reference, "reason": (
                 f"total TTC affiché par Qonta ({affiche.group(1) if affiche else '?'}) ≠ total TTC de la pièce "
-                f"({attendu}) : rien n'a été enregistré")})
+                f"({attendu}) : rien n'a été enregistré")}) from err
     return {"compte": compte}
 
 
@@ -349,7 +324,8 @@ def enregistrer_brouillon(page, params: Params) -> dict:
 
 
 def precheck(page, cfg) -> dict:
-    """Connexion, écran de choix du dossier, puis les écrans de saisie dans le premier dossier ouvert. Ne modifie rien."""
+    """Connexion, écran de choix du dossier, puis les écrans de saisie dans le premier dossier ouvert.
+    Ne modifie rien."""
     login(page, cfg)
     avant = check_contract(page, screens(False), cfg)
     # Le precheck n'a pas de pièce : il ouvre le premier dossier à l'état « Ouvert » de la liste.
@@ -389,8 +365,9 @@ def run(page, params: Params, cfg) -> dict:
     if "status" in saved:
         return saved
     return {"status": "draft_saved", "numero": saved["numero"], "message": saved["message"], "dossier": dossier,
-            "fournisseur": saisie["compte"], "reference": params.reference, "date_facture": fr_date(params.date_facture),
-            "lignes": [{"libelle": l.libelle, "quantite": fr_number(l.quantite),
-                        "prix_unitaire_ht": fr_amount(l.prix_unitaire_ht), "taxe": l.taxe,
-                        "montant_ht": fr_amount(l.montant_ht)} for l in params.lignes],
+            "fournisseur": saisie["compte"], "reference": params.reference,
+            "date_facture": fr_date(params.date_facture),
+            "lignes": [{"libelle": ligne.libelle, "quantite": fr_number(ligne.quantite),
+                        "prix_unitaire_ht": fr_amount(ligne.prix_unitaire_ht), "taxe": ligne.taxe,
+                        "montant_ht": fr_amount(ligne.montant_ht)} for ligne in params.lignes],
             "total_ht": fr_amount(params.total_ht), "total_ttc": fr_amount(params.total_ttc)}

@@ -13,7 +13,10 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["pytest>=8"]
+dev = [
+    "pytest>=8",
+    "ruff>=0.17.4",
+]
 
 [tool.uv]
 package = false   # h_tools s'importe depuis la racine du repo (ou /app dans le conteneur), sans installation
@@ -22,3 +25,13 @@ package = false   # h_tools s'importe depuis la racine du repo (ou /app dans le 
 testpaths = ["tests", "tools"]
 pythonpath = ["."]
 addopts = "--import-mode=importlib"   # chaque tool a son test_tool.py : même nom de fichier, dossiers différents
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "I"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Body", "fastapi.Depends", "fastapi.Header"]

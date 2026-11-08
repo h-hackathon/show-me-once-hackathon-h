@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 import subprocess
 import sys
 import time
@@ -19,9 +20,9 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parent.parent
-RUNTIME = ("__init__.py", "config.py", "loader.py", "desk.py", "cli.py")   # pas de Playwright ni de serveur
+# Le runtime d'un tool de bureau : pas de Playwright (ui.py) ni de serveur (server.py).
+RUNTIME = ("__init__.py", "config.py", "loader.py", "desk.py", "cli.py", "steps.py", "formats.py")
 
 
 def bundle(name: str, sha: str) -> dict[str, str]:
@@ -55,16 +56,27 @@ def post(url: str, token: str, body: dict) -> dict:
     try:
         with urllib.request.urlopen(request, timeout=300) as response:
             return json.loads(response.read() or b"{}")
-    except (urllib.error.URLError, ValueError) as err:
+    except urllib.error.URLError as err:
+        if isinstance(err.reason, socket.gaierror):   # adresse inconnue : réessayer 10 min n'y changerait rien
+            sys.exit("SMO_SERVER_URL ne correspond à aucune adresse : "
+                     "corrige le secret GitHub (l'adresse publique de SMO)")
+        print(f"SMO : {err}", file=sys.stderr)
+        return {}
+    except ValueError as err:
         print(f"SMO : {err}", file=sys.stderr)
         return {}
 
 
 def main(name: str, sha: str, tool_url: str | None = None) -> int:
-    server, token = os.environ.get("SMO_SERVER_URL", "").rstrip("/"), os.environ.get("SMO_SERVER_TOKEN", "")
+    server, token = os.environ.get("SMO_SERVER_URL", "").strip().rstrip("/"), os.environ.get("SMO_SERVER_TOKEN", "")
+    if server and "://" not in server:   # « xxx.up.railway.app » tel que copié depuis Railway
+        server = f"https://{server}"
     if not server:
         print("SMO_SERVER_URL absent : le tool est déployé mais aucun agent n'est mis à jour", file=sys.stderr)
         return 0 if tool_url else 1   # un tool de bureau n'existe que par SMO
+    if not token:
+        print("SMO_SERVER_TOKEN absent : SMO refuserait l'annonce (secret GitHub à renseigner)", file=sys.stderr)
+        return 1
     if tool_url:
         body = {"tool": name, "sha": sha, "url": tool_url}
     else:

@@ -3,8 +3,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from h_tools.ui import check_contract, contract_of, locate, login
-
+from h_tools.ui import check_contract, contract_of, login
 
 NAME = "nom_du_tool"                     # = nom du dossier ; lettres minuscules, chiffres et _
 DESCRIPTION = "Saisit une pièce dans le logiciel à partir des valeurs lues dessus."

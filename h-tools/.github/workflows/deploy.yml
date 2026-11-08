@@ -10,6 +10,9 @@ on:
         description: "Tools à redéployer, séparés par des espaces (vide = tous)"
         required: false
 
+permissions:
+  contents: read
+
 concurrency:
   group: deploy
   cancel-in-progress: false
@@ -54,7 +57,7 @@ jobs:
         run: |
           uv sync --frozen
           uv run playwright install --with-deps chromium
-          uv run pytest $(for n in $TOOLS; do printf 'tools/%s ' "$n"; done)
+          uv run pytest tests $(for n in $TOOLS; do printf 'tools/%s ' "$n"; done)
       # Le paquet npm télécharge le binaire depuis les releases GitHub, qui ont renvoyé 504 pendant des heures le
       # 08/11 : on le prend dans l'image du CLI sur ghcr.io (binaire statique). Même raison pour uv, pris sur PyPI.
       - name: CLI Railway
