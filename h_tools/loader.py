@@ -23,7 +23,7 @@ class Tool:
 
     @property
     def contract(self) -> dict:
-        from .ui import contract_of   # Playwright n'est pas installé sur le poste d'un tool de bureau
+        from .ui import contract_of  # Playwright n'est pas installé sur le poste d'un tool de bureau
         return getattr(self.module, "CONTRACT", None) or contract_of(str(self.path / "tool.py"))
 
     @property
@@ -62,7 +62,8 @@ def browser_context(browser):
     """Le navigateur d'un utilisateur français ordinaire, comme celui de l'agent H : langue, fuseau, taille d'écran,
     et l'agent utilisateur de ce Chrome sans la mention « Headless ». Rien de plus : pas de contournement d'anti-bot
     (si un site bloque le tool, l'erreur rend la main à l'agent H, à l'écran)."""
-    agent = f"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{browser.version} Safari/537.36"
+    agent = (f"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{browser.version} "
+             "Safari/537.36")
     context = browser.new_context(locale=LOCALE, timezone_id=TIMEZONE, viewport=VIEWPORT, user_agent=agent,
                                   extra_http_headers={"Accept-Language": "fr-FR,fr;q=0.9"})
     context.set_default_timeout(ACTION_TIMEOUT_MS)
