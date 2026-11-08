@@ -41,8 +41,9 @@ jobs:
           fi
           echo "à déployer : ${tools:-aucun}"
           echo "tools=$tools" >> "$GITHUB_OUTPUT"
-      - uses: astral-sh/setup-uv@v6
+      - name: uv (depuis PyPI : setup-uv passe par les releases GitHub)
         if: steps.changed.outputs.tools != ''
+        run: pipx install uv
       - name: Tests (Devin a pu fusionner en rouge)
         if: steps.changed.outputs.tools != ''
         env:
@@ -52,7 +53,7 @@ jobs:
           uv run playwright install --with-deps chromium
           uv run pytest $(for n in $TOOLS; do printf 'tools/%s ' "$n"; done)
       # Le paquet npm télécharge le binaire depuis les releases GitHub, qui ont renvoyé 504 pendant des heures le
-      # 08/11 : on le prend dans l'image du CLI sur ghcr.io (binaire statique).
+      # 08/11 : on le prend dans l'image du CLI sur ghcr.io (binaire statique). Même raison pour uv, pris sur PyPI.
       - name: CLI Railway
         if: steps.changed.outputs.tools != ''
         run: |
