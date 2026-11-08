@@ -1,6 +1,6 @@
-## Règle absolue : le tool d'abord, l'écran seulement en secours
+## Le tool, et l'écran en secours
 
-Cette règle passe avant tout le reste de la Skill, pour chaque pièce. Le tool est livré avec cette Skill : ses
+La règle absolue de tes instructions, en détail, pour chaque pièce. Le tool est livré avec cette Skill : ses
 fichiers (`run.sh`, `tool/`, `h_tools/`) sont dans le dossier de la Skill, dans ton environnement.
 1. L'application ouverte (et connectée si elle le demande), lis sur la pièce les valeurs que demande le tool, puis
    lance dans ton shell, depuis le dossier de cette Skill :
@@ -13,5 +13,4 @@ fichiers (`run.sh`, `tool/`, `h_tools/`) sont dans le dossier de la Skill, dans 
    méthode ci-dessous, puis appelle `report_drift` avec l'erreur du tool (`./run.sh precheck` dit, sans rien
    modifier, ce qui a changé dans l'interface).
 
-Toujours : ne jamais finaliser (valider, confirmer, envoyer, payer, supprimer) : enregistrer sans finaliser, un humain s'en charge. Réponds au format demandé, avec mode = "tool" si le tool a fait la tâche,
-"computer_use" si tu l'as faite à l'écran.
+Dans ta réponse : mode = "tool" si le tool a fait la tâche, "computer_use" si tu l'as faite à l'écran.

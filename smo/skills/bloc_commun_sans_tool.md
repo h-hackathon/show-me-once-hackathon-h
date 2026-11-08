@@ -1,6 +1,4 @@
-## Règle absolue : la tâche à l'écran
+## À l'écran
 
-Pas encore de tool automatique pour cette tâche : fais-la toi-même à l'écran (computer use), en suivant la méthode
-ci-dessous.
-
-Toujours : ne jamais finaliser (valider, confirmer, envoyer, payer, supprimer) : enregistrer sans finaliser, un humain s'en charge. Réponds au format demandé, avec mode = "computer_use".
+Pas encore de tool pour cette tâche : suis la méthode ci-dessous à l'écran (computer use). Dans ta réponse :
+mode = "computer_use".

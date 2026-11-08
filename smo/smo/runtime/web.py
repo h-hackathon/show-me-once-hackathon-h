@@ -36,6 +36,8 @@ from .auth import token_checker
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 MAX_UPLOAD_MB = 500   # ~25 min d'écran enregistré par la page ; au-delà, 413
 
+H_SESSION_URL = "https://platform.hcompany.ai/agents/sessions/{}"
+
 LABELS = {
     "map": "Cartographie du logiciel (agent H)",
     "docs": "Documentation du logiciel (Linkup)",
@@ -106,8 +108,11 @@ def links(run: Run) -> dict:
     if run.has("agent.json"):
         agent = run.read_model("agent.json", Provisioned)
         out |= {"agent": agent.agent_name, "tool_ready": agent.tool_ready}
+    if run.has("session.active"):                     # essai en cours : on peut regarder l'agent en direct
+        out["live"] = H_SESSION_URL.format(run.file("session.active").read_text().strip())
     if run.has("trace.json"):
-        out["trial_replay"] = run.read_model("trace.json", Trace).agent_view_url
+        trace = run.read_model("trace.json", Trace)
+        out |= {"trial_replay": trace.agent_view_url, "trial_answer": trace.answer}
     if run.has("compile.json"):
         compiled = run.read_model("compile.json", CompileResult)
         out |= {"devin": compiled.url, "pr": compiled.pr_url, "devin_report": compiled.report}
@@ -173,6 +178,9 @@ def router_for(s: Settings) -> tuple[APIRouter, Runner]:
     def run_state(run_id: str) -> dict:
         run = open_run(run_id)
         status, busy = run.status(), runner.busy(run.id)
+        # Skill validée : l'étape est ensuite sautée sans réécrire son statut, qui restait « en attente » (la page aussi)
+        if run.has("skill.approved") and status.get("review", {}).get("state") == "waiting":
+            status["review"] = {**status["review"], "state": "done"}
         log_lines = run.file("log.txt").read_text(encoding="utf-8").splitlines()[-12:] if run.has("log.txt") else []
         return {"id": run.id, "meta": run.meta.model_dump(mode="json"), "state": overall(status, busy), "busy": busy,
                 "status": status, "approved": run.has("skill.approved"),

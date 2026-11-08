@@ -357,9 +357,10 @@ def test_trial_request_comes_from_holo_then_from_the_review(run):
 
 def test_common_block_is_added_to_the_skill_sent_to_h():
     with_tool = skill.with_common_block("# Saisir une facture\n\n## Étapes\n1. Cliquer\n", "saisir_web")
-    title, rule, method = with_tool.index("# Saisir"), with_tool.index("## Règle absolue"), with_tool.index("## Étapes")
-    assert title < rule < method                                   # la règle absolue passe avant la méthode
+    title, block, method = with_tool.index("# Saisir"), with_tool.index("## Le tool"), with_tool.index("## Étapes")
+    assert title < block < method                                  # le détail du tool passe avant la méthode
     assert "`run_saisir_web`" in with_tool and "computer use" in with_tool
+    assert "Règle absolue" not in with_tool and "finaliser" not in with_tool   # dans les instructions, pas en doublon
     without = skill.with_common_block("# Skill\n", None)
     assert "Pas encore de tool" in without and "$" not in without
 

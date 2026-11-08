@@ -35,10 +35,11 @@ def tool_name(run: Run) -> str:
 
 
 def with_common_block(body: str, tool: str | None, desktop_schema: dict | None = None) -> str:
-    """La Skill envoyée à H : le titre, puis la règle absolue SMO (skills/), puis la méthode de la tâche.
+    """La Skill envoyée à H : le titre, puis le bloc commun SMO (skills/), puis la méthode de la tâche.
 
-    La règle vient en premier : le tool fait la tâche, l'écran n'est qu'un secours. Elle n'est ni montrée à la
-    relecture ni écrite par Devin : SMO l'insère à chaque envoi dans H. Tool de bureau (desktop_schema) : la règle
+    La règle absolue (le tool fait la tâche, l'écran n'est qu'un secours) est dans les instructions de l'agent ; le
+    bloc n'en donne que le détail (statuts, report_drift, mode). Il n'est ni montré à la relecture ni écrit par
+    Devin : SMO l'insère à chaque envoi dans H. Tool de bureau (desktop_schema) : la règle
     dit de le lancer depuis le shell de l'agent (./run.sh), avec le schéma de ses valeurs.
     """
     if desktop_schema is not None:

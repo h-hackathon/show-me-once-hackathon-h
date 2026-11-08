@@ -2,8 +2,7 @@
 "use strict";
 
 const $ = (id) => document.getElementById(id);
-const STATE_LABEL = { pending: "à venir", running: "en cours", done: "fait", waiting: "en attente",
-                      failed: "échec", skipped: "sauté", blocked: "bloqué" };
+const H_AGENTS = "https://platform.hcompany.ai/agents";   // l'agent s'utilise dans H, pas dans cette page
 let config = { stages: [], live: false, site_url: null };
 let token = "";
 try { token = localStorage.getItem("smo-token") || ""; } catch { /* stockage indisponible */ }
@@ -34,18 +33,45 @@ $("token-box").addEventListener("submit", (e) => {
 
 const STEPS = ["prepare", "record", "learn", "agent"];
 
+// step : l'étape en cours du bandeau, ou "end" quand tout est fait.
 function show(view, step) {
   for (const section of document.querySelectorAll(".view")) section.hidden = section.id !== `view-${view}`;
-  const current = STEPS.indexOf(step);
+  const current = step === "end" ? STEPS.length : STEPS.indexOf(step);
   for (const li of document.querySelectorAll(".stepper li")) {
     const i = STEPS.indexOf(li.dataset.step);
     li.dataset.state = i < current ? "done" : i === current ? "current" : "todo";
   }
 }
 
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function anchor(href, text, className) {
+  const a = el("a", className, text);
+  a.href = href; a.target = "_blank"; a.rel = "noopener";
+  return a;
+}
+
+function duration(seconds) {
+  const s = Math.round(seconds);
+  return s < 60 ? `${s} s` : `${Math.floor(s / 60)} min${s % 60 ? ` ${String(s % 60).padStart(2, "0")}` : ""}`;
+}
+
 // --- 1. préparer ---------------------------------------------------------------------------------
 
 const form = $("prepare-form");
+
+// Les conseils derrière le (i) : une carte courte, ouverte à la demande.
+function setTips(open) {
+  $("tips").hidden = !open;
+  $("tips-toggle").setAttribute("aria-expanded", String(open));
+}
+$("tips-toggle").addEventListener("click", () => setTips($("tips").hidden));
+$("tips-close").addEventListener("click", () => { setTips(false); $("tips-toggle").focus(); });
 
 // Site web : son adresse ; appli de bureau : le nom de la fenêtre déjà ouverte (un agent H différent par type).
 function syncKind() {
@@ -76,6 +102,12 @@ function fail(message) {
 let recorder = null, chunks = [], tracks = [], cancelled = false, timerId = null, started = 0;
 let live = { ws: null, ctx: null, proc: null };
 
+// Chrome nomme la piste partagée : titre de l'onglet ou de la fenêtre, « screen:… » pour un écran entier.
+function shareLabel(label) {
+  if (!label || label.startsWith("screen:")) return "Écran partagé : écran entier";
+  return `Écran partagé : ${label}`;
+}
+
 async function startRecording() {
   let display, mic;
   try {
@@ -98,26 +130,33 @@ async function startRecording() {
   cancelled = false;
   recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
   recorder.onstop = () => { stopLive(); tracks.forEach((t) => t.stop()); if (!cancelled) upload(); };
-  display.getVideoTracks()[0].addEventListener("ended", stopRecording);   // « Arrêter le partage » de Chrome
+  const screen = display.getVideoTracks()[0];
+  screen.addEventListener("ended", stopRecording);   // « Arrêter le partage » de Chrome
   // micro pris par une autre app ou casque déconnecté : la vidéo continue sans la voix, il faut le voir tout de suite
   const voice = mic.getAudioTracks()[0];
-  voice.addEventListener("mute", () => liveStatus("micro coupé : votre voix n'est plus enregistrée", false));
+  voice.addEventListener("mute", () => liveStatus("micro coupé, votre voix n'est plus enregistrée", false));
   voice.addEventListener("unmute", () => liveStatus("micro rétabli", true));
-  voice.addEventListener("ended", () => liveStatus("micro perdu : arrêtez et recommencez l'enregistrement", false));
+  voice.addEventListener("ended", () => liveStatus("micro perdu, arrêtez et recommencez", false));
   recorder.start(1000);
 
-  $("rec-task").textContent = form.task.value;
-  $("live-text").innerHTML = '<p class="placeholder">Parlez : vos phrases apparaissent ici.</p>';
+  $("rec-task").textContent = [form.task.value, form.software_name.value.trim()].filter(Boolean).join(" · ");
+  $("share-label").textContent = shareLabel(screen.label);
+  $("live-text").replaceChildren(el("li", "placeholder", "Parlez : vos phrases apparaissent ici."));
+  $("live-count").textContent = "";
   started = Date.now();
   timerId = setInterval(tick, 250);
   tick();
   show("record", "record");
-  startLive(mic).catch((err) => liveStatus(`indisponible : ${err.message}`, false));
+  startLive(mic).catch((err) => liveStatus(`indisponible (${err.message})`, false));
+}
+
+function clock(ms) {
+  const s = Math.floor(ms / 1000);
+  return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 }
 
 function tick() {
-  const s = Math.floor((Date.now() - started) / 1000);
-  $("timer").textContent = `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+  $("timer").textContent = clock(Date.now() - started);
 }
 
 function stopRecording() {
@@ -131,9 +170,9 @@ $("cancel").addEventListener("click", () => { cancelled = true; stopRecording();
 // Transcription en direct : le serveur ouvre la session Gladia, le navigateur envoie le son du micro
 // (PCM 16 bits, 16 kHz, mono) à l'URL à jeton renvoyée ; la clé Gladia reste sur le serveur.
 function liveStatus(text, ok) {
-  const el = $("live-status");
-  el.textContent = text;
-  el.dataset.ok = ok === undefined ? "" : String(ok);
+  const chip = $("live-status");
+  chip.textContent = `Transcription : ${text}`;
+  chip.dataset.ok = ok === undefined ? "" : String(ok);
 }
 
 async function startLive(mic) {
@@ -165,17 +204,21 @@ async function startLive(mic) {
   live = { ws, ctx, proc };
 }
 
+// Une ligne par phrase, horodatée à son apparition ; la phrase en cours reste grisée jusqu'à sa version finale.
 function showUtterance(data) {
   const box = $("live-text");
   box.querySelector(".placeholder")?.remove();
   let line = document.getElementById(`u-${data.id}`);
   if (!line) {
-    line = document.createElement("p");
+    line = el("li");
     line.id = `u-${data.id}`;
+    line.append(el("span", "at", clock(Date.now() - started)), el("span", "said"));
     box.append(line);
   }
-  line.textContent = data.utterance.text;
+  line.querySelector(".said").textContent = data.utterance.text;
   line.classList.toggle("partial", !data.is_final);
+  const finals = box.querySelectorAll("li:not(.partial):not(.placeholder)").length;
+  $("live-count").textContent = finals ? `${finals} phrase${finals > 1 ? "s" : ""}` : "";
   box.scrollTop = box.scrollHeight;
 }
 
@@ -238,48 +281,163 @@ async function poll(runId) {
   if (run.busy || run.state === "running") pollId = setTimeout(() => poll(runId), 2000);
 }
 
-const PILL = {
-  running: ["En cours", "run"], done: ["Agent prêt", "ok"], failed: ["Échec", "ko"],
-  blocked: ["Réglage manquant", "ko"], idle: ["En pause", ""],
-};
+// Les 13 étapes du pipeline, regroupées en 5 phases lisibles ; les partenaires en étiquettes.
+const PHASES = [
+  { key: "learn", label: "Comprendre la démonstration", short: "Comprendre", tags: ["H", "Holo", "Gladia", "Linkup"],
+    stages: ["map", "docs", "transcribe", "frames", "read", "understand", "enrich", "skill"] },
+  { key: "review", label: "Relire la Skill", short: "Relire", tags: ["Vous"], stages: ["review"] },
+  { key: "trial", label: "Essayer la tâche à l'écran", short: "Essayer", tags: ["H"], stages: ["provision", "trial"] },
+  { key: "compile", label: "Coder le tool", short: "Coder le tool", tags: ["Devin"], stages: ["compile"] },
+  { key: "upgrade", label: "Outiller l'agent", short: "Outiller l'agent", tags: ["H"], stages: ["upgrade"] },
+];
 
-function waitingLabel(run) {
-  if (run.status.review?.state === "waiting" && !run.approved) return ["À relire", "act"];
-  if (run.status.trial?.state === "waiting") return ["Essais sans succès", "act"];
-  if (run.status.upgrade?.state === "waiting") return ["PR à fusionner", "act"];
-  return ["En attente", "act"];
+function phaseOf(run, phase) {
+  const sts = phase.stages.map((n) => run.status[n] || {});
+  const states = sts.map((st) => st.state || "pending");
+  const seconds = sts.reduce((sum, st) => sum + (st.seconds || 0), 0);
+  const problem = sts.find((st) => ["failed", "blocked"].includes(st.state));
+  let state = "pending";
+  if (problem) state = problem.state;
+  else if (states.includes("running")) state = "running";
+  else if (states.includes("waiting")) state = "waiting";
+  else if (states.every((s) => s === "done" || s === "skipped")) state = "done";
+  else if (run.busy && states.some((s) => s === "done")) state = "running";
+  const missing = problem?.missing?.length ? `à renseigner : ${problem.missing.join(", ")}` : "";
+  return { ...phase, state, seconds, error: problem?.error || missing };
+}
+
+function stateText(p) {
+  if (p.state === "done") return p.key === "review" ? "validée" : p.seconds ? `fait · ${duration(p.seconds)}` : "fait";
+  if (p.state === "waiting") return { review: "à vous", trial: "à reprendre", compile: "en attente" }[p.key] || "en attente";
+  return { running: "en cours", failed: "échec", blocked: "réglage manquant", pending: "à venir" }[p.state] || p.state;
+}
+
+function tagList(tags) {
+  const box = el("span", "tags");
+  for (const t of tags) box.append(el("span", "tag", t));
+  return box;
+}
+
+function renderRail(phases) {
+  $("rail").replaceChildren(...phases.map((p) => {
+    const li = el("li");
+    li.dataset.state = p.state;
+    if (["running", "waiting"].includes(p.state)) li.setAttribute("aria-current", "step");
+    const head = el("span", "rail-head", p.short);
+    head.append(el("span", "rail-state", stateText(p)));
+    li.append(el("span", "rail-bar"), head, el("span", "rail-tags", p.tags.join(" · ")));
+    return li;
+  }));
+}
+
+// Le détail sous une phase : ce qui se passe, et de quoi le suivre en direct.
+function phaseDetail(p, run) {
+  const links = run.links || {};
+  const box = el("div", "phase-box");
+  const actions = el("div", "actions");
+  if (p.key === "trial" && p.state === "running") {
+    const n = (run.attempts || []).length + 1;
+    box.append(el("p", "strong", `Essai ${n} sur 3`),
+               el("p", null, "L'agent lit la pièce, ouvre le logiciel et fait la tâche. Il s'arrête avant de finaliser."));
+    if (links.live) actions.append(anchor(links.live, "Regarder l'agent en direct ↗", "btn primary"));
+    if (run.busy) actions.append(stopButton(run.id));
+  } else if (p.key === "compile" && ["running", "waiting"].includes(p.state)) {
+    box.append(el("p", "strong", "Devin écrit le tool"),
+               el("p", null, "Un programme qui fait la même saisie que l'essai réussi, en quelques secondes. 10 à 15 min en général."));
+    const checks = el("ol", "checks");
+    checks.append(check(Boolean(links.devin), "Session Devin ouverte"),
+                  check(Boolean(links.pr), "Pull request ouverte : le tool et ses tests"),
+                  check(Boolean(links.devin_report?.merged), "Tests verts et fusion, puis déploiement"));
+    box.append(checks);
+    if (links.devin) actions.append(anchor(links.devin, "Suivre Devin en direct ↗", "btn primary"));
+    if (links.pr) actions.append(anchor(links.pr, "Voir la pull request ↗", "btn ghost"));
+  } else if (p.key === "upgrade" && p.state === "waiting") {
+    box.append(el("p", "strong", "Tool pas encore en ligne"),
+               el("p", null, "En attendant, votre agent fait la tâche à l'écran : c'est plus lent, le résultat est le même."));
+    for (const issue of links.devin_report?.issues || []) box.append(el("p", "note", issue));
+  } else {
+    return null;
+  }
+  if (actions.childElementCount) box.append(actions);
+  return box;
+}
+
+function phaseNote(p, run) {
+  const links = run.links || {};
+  if (p.error) return el("span", "detail error", p.error);
+  if (p.key === "trial" && p.state === "done") {
+    const ok = (run.attempts || []).find((a) => a.success);
+    const span = el("span", "detail", `Réussi${ok ? ` à l'essai ${ok.n}` : ""}`);
+    if (links.trial_answer?.reference) span.append(` : ${links.trial_answer.reference}, sans validation`);
+    if (ok?.replay) span.append(" · ", anchor(ok.replay, "revoir"));
+    return span;
+  }
+  if (p.key === "compile" && p.state === "done" && links.pr) {
+    const report = links.devin_report;
+    const span = el("span", "detail", report ? `tests ${report.tests_passed ? "verts" : "rouges"} · ${report.merged ? "fusionné" : "pas fusionné"} · ` : "");
+    span.append(anchor(links.pr, links.pr.replace(/^https:\/\/github\.com\//, "")));
+    return span;
+  }
+  if (p.state === "pending") {
+    const hint = { compile: "Dès qu'un essai réussit, Devin écrit un tool qui fera la même saisie en quelques secondes.",
+                   upgrade: "Tool d'abord, écran en secours." }[p.key];
+    return hint ? el("span", "detail", hint) : null;
+  }
+  return null;
+}
+
+function check(done, text) {
+  const li = el("li", done ? "done" : "", text);
+  li.prepend(el("span", "check", done ? "✓" : ""));
+  return li;
+}
+
+function stopButton(runId) {
+  const b = el("button", "btn ghost", "Arrêter");
+  b.type = "button";
+  b.onclick = () => stopRun(runId);
+  return b;
+}
+
+function renderPhases(phases, run) {
+  $("phases").replaceChildren(...phases.map((p) => {
+    const li = el("li", "phase");
+    li.dataset.state = p.state;
+    if (["running", "waiting"].includes(p.state)) li.setAttribute("aria-current", "step");
+    li.append(el("span", "dot"), el("span", "label", p.label), el("span", "state", stateText(p)), tagList(p.tags));
+    const note = phaseNote(p, run);
+    if (note) li.append(note);
+    const box = phaseDetail(p, run);
+    if (box) li.append(box);
+    return li;
+  }));
+}
+
+const PILL = { done: ["Agent prêt", "ok"], failed: ["Échec", "ko"], blocked: ["Réglage manquant", "ko"], idle: ["En pause", ""] };
+const RUNNING = { learn: "Analyse en cours", trial: "Essai en cours", compile: "Devin code le tool", upgrade: "Mise à jour de l'agent" };
+
+function pillFor(run, phases) {
+  if (run.state === "waiting") {
+    if (run.status.review?.state === "waiting" && !run.approved) return ["À relire", "act"];
+    if (run.status.trial?.state === "waiting") return ["Essais sans succès", "act"];
+    if (run.status.upgrade?.state === "waiting") return ["Tool en attente", "act"];
+    return ["En attente", "act"];
+  }
+  if (run.state === "running") return [RUNNING[phases.find((p) => p.state === "running")?.key] || "En cours", "run"];
+  return PILL[run.state] || [run.state, ""];
 }
 
 function render(run) {
+  const phases = PHASES.map((p) => phaseOf(run, p));
+  const links = run.links || {};
+  const finished = run.state === "done";
   $("follow-title").textContent = run.meta.task;
   $("follow-meta").textContent = [run.meta.software_name, run.meta.software_url].filter(Boolean).join(" · ");
-  const [label, tone] = run.state === "waiting" ? waitingLabel(run) : PILL[run.state] || [run.state, ""];
-  const pill = $("follow-state");
-  pill.textContent = label;
-  pill.dataset.tone = tone;
-  show("follow", run.approved ? "agent" : "learn");
-
-  const list = $("stages");
-  list.replaceChildren(...config.stages.map(({ name, label }) => {
-    const st = run.status[name] || {};
-    const state = st.state || "pending";
-    const li = document.createElement("li");
-    li.className = "stage";
-    li.dataset.state = state;
-    li.innerHTML = '<span class="dot"></span><span class="label"></span><span class="state"></span>';
-    li.querySelector(".label").textContent = label;
-    li.querySelector(".state").textContent = STATE_LABEL[state] || state;
-    const missing = st.missing && (state === "skipped" ? `optionnelle (${st.missing.join(", ")} absente)`
-                                                       : `à renseigner : ${st.missing.join(", ")}`);
-    const detail = st.error || missing || (st.seconds && `${st.seconds} s`);
-    if (detail) {
-      const d = document.createElement("span");
-      d.className = "detail";
-      d.textContent = detail;
-      li.append(d);
-    }
-    return li;
-  }));
+  const [label, tone] = pillFor(run, phases);
+  $("follow-state").textContent = label;
+  $("follow-state").dataset.tone = tone;
+  show("follow", finished ? "end" : run.approved ? "agent" : "learn");
+  renderRail(phases);
 
   // Éditeur de Skill : à la relecture, ou après 3 essais ratés (la Skill contient alors les leçons des essais).
   const reviewing = run.status.review?.state === "waiting" && !run.approved && run.skill;
@@ -292,57 +450,116 @@ function render(run) {
     $("trial-files").value = "";
     editorMode = mode;
   }
-  const attached = run.trial_request.files;
-  $("trial-files-note").textContent = attached.length ? `Déjà jointes : ${attached.join(", ")}` : "";
+  renderFiles(run.trial_request.files);
   if (mode === "retry") {
     $("review-title").textContent = "L'agent n'a pas réussi en 3 essais";
     $("review-note").textContent = "Ses leçons sont à la fin de la Skill. Corrigez ce qui bloque, puis relancez les essais.";
     $("approve").textContent = "Relancer les essais";
   }
-  $("resume").hidden = run.busy || !["failed", "waiting", "idle"].includes(run.state) || Boolean(mode);
-  $("stop-run").hidden = !run.busy;
 
-  renderLinks(run.links || {}, run.attempts || []);
+  renderReady(run, finished);
+  $("work").hidden = Boolean(mode) || finished;
+  renderPhases(phases, run);
+  $("request-card").hidden = !run.approved;
+  $("request-message").textContent = run.trial_request.message;
+  $("request-files").replaceChildren(...run.trial_request.files.map((name) => fileChip(name)));
+  $("agent-card").hidden = !links.agent;
+  $("agent-name").textContent = links.agent || "";
+  $("agent-mode").textContent = links.tool_ready ? "Tool d'abord, écran en secours."
+    : run.status.trial?.state === "done" ? "Il marche déjà, à l'écran ; il passera au tool dès son déploiement."
+    : "À l'écran pour l'instant ; il recevra son tool après les essais.";
+  $("agent-open").href = H_AGENTS;
+  $("resume").hidden = run.busy || !["failed", "waiting", "idle"].includes(run.state) || Boolean(mode);
+  $("stop-run").hidden = !run.busy || phases.some((p) => p.key === "trial" && p.state === "running");
+
+  renderLinks(links, run.attempts || []);
   $("log").textContent = run.log.length ? run.log.join("\n") : "—";
   $("approve").onclick = () => (mode === "retry" ? retry(run.id) : approve(run.id));
   $("resume").onclick = () => resume(run.id);
   $("stop-run").onclick = () => stopRun(run.id);
 }
 
+// Écran final : l'agent se fait essayer dans H (lien), avec la phrase à lui écrire et ce qu'il a déjà prouvé.
+function renderReady(run, finished) {
+  const links = run.links || {};
+  $("ready").hidden = !finished;
+  $("ready-tiles").hidden = !finished;
+  if (!finished) return;
+  $("ready-agent").textContent = links.agent || "";
+  $("ready-request").textContent = run.trial_request.message;
+  $("ready-open").href = H_AGENTS;
+  const tool = $("ready-tool");
+  tool.replaceChildren();
+  if (links.tool_ready) {
+    tool.className = "";
+    tool.append(el("p", "strong", "Tool d'abord"), el("p", "note", "Il fait la tâche avec le tool codé par Devin, en quelques secondes, une pièce à la fois."));
+  } else {
+    tool.className = "warn";
+    tool.append(el("p", "strong", "Tool pas encore en ligne"), el("p", "note", "En attendant, il fait la tâche à l'écran : c'est plus lent, le résultat est le même."));
+  }
+  const ok = (run.attempts || []).find((a) => a.success);
+  const report = links.devin_report;
+  const tiles = [
+    ["H · à l'écran", ok ? `Essai réussi` : "Essai", links.trial_answer?.reference ? `${links.trial_answer.reference}, enregistré sans validation.` : "", ok?.replay && anchor(ok.replay, "Revoir l'essai")],
+    ["Devin", "Tool codé", report ? `Tests ${report.tests_passed ? "verts" : "rouges"}, ${report.merged ? "fusionné" : "pas fusionné"}.` : "", links.pr && anchor(links.pr, "Voir la pull request")],
+    ["En ligne", links.tool_ready ? "Tool déployé et vérifié" : "Tool en attente", links.tool_ready ? "L'interface a été contrôlée avant de donner le tool à l'agent." : "L'agent travaille à l'écran en attendant.", null],
+  ];
+  $("ready-tiles").replaceChildren(...tiles.map(([kicker, title, text, link]) => {
+    const card = el("section", "card tile");
+    card.append(el("p", "kicker", kicker), el("h3", null, title));
+    if (text) card.append(el("p", "note", text));
+    if (link) card.append(link);
+    return card;
+  }));
+}
+
 function renderLinks(links, attempts) {
   const rows = [];
   if (links.map) rows.push(["Cartographie", anchor(links.map, "revoir la session")]);
   if (links.agent) rows.push(["Agent dans H", code(links.agent)]);
-  if (links.agent) rows.push(["Mode", document.createTextNode(links.tool_ready ? "tool + reprise à l'écran" : "à l'écran (tool en préparation)")]);
   for (const a of attempts) {
-    const cell = document.createElement("span");
+    const cell = el("span");
     cell.append(a.success ? "réussi" : `raté${a.gap ? ` : ${a.gap}` : ""}`);
     if (a.replay) cell.append(" · ", anchor(a.replay, "revoir"));
     rows.push([`Essai ${a.n}`, cell]);
   }
   if (links.devin) rows.push(["Devin", anchor(links.devin, "voir la session")]);
   if (links.pr) rows.push(["Pull request", anchor(links.pr, links.pr.replace(/^https:\/\/github\.com\//, ""))]);
-  const report = links.devin_report;
-  if (report) {
-    const verdict = `tests ${report.tests_passed ? "verts" : "rouges"} · ${report.merged ? "fusionné, déploiement en cours" : "pas fusionné"}`;
-    rows.push(["Devin", document.createTextNode(report.issues?.length ? `${verdict} · ${report.issues.join(" ; ")}` : verdict)]);
-  }
-  $("links").hidden = rows.length === 0;
+  for (const issue of links.devin_report?.issues || []) rows.push(["Devin signale", document.createTextNode(issue)]);
+  $("link-list").hidden = rows.length === 0;
   $("link-list").replaceChildren(...rows.flatMap(([term, value]) => {
-    const dt = document.createElement("dt");
-    dt.textContent = term;
-    const dd = document.createElement("dd");
+    const dd = el("dd");
     dd.append(value);
-    return [dt, dd];
+    return [el("dt", null, term), dd];
   }));
 }
 
-function code(text) { const c = document.createElement("code"); c.textContent = text; return c; }
-function anchor(href, text) {
-  const a = document.createElement("a");
-  a.href = href; a.textContent = text; a.target = "_blank"; a.rel = "noopener";
-  return a;
+function code(text) { return el("code", null, text); }
+
+function fileChip(name, size) {
+  const li = el("li", "file", name);
+  if (size) li.append(el("span", "note", ` ${Math.max(1, Math.round(size / 1000))} Ko`));
+  return li;
 }
+
+// Pièces jointes : les nouvelles (choisies ou glissées) remplacent celles déjà envoyées, à l'enregistrement.
+function renderFiles(attached) {
+  const picked = [...$("trial-files").files];
+  $("trial-files-list").replaceChildren(...(picked.length ? picked.map((f) => fileChip(f.name, f.size)) : attached.map((n) => fileChip(n))));
+  $("trial-files-note").textContent = picked.length ? (attached.length ? "Elles remplaceront les pièces déjà jointes." : "")
+                                                    : attached.length ? "Déjà jointes." : "";
+}
+
+const drop = $("dropzone");
+for (const type of ["dragenter", "dragover"]) drop.addEventListener(type, (e) => { e.preventDefault(); drop.dataset.over = "true"; });
+for (const type of ["dragleave", "drop"]) drop.addEventListener(type, () => { delete drop.dataset.over; });
+drop.addEventListener("drop", (e) => {
+  e.preventDefault();
+  if (!e.dataTransfer?.files.length) return;
+  $("trial-files").files = e.dataTransfer.files;
+  $("trial-files").dispatchEvent(new Event("change"));
+});
+$("trial-files").addEventListener("change", () => renderFiles([]));
 
 // La Skill et la demande d'essai (texte + pièces jointes) relues, avant de lancer ou relancer les essais.
 async function saveReview(runId) {
@@ -361,6 +578,7 @@ async function approve(runId) {
   try {
     await saveReview(runId);
     await api(`/api/runs/${encodeURIComponent(runId)}/approve`, { method: "POST" });
+    $("trial-files").value = "";
     poll(runId);
   } catch (err) {
     $("log").textContent = `Validation impossible : ${err.message}`;
@@ -375,6 +593,7 @@ async function retry(runId) {
   try {
     await saveReview(runId);
     editorMode = null;
+    $("trial-files").value = "";
     await resume(runId);
   } catch (err) {
     $("log").textContent = `Relance impossible : ${err.message}`;
@@ -395,12 +614,14 @@ async function stopRun(runId) {
 }
 
 // Retour au formulaire : le run suivi reste tel quel (son lien ?run=… le rouvre).
-$("new-demo").addEventListener("click", () => {
-  clearTimeout(pollId);
-  editorMode = null;
-  history.replaceState(null, "", location.pathname);
-  show("prepare", "prepare");
-});
+for (const button of document.querySelectorAll(".js-new-demo")) {
+  button.addEventListener("click", () => {
+    clearTimeout(pollId);
+    editorMode = null;
+    history.replaceState(null, "", location.pathname);
+    show("prepare", "prepare");
+  });
+}
 
 // --- démarrage -----------------------------------------------------------------------------------
 

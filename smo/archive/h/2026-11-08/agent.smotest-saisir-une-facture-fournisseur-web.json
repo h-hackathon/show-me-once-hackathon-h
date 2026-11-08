@@ -1,0 +1,282 @@
+{
+  "name": "smotest-saisir-une-facture-fournisseur-web",
+  "description": "Saisir une facture fournisseur, appris d'une démonstration (web).",
+  "environments": [
+    {
+      "kind": "web",
+      "id": "web",
+      "host": "cloud",
+      "start_url": "https://show-me-once-prep-production.up.railway.app",
+      "headless": false,
+      "mode": {
+        "type": "visual",
+        "width": 1200,
+        "height": 1200,
+        "markdown": false
+      },
+      "lazy": false,
+      "settle_s": 1.0,
+      "vault_id": "b9125850-28a6-42b9-a9ff-c5540e910f9b",
+      "use_default_browser_profile": false,
+      "persist_browser_profile": false,
+      "session_id": null,
+      "browser_profile_id": null,
+      "network": null
+    },
+    {
+      "kind": "workstation",
+      "id": "workstation",
+      "storage": {
+        "use_default_volume": false,
+        "ephemeral": true,
+        "volume_id": null
+      },
+      "lazy": true,
+      "session_id": null,
+      "screenshot_max_width": null
+    }
+  ],
+  "instructions": "Règle absolue, avant tout le reste : appelle d'abord `run_saisir_une_facture_fournisseur_web` avec les valeurs lues sur la pièce. Il fait toute la tâche sur un serveur et renvoie le résultat final : tu n'as rien à faire à l'écran. Tu ne travailles à l'écran que s'il renvoie une erreur, puis tu appelles `report_drift`.\nTu es l'agent « Saisir une facture fournisseur ». Tu travailles dans le logiciel https://show-me-once-prep-production.up.railway.app, une pièce à la fois, avec ta Skill « smotest-saisir-une-facture-fournisseur-web ».\nLes pièces jointes à la demande sont sur ta workstation : lis-les avec ta Skill « smotest-lire-pieces-jointes ».\nSi le logiciel demande de choisir un dossier ou une société, prends celui qui correspond à la pièce (le client indiqué dessus).\nSi une règle de la Skill demande l'arrêt (incohérence, cas inconnu), n'enregistre rien et explique pourquoi.\nNe jamais finaliser (valider, confirmer, envoyer, payer, supprimer) : enregistrer sans finaliser, un humain s'en charge. Réponds au format demandé.",
+  "skills": [
+    "smotest-saisir-une-facture-fournisseur-web",
+    "smotest-lire-pieces-jointes"
+  ],
+  "answer_format": {
+    "type": "object",
+    "title": "RunReport",
+    "required": [
+      "status",
+      "mode",
+      "summary"
+    ],
+    "properties": {
+      "mode": {
+        "enum": [
+          "tool",
+          "computer_use"
+        ],
+        "type": "string",
+        "title": "Mode"
+      },
+      "flags": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "title": "Flags",
+        "default": []
+      },
+      "status": {
+        "enum": [
+          "done",
+          "flagged",
+          "failed"
+        ],
+        "type": "string",
+        "title": "Status"
+      },
+      "summary": {
+        "type": "string",
+        "title": "Summary"
+      },
+      "reference": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Reference",
+        "default": null
+      }
+    },
+    "description": "Format de réponse imposé à l'agent custom."
+  },
+  "tools": [
+    {
+      "name": "precheck_saisir_une_facture_fournisseur_web",
+      "description": "Vérifie, sans rien modifier, que l'interface utilisée par « Saisit une facture fournisseur dans Qonta (dossier du client, fournisseur, référence, date, lignes) à partir des valeurs lues sur la pièce, vérifie le total TTC et l'enregistre en brouillon, sans jamais valider. Une pièce par appel. » n'a pas changé. Renvoie ok (true/false) et la liste des éléments manquants.",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "run_saisir_une_facture_fournisseur_web",
+      "description": "Saisit une facture fournisseur dans Qonta (dossier du client, fournisseur, référence, date, lignes) à partir des valeurs lues sur la pièce, vérifie le total TTC et l'enregistre en brouillon, sans jamais valider. Une pièce par appel. Fait la tâche de façon automatique et déterministe, sans jamais finaliser. Renvoie status = draft_saved (enregistré, pas finalisé) | duplicate (déjà fait) | flagged (une règle bloque, rien n'est enregistré) | error.",
+      "input_schema": {
+        "type": "object",
+        "$defs": {
+          "Ligne": {
+            "type": "object",
+            "title": "Ligne",
+            "required": [
+              "libelle",
+              "quantite",
+              "prix_unitaire_ht"
+            ],
+            "properties": {
+              "taxe": {
+                "enum": [
+                  "20 %",
+                  "10 %",
+                  "5,5 %",
+                  "0 %",
+                  "20 % autoliquidation UE"
+                ],
+                "type": "string",
+                "title": "Taxe",
+                "default": "20 %",
+                "description": "taux de TVA de la ligne, tel que proposé par Qonta : « 20 % », « 10 % », « 5,5 % », « 0 % » ou « 20 % autoliquidation UE »"
+              },
+              "libelle": {
+                "type": "string",
+                "title": "Libelle",
+                "description": "libellé de la ligne, tel qu'écrit sur la pièce"
+              },
+              "quantite": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ],
+                "title": "Quantite",
+                "description": "quantité de la ligne (ex. 2)"
+              },
+              "prix_unitaire_ht": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ],
+                "title": "Prix Unitaire Ht",
+                "description": "prix unitaire HT de la ligne, en euros (ex. 12.50)"
+              }
+            }
+          }
+        },
+        "required": [
+          "dossier",
+          "fournisseur",
+          "reference",
+          "date_facture",
+          "lignes",
+          "total_ht",
+          "total_ttc"
+        ],
+        "properties": {
+          "lignes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/Ligne"
+            },
+            "title": "Lignes",
+            "minItems": 1,
+            "description": "les lignes de la pièce, dans l'ordre"
+          },
+          "dossier": {
+            "type": "string",
+            "title": "Dossier",
+            "description": "le client indiqué sur la pièce (« Facturé à »), ex. « Atelier Dorn SAS » : c'est le dossier de travail à ouvrir"
+          },
+          "total_ht": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Total Ht",
+            "description": "montant total HT lu sur la pièce, en euros"
+          },
+          "reference": {
+            "type": "string",
+            "title": "Reference",
+            "description": "n° de la facture lu sur la pièce (Référence fournisseur), ex. « NCS-88231 » ; sert aussi à détecter un doublon"
+          },
+          "total_ttc": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Total Ttc",
+            "description": "montant total TTC lu sur la pièce, en euros"
+          },
+          "fournisseur": {
+            "type": "string",
+            "title": "Fournisseur",
+            "description": "nom du fournisseur lu sur la pièce, ex. « NetCloud Services »"
+          },
+          "date_facture": {
+            "type": "string",
+            "title": "Date Facture",
+            "format": "date",
+            "description": "date de la facture lue sur la pièce (AAAA-MM-JJ ou JJ/MM/AAAA)"
+          }
+        }
+      }
+    },
+    {
+      "name": "report_drift",
+      "description": "Signale que l'interface a changé pour un tool (precheck en échec ou erreur à l'exécution).\ntool : nom du tool concerné ; details : ce qui a changé ou ce qui manquait. Déclenche sa réparation.",
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "tool",
+          "details"
+        ],
+        "properties": {
+          "tool": {
+            "type": "string",
+            "title": "Tool"
+          },
+          "details": {
+            "type": "string",
+            "title": "Details"
+          }
+        }
+      }
+    }
+  ],
+  "model": null,
+  "reasoning_effort": null,
+  "subagents": null,
+  "registry_skills": null,
+  "_revisions": [
+    {
+      "number": 3,
+      "created_at": "2026-11-08T03:12:54.084845Z",
+      "created_by": "ef8890c4-c5fb-46c4-894a-230dac922783",
+      "message": null,
+      "restored_from": null
+    },
+    {
+      "number": 2,
+      "created_at": "2026-11-08T02:55:42.819460Z",
+      "created_by": "ef8890c4-c5fb-46c4-894a-230dac922783",
+      "message": null,
+      "restored_from": null
+    },
+    {
+      "number": 1,
+      "created_at": "2026-11-08T02:14:43.975638Z",
+      "created_by": "ef8890c4-c5fb-46c4-894a-230dac922783",
+      "message": null,
+      "restored_from": null
+    }
+  ]
+}
